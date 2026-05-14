@@ -1,4 +1,17 @@
+'use client';
+
 // Public surface of @monetize.software/sdk-react.
+//
+// Директива `'use client'` сверху файла маркирует весь package как
+// client-only для bundler'ов RSC-aware фреймворков (Next.js App Router,
+// Remix RSC). Хост может импортировать `PaywallProvider`/хуки прямо в
+// server component — bundler сам пересечёт client-boundary без обёртки
+// «'use client'»-файлом.
+//
+// Без директивы Next.js App Router потребовал бы от консьюмера обернуть
+// провайдер в собственный 'use client'-компонент. С ней — нет.
+// Эта директива игнорируется Vite/CRA-бандлерами и не ломает non-Next.js
+// сценарии.
 
 export { PaywallProvider, type PaywallProviderProps } from './PaywallProvider';
 export { usePaywall } from './hooks/usePaywall';

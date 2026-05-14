@@ -65,7 +65,16 @@ export default defineConfig(({ command, mode }) => ({
         '@monetize.software/sdk'
       ],
       output: {
-        chunkFileNames: 'chunks/[name]-[hash].js'
+        chunkFileNames: 'chunks/[name]-[hash].js',
+        // 'use client' в src/index.ts добавлена как директива для bundler'ов
+        // RSC-aware фреймворков (Next.js App Router, Remix RSC). Но esbuild
+        // в lib-mode стрипает её как unused string-literal-expression, поэтому
+        // инжектим обратно через rollup output.banner.
+        //
+        // Альтернатива — rollup-plugin-preserve-directives (TanStack, SWR
+        // используют его), но он добавляет dep ради одной строки. Banner-
+        // подход проще пока у нас один entry.
+        banner: "'use client';"
       }
     }
   },
