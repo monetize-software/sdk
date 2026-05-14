@@ -39,6 +39,71 @@ pnpm add @monetize.software/sdk-extension @monetize.software/sdk-react react
 
 **Other frameworks (Vue, Svelte, Solid, vanilla):** use the core `sdk` directly — its event-based API (`paywall.on('purchase_completed', ...)`) is framework-agnostic. The React bindings are a thin convenience layer, not a hard requirement.
 
+## Via CDN (no build step)
+
+All three packages are also reachable through any npm-fronting CDN ([esm.sh](https://esm.sh), [unpkg](https://unpkg.com), [jsDelivr](https://cdn.jsdelivr.net)). Useful for landing pages, prototypes, and embeds that don't have a bundler.
+
+### Core SDK — single `<script>` tag
+
+```html
+<script type="module">
+  import { PaywallUI } from 'https://esm.sh/@monetize.software/sdk@alpha';
+
+  const paywall = new PaywallUI({ paywallId: 'YOUR_ID', auth: true });
+  document.getElementById('upgrade').onclick = () => paywall.open();
+</script>
+```
+
+Pin a specific version for production: `…/sdk@3.0.0-alpha.3` instead of `@alpha`. The `@alpha` tag floats to the latest alpha and is ideal during early integration.
+
+Same pattern works for `@monetize.software/sdk-extension` if you're loading it from a CDN inside a Chrome extension's content script.
+
+### React — via import map
+
+`sdk-react` peer-depends on `react` and `@monetize.software/sdk`, so the CDN setup needs an import map that resolves all three:
+
+```html
+<script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@18",
+    "react/jsx-runtime": "https://esm.sh/react@18/jsx-runtime",
+    "react-dom/client": "https://esm.sh/react-dom@18/client",
+    "@monetize.software/sdk": "https://esm.sh/@monetize.software/sdk@alpha",
+    "@monetize.software/sdk-react": "https://esm.sh/@monetize.software/sdk-react@alpha?external=react,@monetize.software/sdk"
+  }
+}
+</script>
+
+<div id="root"></div>
+
+<script type="module">
+  import { createRoot } from 'react-dom/client';
+  import { jsx } from 'react/jsx-runtime';
+  import { PaywallProvider, PaywallButton } from '@monetize.software/sdk-react';
+
+  createRoot(document.getElementById('root')).render(
+    jsx(PaywallProvider, {
+      options: { paywallId: 'YOUR_ID', auth: true },
+      children: jsx(PaywallButton, { children: 'Upgrade' })
+    })
+  );
+</script>
+```
+
+The `?external=react,@monetize.software/sdk` query on the `sdk-react` URL tells esm.sh to leave those imports alone so the import map can resolve them to one shared React instance — without that flag esm.sh would bundle a second React, and hooks would break with "invalid hook call".
+
+### Alternative CDNs
+
+- **unpkg**: `https://unpkg.com/@monetize.software/sdk@alpha`
+- **jsDelivr**: `https://cdn.jsdelivr.net/npm/@monetize.software/sdk@alpha`
+
+unpkg and jsDelivr serve the raw npm tarball — they work for ESM imports but don't rewrite bare imports the way esm.sh does, so you'll need import maps for peer deps even for core `sdk`. esm.sh is the most ergonomic for React; unpkg/jsDelivr are fine for vanilla.
+
+### Trade-offs
+
+CDN loading is convenient but not zero-cost: every cold visit fetches the package from the CDN edge (5–50 KB gzipped for SDK), and you don't control cache TTL or rollback. For production sites with non-trivial traffic, a real bundler (`pnpm add @monetize.software/sdk` + Vite/webpack) is faster and more predictable.
+
 ```ts
 import { PaywallUI } from '@monetize.software/sdk';
 
