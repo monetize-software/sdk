@@ -1,0 +1,12 @@
+{
+  "mode": "pre",
+  "tag": "alpha",
+  "initialVersions": {
+    "@monetize.software/sdk": "3.0.0-alpha.3",
+    "@monetize.software/sdk-extension": "3.0.0-alpha.3",
+    "@monetize.software/sdk-react": "3.0.0-alpha.0"
+  },
+  "changesets": [
+    "sdk-react-initial-release"
+  ]
+}
