@@ -8,6 +8,9 @@ The content-script public API is **drop-in compatible** with `@monetize.software
 the host writes `import { PaywallUI } from '@monetize.software/sdk-extension'` and
 gets the same class with the same method set.
 
+> ⚠️ **Bundle as an npm dependency. Do not load from a CDN.**
+> Chrome Web Store [MV3 policy](https://developer.chrome.com/docs/webstore/program-policies/mv3-requirements) forbids remote code execution — every line of JS your extension runs must be reviewable at submission time and ship inside the extension package. `pnpm add @monetize.software/sdk-extension` and bundle it with Vite/Rollup/webpack like any other npm dep. Loading this package (or `@monetize.software/sdk`, or `@monetize.software/sdk-react`) from `esm.sh`/`unpkg`/`jsDelivr` from a content script, popup, or service worker will get the extension rejected by review, or removed retroactively if the policy violation is spotted later. This is also why we publish `sdk-extension` as a separate package — its content-script bundle has all dependencies inlined, no runtime fetch of code.
+
 ## Architecture
 
 ```

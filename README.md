@@ -41,7 +41,9 @@ pnpm add @monetize.software/sdk-extension @monetize.software/sdk-react react
 
 ## Via CDN (no build step)
 
-All three packages are also reachable through any npm-fronting CDN ([esm.sh](https://esm.sh), [unpkg](https://unpkg.com), [jsDelivr](https://cdn.jsdelivr.net)). Useful for landing pages, prototypes, and embeds that don't have a bundler.
+`sdk` and `sdk-react` are also reachable through any npm-fronting CDN ([esm.sh](https://esm.sh), [unpkg](https://unpkg.com), [jsDelivr](https://cdn.jsdelivr.net)). Useful for landing pages, prototypes, and embeds that don't have a bundler.
+
+> ⚠️ **Chrome extensions (MV3): do not use CDN loading.** Chrome Web Store policy [forbids remote code execution](https://developer.chrome.com/docs/webstore/program-policies/mv3-requirements) — every line of JS your extension runs must be reviewable at submission time and ship inside the extension package. Use `@monetize.software/sdk-extension` as a bundled npm dependency; loading any `@monetize.software/*` package from a CDN inside a content script, popup, or service worker will get the extension rejected (or removed retroactively).
 
 ### Core SDK — single `<script>` tag
 
@@ -56,7 +58,7 @@ All three packages are also reachable through any npm-fronting CDN ([esm.sh](htt
 
 Pin a specific version for production: `…/sdk@3.0.0-alpha.3` instead of `@alpha`. The `@alpha` tag floats to the latest alpha and is ideal during early integration.
 
-Same pattern works for `@monetize.software/sdk-extension` if you're loading it from a CDN inside a Chrome extension's content script.
+For React on a website use the import-map setup below. For Chrome extensions see the warning above — CDN loading is not allowed by Chrome Web Store policy; use the bundled `@monetize.software/sdk-extension` instead.
 
 ### React — via import map
 
