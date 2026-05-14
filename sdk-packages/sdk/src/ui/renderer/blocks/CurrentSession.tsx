@@ -1,3 +1,4 @@
+import type { ComponentChildren } from 'preact';
 import { useState } from 'preact/hooks';
 import type { LayoutBlock } from '../../../core/types';
 import type { BlockProps } from '../types';
@@ -33,48 +34,49 @@ export function CurrentSession({ ctx }: BlockProps<CurrentSessionBlock>) {
     };
 
     return (
-      <div class="mt-2 text-center text-xs text-gray-500">
-        <span>Signed in as </span>
-        <b class="font-medium text-gray-700">{session.user.email}</b>
-        <div class="mt-1 flex items-center justify-center gap-3">
-          <button
-            type="button"
-            onClick={onSignOut}
-            disabled={!auth || signingOut}
-            class="font-medium text-gray-600 underline-offset-2 hover:underline disabled:cursor-not-allowed disabled:opacity-60 focus:outline-none focus-visible:underline"
-          >
-            {signingOut ? 'Signing out…' : 'Sign out'}
-          </button>
+      <div class="-mt-3 flex flex-col items-center gap-1.5 pt-1 text-center text-[13px] text-gray-500">
+        <span>
+          Signed in as{' '}
+          <b class="font-medium text-gray-700">{session.user.email}</b>
+        </span>
+        <div class="flex items-center justify-center gap-3">
+          <AccentLink onClick={onSignOut} disabled={!auth || signingOut}>
+            {signingOut ? 'Signing out…' : 'Sign Out'}
+          </AccentLink>
           <Dot />
-          <SupportLink onClick={onSupport} />
+          <AccentLink onClick={onSupport}>Contact Support</AccentLink>
         </div>
       </div>
     );
   }
 
   return (
-    <div class="mt-2 flex items-center justify-center gap-3 text-center text-xs text-gray-500">
-      <button
-        type="button"
-        onClick={() => ctx.onAction('restore')}
-        class="font-medium text-gray-600 underline-offset-2 hover:underline focus:outline-none focus-visible:underline"
-      >
-        Restore purchases
-      </button>
+    <div class="-mt-3 flex items-center justify-center gap-3 pt-1 text-center text-[13px]">
+      <AccentLink onClick={() => ctx.onAction('restore')}>Restore purchases</AccentLink>
       <Dot />
-      <SupportLink onClick={onSupport} />
+      <AccentLink onClick={onSupport}>Contact Support</AccentLink>
     </div>
   );
 }
 
-function SupportLink({ onClick }: { onClick: () => void }) {
+function AccentLink({
+  onClick,
+  disabled,
+  children
+}: {
+  onClick: () => void;
+  disabled?: boolean;
+  children: ComponentChildren;
+}) {
   return (
     <button
       type="button"
       onClick={onClick}
-      class="font-medium text-gray-600 underline-offset-2 hover:underline focus:outline-none focus-visible:underline"
+      disabled={disabled}
+      class="font-semibold underline underline-offset-2 transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-60 focus:outline-none focus-visible:opacity-80"
+      style={{ color: 'var(--pw-accent)' }}
     >
-      Contact Support
+      {children}
     </button>
   );
 }

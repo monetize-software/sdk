@@ -30,6 +30,14 @@ export interface PaywallSettings {
   brand_color?: string | null;
   custom_css?: string | null;
   locale_default?: string | null;
+  /** Origin, на котором живёт бэк пейвола (тот же, что мерчант передаёт в
+   *  `BillingClientOptions.apiOrigin` при инициализации SDK). Бэк присылает
+   *  его на каждом bootstrap'е, SDK сверяет с init.apiOrigin — расхождение
+   *  даёт `invalid_config` (защита от опечатки интегратора). Без схемы:
+   *  "pay.your-domain.com" или "https://pay.your-domain.com" — оба валидны.
+   *  Для новых пейволов поле всегда заполнено (модерация требует custom_domain);
+   *  для legacy v2 может быть null/undefined. */
+  custom_domain?: string | null;
   runtime_mode?: 'client' | 'hybrid' | 'server' | 'client-native' | 'hybrid-native';
   /** true, если эквайринг пейвола в test-mode — SDK рисует TEST MODE бейдж. */
   is_test_mode?: boolean;
@@ -193,6 +201,20 @@ export type LayoutBlock =
        *  норма. Заголовок реактивно отражает текущий interval. */
       type: 'tokenization_gate';
       queries: Array<{ id: string; name: string; desc: string; count: number }>;
+    }
+  | {
+      /** Money-back guarantee badge под cta_button: иконка + жирный заголовок +
+       *  пояснение мелким шрифтом + bottom divider, который визуально стыкуется
+       *  с current_session ниже. v2-аналог inline-блока в `PaywallPricing`. */
+      type: 'guarantee_badge';
+      /** Заголовок жирным. По умолчанию "100% Money-Back Guarantee". */
+      title?: string;
+      /** Подзаголовок мелким серым. По умолчанию
+       *  "Not satisfied? We'll refund you — no questions asked.". */
+      subtitle?: string;
+      /** Иконка слева от заголовка. По умолчанию `dollar_shield` —
+       *  зелёный shield с долларом (legacy-вид). `none` — без иконки. */
+      icon?: 'dollar_shield' | 'none';
     };
 
 export interface Layout {

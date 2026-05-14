@@ -3,6 +3,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AuthClient, type AuthChangeEvent, type AuthSession } from '../src/core/auth';
 import { STORAGE_KEYS, type StorageAdapter } from '../src/core/storage';
 
+const TEST_API_ORIGIN = 'https://test.example.com';
+
 // Стораджевая шина для теста: эмулирует chrome.storage.onChanged через
 // общий map + список подписчиков. Любой setItem/removeItem тригерит всех
 // подписчиков, как делает chrome.storage в реальности (включая context'а,
@@ -58,9 +60,9 @@ describe('AuthClient cross-context sync', () => {
 
   it('contextB receives onAuthChange when contextA writes session to shared storage', async () => {
     const shared = makeShared();
-    const a = new AuthClient({ paywallId: PAYWALL_ID, storage: shared.forContext() });
+    const a = new AuthClient({ apiOrigin: TEST_API_ORIGIN, paywallId: PAYWALL_ID, storage: shared.forContext() });
     const bStorage = shared.forContext();
-    const b = new AuthClient({ paywallId: PAYWALL_ID, storage: bStorage });
+    const b = new AuthClient({ apiOrigin: TEST_API_ORIGIN, paywallId: PAYWALL_ID, storage: bStorage });
 
     const events: Array<[AuthChangeEvent, AuthSession | null]> = [];
     b.onAuthChange((event, s) => events.push([event, s]));
@@ -93,8 +95,8 @@ describe('AuthClient cross-context sync', () => {
     const seedStorage = shared.forContext();
     await seedStorage.setItem(KEY, JSON.stringify(SESSION));
 
-    const a = new AuthClient({ paywallId: PAYWALL_ID, storage: shared.forContext() });
-    const b = new AuthClient({ paywallId: PAYWALL_ID, storage: shared.forContext() });
+    const a = new AuthClient({ apiOrigin: TEST_API_ORIGIN, paywallId: PAYWALL_ID, storage: shared.forContext() });
+    const b = new AuthClient({ apiOrigin: TEST_API_ORIGIN, paywallId: PAYWALL_ID, storage: shared.forContext() });
     await a.ready();
     await b.ready();
     expect(b.getCachedSession()).toEqual(SESSION);
@@ -110,7 +112,7 @@ describe('AuthClient cross-context sync', () => {
 
   it('does not loop: A writing same session does not trigger second emit on A', async () => {
     const shared = makeShared();
-    const a = new AuthClient({ paywallId: PAYWALL_ID, storage: shared.forContext() });
+    const a = new AuthClient({ apiOrigin: TEST_API_ORIGIN, paywallId: PAYWALL_ID, storage: shared.forContext() });
     await a.ready();
 
     const eventsA: Array<[AuthChangeEvent, AuthSession | null]> = [];
@@ -143,7 +145,7 @@ describe('AuthClient cross-context sync', () => {
     const shared = makeShared();
     // Seed AFTER constructor (имитируем: B проинстансился, потом A залогинился,
     // но onChanged event "потерян"/еще не долетел).
-    const b = new AuthClient({ paywallId: PAYWALL_ID, storage: shared.forContext() });
+    const b = new AuthClient({ apiOrigin: TEST_API_ORIGIN, paywallId: PAYWALL_ID, storage: shared.forContext() });
     await b.ready();
     expect(b.getCachedSession()).toBeNull();
 

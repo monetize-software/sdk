@@ -3,6 +3,8 @@ import { ApiGatewayClient } from '../src/core/ApiGatewayClient';
 import { BillingClient } from '../src/core/BillingClient';
 import { QuotaExceededError, type Balance } from '../src/core/types';
 
+const TEST_API_ORIGIN = 'https://test.example.com';
+
 function freshStorage() {
   return {
     getItem: vi.fn(async () => null),
@@ -217,6 +219,7 @@ describe('BillingClient.balances', () => {
   it('returns [] without auth without hitting network', async () => {
     const fetchMock = makeBalancesFetch([]);
     const client = new BillingClient({
+      apiOrigin: TEST_API_ORIGIN,
       paywallId: 'pw_1',
       fetch: fetchMock,
       storage: freshStorage()
@@ -236,6 +239,7 @@ describe('BillingClient.balances', () => {
       [{ type: 'free', count: 9 }]
     ]);
     const client = new BillingClient({
+      apiOrigin: TEST_API_ORIGIN,
       paywallId: 'pw_1',
       auth: fakeAuth(),
       fetch: fetchMock,
@@ -263,6 +267,7 @@ describe('BillingClient.balances', () => {
       ]
     ]);
     const client = new BillingClient({
+      apiOrigin: TEST_API_ORIGIN,
       paywallId: 'pw_1',
       auth: fakeAuth(),
       fetch: fetchMock,
@@ -294,6 +299,7 @@ describe('BillingClient.balances', () => {
       [{ type: 'free', count: 9 }]
     ]);
     const client = new BillingClient({
+      apiOrigin: TEST_API_ORIGIN,
       paywallId: 'pw_1',
       auth: fakeAuth(),
       fetch: fetchMock,
@@ -342,6 +348,7 @@ describe('BillingClient.balances', () => {
     });
 
     const client = new BillingClient({
+      apiOrigin: TEST_API_ORIGIN,
       paywallId: 'pw_1',
       auth: fakeAuth(),
       fetch: fetchMock,

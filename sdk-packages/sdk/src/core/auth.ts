@@ -18,7 +18,6 @@ import {
 // очередь принимает AuthClient опционально и подключает Bearer + auto-sync
 // identity.
 
-const DEFAULT_API_ORIGIN = 'https://appbox.space';
 // За REFRESH_LEEWAY_MS до expiry начинаем refresh — буфер на сетевую
 // задержку и часовой дрейф клиента. 60s достаточно: GoTrue access живёт 1ч,
 // шанс реально подсунуть истёкший токен в API-запрос ≈ 0.
@@ -95,7 +94,9 @@ export type AuthChangeListener = (event: AuthChangeEvent, session: AuthSession |
 
 export interface AuthClientOptions {
   paywallId: string;
-  apiOrigin?: string;
+  /** Origin серверного API SDK — обязательное поле, тот же `custom_domain`, что
+   *  у BillingClient. См. {@link BillingClientOptions.apiOrigin}. */
+  apiOrigin: string;
   storage?: StorageAdapter;
   fetch?: typeof fetch;
   // Inject для тестов и для Chrome-extension'ов (там popup можно открыть
@@ -139,8 +140,14 @@ export class AuthClient {
     if (!opts.paywallId) {
       throw new PaywallError('invalid_config', 'paywallId is required');
     }
+    if (!opts.apiOrigin) {
+      throw new PaywallError(
+        'invalid_config',
+        'apiOrigin is required. Pass the paywall custom_domain configured in the platform.'
+      );
+    }
     this.paywallId = opts.paywallId;
-    this.apiOrigin = opts.apiOrigin ?? DEFAULT_API_ORIGIN;
+    this.apiOrigin = opts.apiOrigin;
     this.storage = createStorage(opts.storage);
     // Без getAuthToken — auth-эндпоинты либо публичные, либо мы кладём
     // Authorization вручную в headers (signOut). ApiClient не перетрёт его,

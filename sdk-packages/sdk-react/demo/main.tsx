@@ -13,7 +13,7 @@ root.render(
     <PaywallProvider
       options={{
         paywallId: PAYWALL_ID,
-        apiOrigin: 'https://appbox.space',
+        apiOrigin: 'https://demo.local',
         identity: { email: 'demo@example.com', userId: 'demo-user' },
         // Open shadowMode для Playwright — он не сможет читать содержимое
         // closed shadow root. В проде у хостов остаётся default `closed`.

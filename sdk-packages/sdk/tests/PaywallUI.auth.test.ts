@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuthClient } from '../src/core/auth';
 import { PaywallUI } from '../src/ui/PaywallUI';
 
+const TEST_API_ORIGIN = 'https://test.example.com';
+
 // Тесты интеграции AuthClient внутрь PaywallUI:
 // - `auth: true` создаёт AuthClient автоматом и кладёт в paywall.auth;
 // - `auth: AuthClient` использует переданный инстанс (не создаёт второй);
@@ -46,6 +48,7 @@ describe('PaywallUI auth integration', () => {
 
   it('auth: true creates AuthClient and exposes via .auth', () => {
     const ui = new PaywallUI({
+      apiOrigin: TEST_API_ORIGIN,
       paywallId: 'pw_1',
       fetch: noopFetch,
       autoDetectReturn: false,
@@ -57,8 +60,9 @@ describe('PaywallUI auth integration', () => {
   });
 
   it('auth: <AuthClient> reuses passed instance', () => {
-    const auth = new AuthClient({ paywallId: 'pw_1', fetch: noopFetch });
+    const auth = new AuthClient({ apiOrigin: TEST_API_ORIGIN, paywallId: 'pw_1', fetch: noopFetch });
     const ui = new PaywallUI({
+      apiOrigin: TEST_API_ORIGIN,
       paywallId: 'pw_1',
       fetch: noopFetch,
       autoDetectReturn: false,
@@ -70,6 +74,7 @@ describe('PaywallUI auth integration', () => {
 
   it('omitting auth keeps managed-auth disabled', () => {
     const ui = new PaywallUI({
+      apiOrigin: TEST_API_ORIGIN,
       paywallId: 'pw_1',
       fetch: noopFetch,
       autoDetectReturn: false,
@@ -80,6 +85,7 @@ describe('PaywallUI auth integration', () => {
 
   it('billing client receives the same AuthClient (Bearer-bridge wired)', () => {
     const ui = new PaywallUI({
+      apiOrigin: TEST_API_ORIGIN,
       paywallId: 'pw_1',
       fetch: noopFetch,
       autoDetectReturn: false,
@@ -90,8 +96,9 @@ describe('PaywallUI auth integration', () => {
   });
 
   it('emits authChange when AuthClient session changes', () => {
-    const auth = new AuthClient({ paywallId: 'pw_1', fetch: noopFetch });
+    const auth = new AuthClient({ apiOrigin: TEST_API_ORIGIN, paywallId: 'pw_1', fetch: noopFetch });
     const ui = new PaywallUI({
+      apiOrigin: TEST_API_ORIGIN,
       paywallId: 'pw_1',
       fetch: noopFetch,
       autoDetectReturn: false,
@@ -121,8 +128,9 @@ describe('PaywallUI auth integration', () => {
   });
 
   it('destroy() unsubscribes from AuthClient', () => {
-    const auth = new AuthClient({ paywallId: 'pw_1', fetch: noopFetch });
+    const auth = new AuthClient({ apiOrigin: TEST_API_ORIGIN, paywallId: 'pw_1', fetch: noopFetch });
     const ui = new PaywallUI({
+      apiOrigin: TEST_API_ORIGIN,
       paywallId: 'pw_1',
       fetch: noopFetch,
       autoDetectReturn: false,

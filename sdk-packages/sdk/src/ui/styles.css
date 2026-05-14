@@ -37,3 +37,23 @@
     cursor: pointer;
   }
 }
+
+/* CtaButton shimmer — лежит здесь, а не inline в JSX, чтобы textContent
+ * кнопки не загрязнялся CSS-строкой (ломает unit-тесты, ищущие label
+ * через b.textContent === 'Continue'). */
+.pw-cta-shimmer::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.35) 50%, transparent);
+  animation: pw-cta-shimmer 3s infinite;
+  z-index: 1;
+}
+
+@keyframes pw-cta-shimmer {
+  0% { left: -100%; }
+  100% { left: 100%; }
+}

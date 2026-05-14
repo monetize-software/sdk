@@ -2,6 +2,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PaywallUI } from '../src/ui/PaywallUI';
 
+const TEST_API_ORIGIN = 'https://test.example.com';
+
 // Минимальный stub fetch — PaywallUI не ходит в сеть без open(), но конструктор
 // BillingClient внутри всё равно настраивает ApiClient.
 const noopFetch: typeof fetch = async () =>
@@ -9,6 +11,7 @@ const noopFetch: typeof fetch = async () =>
 
 function makeUI(autoDetectReturn = false) {
   return new PaywallUI({
+    apiOrigin: TEST_API_ORIGIN,
     paywallId: 'pw_1',
     fetch: noopFetch,
     autoDetectReturn
@@ -156,7 +159,7 @@ describe('PaywallUI.checkReturn (URL sniffer)', () => {
 
   it('autoDetectReturn runs checkReturn asynchronously (microtask)', async () => {
     window.history.replaceState(null, '', '/?paywall_status=paid');
-    const ui = new PaywallUI({ paywallId: 'pw_1', fetch: noopFetch });
+    const ui = new PaywallUI({ apiOrigin: TEST_API_ORIGIN, paywallId: 'pw_1', fetch: noopFetch });
     const handler = vi.fn();
     // Подписка синхронно после конструктора — успевает до microtask.
     ui.on('purchase_completed', handler);
@@ -197,6 +200,7 @@ describe('PaywallUI.getAccess', () => {
 
   it('blocks (no_subscription) when no gates configured and user has no subscription', async () => {
     const ui = new PaywallUI({
+      apiOrigin: TEST_API_ORIGIN,
       paywallId: 'pw_1',
       fetch: fetchReturning(makeBootstrap()),
       autoDetectReturn: false
@@ -208,6 +212,7 @@ describe('PaywallUI.getAccess', () => {
 
   it('grants (has_subscription) — overrides visibility and trial gates', async () => {
     const ui = new PaywallUI({
+      apiOrigin: TEST_API_ORIGIN,
       paywallId: 'pw_1',
       fetch: fetchReturning(
         makeBootstrap(
@@ -233,6 +238,7 @@ describe('PaywallUI.getAccess', () => {
       tier: 3 as const
     };
     const ui = new PaywallUI({
+      apiOrigin: TEST_API_ORIGIN,
       paywallId: 'pw_1',
       fetch: fetchReturning(makeBootstrap({ visibility })),
       autoDetectReturn: false
@@ -246,6 +252,7 @@ describe('PaywallUI.getAccess', () => {
 
   it('grants (trial_blocked) without recording the block (idempotent)', async () => {
     const ui = new PaywallUI({
+      apiOrigin: TEST_API_ORIGIN,
       paywallId: 'pw_1',
       fetch: fetchReturning(
         makeBootstrap({ trial: { mode: 'opens', payload: 3, storage: 'client' } })
@@ -266,6 +273,7 @@ describe('PaywallUI.getAccess', () => {
 
   it('skipVisibility / skipTrial bypass those gates and fall through to blocked', async () => {
     const ui = new PaywallUI({
+      apiOrigin: TEST_API_ORIGIN,
       paywallId: 'pw_1',
       fetch: fetchReturning(
         makeBootstrap({
@@ -285,6 +293,7 @@ describe('PaywallUI.getAccess', () => {
       throw new Error('network down');
     };
     const ui = new PaywallUI({
+      apiOrigin: TEST_API_ORIGIN,
       paywallId: 'pw_1',
       fetch: failingFetch,
       autoDetectReturn: false
@@ -338,7 +347,7 @@ describe('PaywallUI mount-then-load (Phase 7)', () => {
 
   it('default mountThenLoad=true: open() emits "open" synchronously even with cold bootstrap', async () => {
     const { fetch, resolve } = deferredFetch(makeBootstrap());
-    const ui = new PaywallUI({ paywallId: 'pw_1', fetch, autoDetectReturn: false });
+    const ui = new PaywallUI({ apiOrigin: TEST_API_ORIGIN, paywallId: 'pw_1', fetch, autoDetectReturn: false });
     const onOpen = vi.fn();
     ui.on('open', onOpen);
 
@@ -359,7 +368,7 @@ describe('PaywallUI mount-then-load (Phase 7)', () => {
         visibility: { visible: false, reason: 'country_not_match', country: 'RU', tier: 3 }
       })
     );
-    const ui = new PaywallUI({ paywallId: 'pw_1', fetch, autoDetectReturn: false });
+    const ui = new PaywallUI({ apiOrigin: TEST_API_ORIGIN, paywallId: 'pw_1', fetch, autoDetectReturn: false });
     const events: string[] = [];
     ui.on('open', () => events.push('open'));
     ui.on('close', () => events.push('close'));
@@ -378,7 +387,7 @@ describe('PaywallUI mount-then-load (Phase 7)', () => {
     const { fetch, resolve } = deferredFetch(
       makeBootstrap({ trial: { mode: 'opens', payload: 3, storage: 'client' } })
     );
-    const ui = new PaywallUI({ paywallId: 'pw_1', fetch, autoDetectReturn: false });
+    const ui = new PaywallUI({ apiOrigin: TEST_API_ORIGIN, paywallId: 'pw_1', fetch, autoDetectReturn: false });
     const events: string[] = [];
     ui.on('open', () => events.push('open'));
     ui.on('close', () => events.push('close'));
@@ -396,6 +405,7 @@ describe('PaywallUI mount-then-load (Phase 7)', () => {
   it('mountThenLoad=false (legacy): open() does NOT emit "open" until bootstrap resolves', async () => {
     const { fetch, resolve } = deferredFetch(makeBootstrap());
     const ui = new PaywallUI({
+      apiOrigin: TEST_API_ORIGIN,
       paywallId: 'pw_1',
       fetch,
       autoDetectReturn: false,
@@ -421,6 +431,7 @@ describe('PaywallUI mount-then-load (Phase 7)', () => {
       })
     );
     const ui = new PaywallUI({
+      apiOrigin: TEST_API_ORIGIN,
       paywallId: 'pw_1',
       fetch,
       autoDetectReturn: false,
@@ -443,6 +454,7 @@ describe('PaywallUI mount-then-load (Phase 7)', () => {
   it('cached bootstrap: skips mount-then-load path entirely (sync gates)', async () => {
     // Первый open() прогревает кеш, второй идёт по cached-path.
     const ui = new PaywallUI({
+      apiOrigin: TEST_API_ORIGIN,
       paywallId: 'pw_1',
       fetch: (async () =>
         new Response(JSON.stringify(makeBootstrap()), {

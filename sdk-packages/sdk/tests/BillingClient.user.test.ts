@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BillingClient } from '../src/core/BillingClient';
 import type { PaywallUser } from '../src/core/types';
 
+const TEST_API_ORIGIN = 'https://test.example.com';
+
 // Каждый тест получает свежий storage — иначе module-level memoryMap из
 // storage.ts протекает между тестами и persistent fallback hydrate'ит чужой
 // user.
@@ -68,7 +70,7 @@ describe('BillingClient.getUser', () => {
 
   it('returns EMPTY without identity and does not hit network', async () => {
     const { fn, calls } = makeFetch([]);
-    const client = new BillingClient({ paywallId: 'pw_1', fetch: fn });
+    const client = new BillingClient({ apiOrigin: TEST_API_ORIGIN, paywallId: 'pw_1', fetch: fn });
 
     const u = await client.getUser();
     expect(u).toEqual(EMPTY);
@@ -78,6 +80,7 @@ describe('BillingClient.getUser', () => {
   it('fetches /user-state and caches within TTL', async () => {
     const { fn, calls } = makeFetch([EMPTY]);
     const client = new BillingClient({
+      apiOrigin: TEST_API_ORIGIN,
       paywallId: 'pw_1',
       identity: { email: 'a@b.c' },
       fetch: fn,
@@ -94,6 +97,7 @@ describe('BillingClient.getUser', () => {
   it('refetches after TTL window expires', async () => {
     const { fn, calls } = makeFetch([EMPTY, EMPTY]);
     const client = new BillingClient({
+      apiOrigin: TEST_API_ORIGIN,
       paywallId: 'pw_1',
       identity: { email: 'a@b.c' },
       fetch: fn,
@@ -111,6 +115,7 @@ describe('BillingClient.getUser', () => {
   it('force=true bypasses cache', async () => {
     const { fn, calls } = makeFetch([EMPTY, ACTIVE]);
     const client = new BillingClient({
+      apiOrigin: TEST_API_ORIGIN,
       paywallId: 'pw_1',
       identity: { email: 'a@b.c' },
       fetch: fn,
@@ -134,6 +139,7 @@ describe('BillingClient.getUser', () => {
         })
     );
     const client = new BillingClient({
+      apiOrigin: TEST_API_ORIGIN,
       paywallId: 'pw_1',
       identity: { email: 'a@b.c' },
       fetch: fetchFn,
@@ -157,6 +163,7 @@ describe('BillingClient.getUser', () => {
   it('setIdentity clears user cache', async () => {
     const { fn, calls } = makeFetch([EMPTY, ACTIVE]);
     const client = new BillingClient({
+      apiOrigin: TEST_API_ORIGIN,
       paywallId: 'pw_1',
       identity: { email: 'a@b.c' },
       fetch: fn,
@@ -183,6 +190,7 @@ describe('BillingClient.onUserChange', () => {
   it('emits to listener when user changes', async () => {
     const { fn } = makeFetch([EMPTY, ACTIVE]);
     const client = new BillingClient({
+      apiOrigin: TEST_API_ORIGIN,
       paywallId: 'pw_1',
       identity: { email: 'a@b.c' },
       fetch: fn,
@@ -203,6 +211,7 @@ describe('BillingClient.onUserChange', () => {
   it('does not re-emit when same shape returns', async () => {
     const { fn } = makeFetch([EMPTY, EMPTY]);
     const client = new BillingClient({
+      apiOrigin: TEST_API_ORIGIN,
       paywallId: 'pw_1',
       identity: { email: 'a@b.c' },
       fetch: fn,
@@ -221,6 +230,7 @@ describe('BillingClient.onUserChange', () => {
   it('replays last-known user to a fresh subscriber via microtask', async () => {
     const { fn } = makeFetch([ACTIVE]);
     const client = new BillingClient({
+      apiOrigin: TEST_API_ORIGIN,
       paywallId: 'pw_1',
       identity: { email: 'a@b.c' },
       fetch: fn,
@@ -240,6 +250,7 @@ describe('BillingClient.onUserChange', () => {
   it('off() prevents further notifications', async () => {
     const { fn } = makeFetch([EMPTY, ACTIVE]);
     const client = new BillingClient({
+      apiOrigin: TEST_API_ORIGIN,
       paywallId: 'pw_1',
       identity: { email: 'a@b.c' },
       fetch: fn,

@@ -21,7 +21,7 @@ function makeTracker(overrides: Partial<{
   const beaconSpy = overrides.sendBeacon ?? vi.fn(() => true);
 
   const tracker = new EventTracker({
-    endpoint: 'https://appbox.space/api/v1/paywall/pw_1/events',
+    endpoint: 'https://test.example.com/api/v1/paywall/pw_1/events',
     paywallId: 'pw_1',
     capabilities: overrides.capabilities,
     enabled: overrides.enabled,
@@ -58,7 +58,7 @@ describe('EventTracker', () => {
 
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     const [url, init] = (fetchSpy as ReturnType<typeof vi.fn>).mock.calls[0];
-    expect(url).toBe('https://appbox.space/api/v1/paywall/pw_1/events');
+    expect(url).toBe('https://test.example.com/api/v1/paywall/pw_1/events');
     expect(init.method).toBe('POST');
     expect(init.keepalive).toBe(true);
     const body = JSON.parse(init.body as string);
@@ -133,7 +133,7 @@ describe('EventTracker', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
 
     const [url, body] = (beaconSpy as ReturnType<typeof vi.fn>).mock.calls[0];
-    expect(url).toBe('https://appbox.space/api/v1/paywall/pw_1/events');
+    expect(url).toBe('https://test.example.com/api/v1/paywall/pw_1/events');
     const payload = JSON.parse(body as string);
     expect(payload.visitor_id).toBe('cached-vid');
     expect(payload.user_id).toBe('u_1');

@@ -103,28 +103,14 @@ export function Modal({
       onClick={onBackdrop}
       data-pw-root
     >
-      <div
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={labelledBy}
-        tabIndex={-1}
-        // max-h ограничивает высоту вьюпортом (использует dvh для мобильных
-        // safe-area), flex-col + overflow на children даёт внутренний скролл
-        // когда контент выше viewport'а — критично для extension popup'ов
-        // (max 600px высоты) и узких контейнеров на сайтах.
-        class="relative flex max-h-[calc(100dvh-1rem)] sm:max-h-[calc(100dvh-2rem)] w-full max-w-md flex-col overflow-hidden rounded-3xl bg-white outline-none ring-1 ring-black/5 animate-[pw-scale-in_220ms_cubic-bezier(0.16,1,0.3,1)]"
-        style={
-          {
-            '--pw-accent': accent,
-            boxShadow:
-              '0 1px 2px rgba(15,23,42,0.04), 0 12px 32px -8px rgba(15,23,42,0.18), 0 24px 64px -16px rgba(15,23,42,0.22)'
-          } as unknown as Record<string, string>
-        }
-      >
+      {/* Wrapper нужен, чтобы Test-mode плашку позиционировать absolute поверх
+          верхнего-правого угла dialog'а (с -translate-y), не ломая anim/scroll
+          dialog'а. У dialog'а оставляем overflow-hidden (rounded clipping для
+          scroll-area), плашка сидит снаружи и не обрезается. */}
+      <div class="relative w-full max-w-md animate-[pw-scale-in_220ms_cubic-bezier(0.16,1,0.3,1)]">
         {testMode && (
           <div
-            class="flex items-center justify-center gap-1.5 bg-gradient-to-r from-amber-300 to-amber-400 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-amber-950"
+            class="absolute right-3 top-0 z-20 flex -translate-y-[calc(100%+6px)] items-center gap-1.5 rounded-full bg-gradient-to-r from-amber-300 to-amber-400 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-amber-950 shadow-[0_4px_12px_-2px_rgba(245,158,11,0.45),0_0_0_1px_rgba(255,255,255,0.6)]"
             role="status"
           >
             <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">
@@ -140,30 +126,49 @@ export function Modal({
             Test mode — no real charge
           </div>
         )}
-        <div class="flex-1 overflow-y-auto p-7">
-          {children}
+        <div
+          ref={dialogRef}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={labelledBy}
+          tabIndex={-1}
+          // max-h ограничивает высоту вьюпортом (использует dvh для мобильных
+          // safe-area), flex-col + overflow на children даёт внутренний скролл
+          // когда контент выше viewport'а — критично для extension popup'ов
+          // (max 600px высоты) и узких контейнеров на сайтах.
+          class="relative flex max-h-[calc(100dvh-1rem)] sm:max-h-[calc(100dvh-2rem)] w-full flex-col overflow-hidden rounded-3xl bg-white outline-none ring-1 ring-black/5"
+          style={
+            {
+              '--pw-accent': accent,
+              boxShadow:
+                '0 1px 2px rgba(15,23,42,0.04), 0 12px 32px -8px rgba(15,23,42,0.18), 0 24px 64px -16px rgba(15,23,42,0.22)'
+            } as unknown as Record<string, string>
+          }
+        >
+          <div class="flex-1 overflow-y-auto p-8">
+            {children}
+          </div>
+          {allowClose ? (
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close"
+              // Absolute относительно dialog'а (не scrollable area) — кнопка
+              // всегда в правом верхнем углу dialog'а, не двигается со скроллом
+              // и не влияет на flow контента.
+              class="absolute right-3 top-3 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-white/80 text-gray-400 backdrop-blur-sm transition-colors hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--pw-accent)]"
+            >
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <path
+                  d="M3 3l10 10M13 3L3 13"
+                  stroke="currentColor"
+                  stroke-width="1.75"
+                  stroke-linecap="round"
+                />
+              </svg>
+            </button>
+          ) : null}
         </div>
-        {allowClose ? (
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            // Absolute относительно dialog'а (не scrollable area) — кнопка
-            // всегда в правом верхнем углу dialog'а, не двигается со скроллом
-            // и не влияет на flow контента. top-10 при testMode чтобы не
-            // залезть на жёлтый банер (~28px высотой).
-            class={`absolute right-3 ${testMode ? 'top-10' : 'top-3'} z-10 flex h-8 w-8 items-center justify-center rounded-full bg-white/80 text-gray-400 backdrop-blur-sm transition-colors hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--pw-accent)]`}
-          >
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-              <path
-                d="M3 3l10 10M13 3L3 13"
-                stroke="currentColor"
-                stroke-width="1.75"
-                stroke-linecap="round"
-              />
-            </svg>
-          </button>
-        ) : null}
       </div>
 
       <style>{`

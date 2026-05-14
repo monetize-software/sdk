@@ -99,7 +99,15 @@ function sameBalances(a: Balance[] | null, b: Balance[] | null): boolean {
 
 export interface BillingClientOptions {
   paywallId: string;
-  apiOrigin?: string;
+  /**
+   * Origin серверного API SDK — обязательное поле. Должно совпадать с
+   * `custom_domain`, заданным для пейвола в платформе (модерация привязывает
+   * домен к paywall_id). SDK сверяет это значение с `bootstrap.settings.custom_domain`
+   * на первом ответе и кидает `invalid_config` при расхождении — защита от
+   * опечаток интегратора. Промежуточный `appbox.space` в новом SDK НЕ
+   * используется (это только для legacy v2).
+   */
+  apiOrigin: string;
   identity?: Identity;
   storage?: StorageAdapter;
   capabilities?: string[];
@@ -131,8 +139,6 @@ export interface BillingClientOptions {
    */
   preview?: boolean;
 }
-
-const DEFAULT_API_ORIGIN = 'https://appbox.space';
 
 export class BillingClient {
   readonly paywallId: string;
@@ -207,8 +213,15 @@ export class BillingClient {
       throw new PaywallError('invalid_config', 'paywallId is required');
     }
 
+    if (!opts.apiOrigin) {
+      throw new PaywallError(
+        'invalid_config',
+        'apiOrigin is required. Pass the paywall custom_domain configured in the platform (e.g. "https://pay.your-domain.com"). The legacy "appbox.space" fallback is not used in SDK 3.0.'
+      );
+    }
+
     this.paywallId = opts.paywallId;
-    this.apiOrigin = opts.apiOrigin ?? DEFAULT_API_ORIGIN;
+    this.apiOrigin = opts.apiOrigin;
     this.capabilities = opts.capabilities;
     this.auth = opts.auth;
     this.previewMode = opts.preview === true;
@@ -546,6 +559,12 @@ export class BillingClient {
     }
 
     const bootstrap = resp as PaywallBootstrap;
+    // Self-check: сверяем custom_domain, привязанный к paywall_id в платформе,
+    // с apiOrigin, которым SDK был инициализирован. Расхождение почти всегда
+    // означает опечатку у интегратора (вписал не тот домен) — без явной ошибки
+    // юзер увидел бы пустой пейвол / сломанные платежки без объяснений. Сравним
+    // нормализованные origin'ы; пустой custom_domain (legacy v2 paywall) — skip.
+    assertApiOriginMatchesCustomDomain(bootstrap.settings.custom_domain, this.apiOrigin);
     if (!bootstrap.layout) {
       bootstrap.layout = buildDefaultLayout(bootstrap.settings, bootstrap.prices);
     }
@@ -1430,13 +1449,49 @@ function sameIdentity(a: Identity | undefined, b: Identity | undefined): boolean
   );
 }
 
+// Нормализация: `URL(...)`.origin приводит "pay.example.com" / "https://pay.example.com/"
+// / "https://pay.example.com:443" к каноничному "https://pay.example.com".
+// Без схемы — подставляем https (паттерн совпадает с serverside `normalizeOrigin`
+// в online/utils/urls.ts, чтобы сверка была симметричной). Не-URL → null
+// (defensive — формы валидации в платформе должны это отсекать заранее).
+function normalizeOrigin(candidate: string | null | undefined): string | null {
+  if (!candidate) return null;
+  const trimmed = candidate.trim();
+  if (!trimmed) return null;
+  try {
+    return new URL(trimmed.includes('://') ? trimmed : `https://${trimmed}`).origin;
+  } catch {
+    return null;
+  }
+}
+
+// Проверка bootstrap.settings.custom_domain ↔ init.apiOrigin. Пустой custom_domain
+// (legacy v2 paywall, не подключённый к новому SDK) — skip: значит, конфигурация
+// не предполагает строгой привязки. Расхождение — фатально: интегратор передал
+// не тот origin, и весь дальнейший трафик пойдёт мимо custom_domain мерчанта.
+function assertApiOriginMatchesCustomDomain(
+  customDomain: string | null | undefined,
+  apiOrigin: string
+): void {
+  const expected = normalizeOrigin(customDomain);
+  if (!expected) return;
+  const actual = normalizeOrigin(apiOrigin);
+  if (actual === expected) return;
+  throw new PaywallError(
+    'invalid_config',
+    `apiOrigin mismatch: SDK initialized with "${apiOrigin}" but paywall is configured with custom_domain "${customDomain}". Use the custom_domain from the platform paywall settings.`
+  );
+}
+
 function buildDefaultLayout(settings: PaywallSettings, prices: PaywallPrice[]): Layout {
   return {
     type: 'modal',
     blocks: [
       { type: 'heading', text: settings.name || 'Upgrade', level: 1 },
       { type: 'price_grid', priceIds: prices.map((p) => p.id) },
-      { type: 'cta_button', label: 'Continue', action: 'checkout' }
+      { type: 'cta_button', label: 'Continue', action: 'checkout' },
+      { type: 'guarantee_badge' },
+      { type: 'current_session' }
     ]
   };
 }

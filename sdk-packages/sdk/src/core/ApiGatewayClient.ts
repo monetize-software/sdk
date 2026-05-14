@@ -20,11 +20,11 @@ import {
 // для стрима, `res.json()`/`res.text()` для остального. Это совпадает с тем,
 // как работает fetch — никакого кастомного API учить не надо.
 
-const DEFAULT_API_ORIGIN = 'https://appbox.space';
-
 export interface ApiGatewayClientOptions {
   paywallId: string;
-  apiOrigin?: string;
+  /** Origin серверного API SDK — обязательное поле, тот же `custom_domain`, что
+   *  у BillingClient/AuthClient. См. {@link BillingClientOptions.apiOrigin}. */
+  apiOrigin: string;
   /** AuthClient — Bearer добавляется автоматически. На 401 от gateway клиент
    *  не делает refresh: AuthClient уже сделал lazy-refresh в getAccessToken. */
   auth?: AuthClient;
@@ -75,8 +75,14 @@ export class ApiGatewayClient {
     if (!opts.paywallId) {
       throw new PaywallError('invalid_config', 'paywallId is required');
     }
+    if (!opts.apiOrigin) {
+      throw new PaywallError(
+        'invalid_config',
+        'apiOrigin is required. Pass the paywall custom_domain configured in the platform.'
+      );
+    }
     this.paywallId = opts.paywallId;
-    this.apiOrigin = opts.apiOrigin ?? DEFAULT_API_ORIGIN;
+    this.apiOrigin = opts.apiOrigin;
     this.auth = opts.auth;
     this.userId = opts.userId;
     this.capabilities = opts.capabilities;

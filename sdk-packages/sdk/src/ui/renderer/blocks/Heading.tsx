@@ -4,8 +4,8 @@ import type { BlockProps } from '../types';
 
 type HeadingBlock = Extract<LayoutBlock, { type: 'heading' }>;
 
-const BASE_FONT_PX = 26; // соответствует text-[1.625rem] у h1
-const MIN_FONT_PX = 14;
+const BASE_FONT_PX = 30; // соответствует text-[1.875rem] у h1
+const MIN_FONT_PX = 16;
 const MAX_LINES = 2;
 
 // Авто-fit: если заголовок не вмещается в `MAX_LINES` строк при базовом размере,
@@ -28,7 +28,7 @@ export function Heading({ block, ctx }: BlockProps<HeadingBlock>) {
   const Tag = (`h${level}` as 'h1' | 'h2' | 'h3');
   const className =
     level === 1
-      ? 'text-[1.625rem] font-semibold leading-tight text-gray-900 tracking-[-0.02em]'
+      ? 'text-[1.875rem] font-bold leading-[1.15] text-center text-balance text-gray-900 tracking-[-0.02em]'
       : level === 2
         ? 'text-xl font-semibold leading-snug text-gray-900 tracking-tight'
         : 'text-base font-medium text-gray-900';

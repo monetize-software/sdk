@@ -36,8 +36,8 @@ export function TokenizationGate({ block, ctx }: BlockProps<TokenizationGateBloc
               <span
                 class={`flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full ${q.desc ? 'mt-0.5' : ''}`}
                 style={{
-                  background: 'color-mix(in srgb, var(--pw-accent) 12%, white)',
-                  color: 'var(--pw-accent)'
+                  background: 'var(--pw-accent)',
+                  color: '#ffffff'
                 }}
                 aria-hidden="true"
               >
@@ -45,7 +45,7 @@ export function TokenizationGate({ block, ctx }: BlockProps<TokenizationGateBloc
                   <path
                     d="M5 10l3 3 7-7"
                     stroke="currentColor"
-                    stroke-width="2.5"
+                    stroke-width="2.75"
                     stroke-linecap="round"
                     stroke-linejoin="round"
                   />

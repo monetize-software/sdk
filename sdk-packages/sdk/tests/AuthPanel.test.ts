@@ -242,7 +242,9 @@ describe('AuthPanel render', () => {
     await act(async () => {
       btn!.click();
     });
-    expect(oauth).toHaveBeenCalledWith({ provider: 'google' });
+    expect(oauth).toHaveBeenCalledWith(
+      expect.objectContaining({ provider: 'google', onPopupOpened: expect.any(Function) })
+    );
   });
 
   it('signup confirmation_required switches to OTP-verify mode', async () => {

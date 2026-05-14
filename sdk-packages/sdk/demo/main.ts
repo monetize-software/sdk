@@ -3,7 +3,7 @@ import type { PaywallOffer, PaywallPrice, PaywallSettings } from '../src/core/ty
 
 // Режимы демо:
 //   ?mock — захардкоженные ответы, без сети
-//   (default) — реальный бэк через Vite proxy (/api/* → https://appbox.space)
+//   (default) — реальный бэк через Vite proxy (/api/* → VITE_API_TARGET)
 const params = new URLSearchParams(location.search);
 const USE_MOCK = params.has('mock');
 // Дефолт `3` — тестовый пейвол со Stripe (acquiring.mode=test) в тест-БД.
@@ -101,10 +101,10 @@ append(USE_MOCK ? 'mode: mock' : `mode: real backend (paywall ${PAYWALL_ID})`);
 
 const paywall = new PaywallUI({
   paywallId: PAYWALL_ID,
-  // При proxy-режиме origin пустой → запросы идут к тому же localhost:5070,
-  // Vite проксирует /api/* на VITE_API_TARGET (по умолчанию local online,
-  // в e2e Playwright форсит dev-staging).
-  apiOrigin: USE_MOCK ? 'https://appbox.space' : location.origin,
+  // mock-режим — фейковый origin (никаких сетевых запросов, всё mockFetch).
+  // real-режим — location.origin, Vite проксирует /api/* на VITE_API_TARGET
+  // (по умолчанию local online, e2e Playwright форсит dev-staging).
+  apiOrigin: USE_MOCK ? 'https://demo.local' : location.origin,
   // В mock-режиме identity жёстко задаём (auth-эндпоинты не замоканы);
   // в real-backend режиме включаем managed-auth — для preauth-пейволов
   // SDK сам рисует gate-форму, identity синхронизируется из AuthClient.

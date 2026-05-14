@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PaywallUI } from '../src/ui/PaywallUI';
 import type { PaywallBootstrap, PaywallUser } from '../src/core/types';
 
+const TEST_API_ORIGIN = 'https://test.example.com';
+
 // Freemius hosted checkout не поддерживает per-checkout success URL: redirect
 // после оплаты прибит в Developer Dashboard клиента и игнорирует query, поэтому
 // SDK НЕ может полагаться на paywall_status-маркеры в URL для freemius. Весь
@@ -126,6 +128,7 @@ describe('PaywallUI — freemius flow', () => {
   it('createCheckout returns the freemius hosted URL via SDK contract', async () => {
     const r = routedFetch();
     const ui = new PaywallUI({
+      apiOrigin: TEST_API_ORIGIN,
       paywallId: 'pw_1',
       identity: { email: 'a@b.c' },
       fetch: r.fn,
@@ -147,6 +150,7 @@ describe('PaywallUI — freemius flow', () => {
     // ACTIVE → SDK эмитит purchase_completed без касания URL.
     const r = routedFetch();
     const ui = new PaywallUI({
+      apiOrigin: TEST_API_ORIGIN,
       paywallId: 'pw_1',
       identity: { email: 'a@b.c' },
       fetch: r.fn,
@@ -187,6 +191,7 @@ describe('PaywallUI — freemius flow', () => {
     window.history.replaceState(null, '', '/freemius/return');
     const r = routedFetch();
     const ui = new PaywallUI({
+      apiOrigin: TEST_API_ORIGIN,
       paywallId: 'pw_1',
       fetch: r.fn,
       storage: freshStorage(),

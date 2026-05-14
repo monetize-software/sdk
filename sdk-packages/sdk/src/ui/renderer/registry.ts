@@ -4,6 +4,7 @@ import { AuthPanel } from './blocks/AuthPanel';
 import { CtaButton } from './blocks/CtaButton';
 import { CurrentSession } from './blocks/CurrentSession';
 import { FeaturesList } from './blocks/FeaturesList';
+import { GuaranteeBadge } from './blocks/GuaranteeBadge';
 import { Heading } from './blocks/Heading';
 import { PriceGrid } from './blocks/PriceGrid';
 import { Text } from './blocks/Text';
@@ -17,5 +18,6 @@ export const blockRegistry: Record<LayoutBlock['type'], BlockComponent<any>> = {
   auth_panel: AuthPanel,
   current_session: CurrentSession,
   features_list: FeaturesList,
-  tokenization_gate: TokenizationGate
+  tokenization_gate: TokenizationGate,
+  guarantee_badge: GuaranteeBadge
 };

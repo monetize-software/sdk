@@ -3,24 +3,55 @@ import type { BlockProps } from '../types';
 
 type PriceGridBlock = Extract<LayoutBlock, { type: 'price_grid' }>;
 
-function formatPrice(price: PaywallPrice): string {
+interface FormattedPrice {
+  /** Символ валюты (или ISO-код, если символ не определился). */
+  currency: string;
+  /** Целая часть, без разделителей дробной. */
+  amount: string;
+}
+
+function formatPriceParts(price: PaywallPrice): FormattedPrice {
   const display = price.local ?? { currency: price.currency, amount: price.amount };
   try {
-    return new Intl.NumberFormat(undefined, {
+    const parts = new Intl.NumberFormat(undefined, {
       style: 'currency',
       currency: display.currency,
-      maximumFractionDigits: display.amount % 1 === 0 ? 0 : 2
-    }).format(display.amount);
+      currencyDisplay: 'narrowSymbol',
+      maximumFractionDigits: display.amount % 1 === 0 ? 0 : 2,
+      minimumFractionDigits: display.amount % 1 === 0 ? 0 : 2
+    }).formatToParts(display.amount);
+    let currency = '';
+    let amount = '';
+    for (const part of parts) {
+      if (part.type === 'currency') {
+        currency = part.value;
+      } else if (part.type !== 'literal') {
+        amount += part.value;
+      }
+    }
+    return { currency: currency || display.currency, amount: amount.trim() };
   } catch {
-    return `${display.amount} ${display.currency}`;
+    return { currency: display.currency, amount: String(display.amount) };
   }
 }
 
-function intervalLabel(price: PaywallPrice): string {
-  if (!price.interval || price.interval === 'lifetime') return 'one-time';
+function planLabel(price: PaywallPrice): string {
+  if (price.label) return price.label.toUpperCase();
+  if (!price.interval || price.interval === 'lifetime') return 'LIFETIME';
+  const map: Record<string, string> = {
+    day: 'DAILY PLAN',
+    week: 'WEEKLY PLAN',
+    month: 'MONTHLY PLAN',
+    year: 'YEARLY PLAN'
+  };
+  return map[price.interval] ?? `${price.interval.toUpperCase()} PLAN`;
+}
+
+function intervalSuffix(price: PaywallPrice): string {
+  if (!price.interval || price.interval === 'lifetime') return 'lifetime';
   const n = price.interval_count ?? 1;
-  if (n === 1) return `per ${price.interval}`;
-  return `every ${n} ${price.interval}s`;
+  if (n === 1) return price.interval;
+  return `${n} ${price.interval}s`;
 }
 
 export function PriceGrid({ block, ctx }: BlockProps<PriceGridBlock>) {
@@ -34,10 +65,8 @@ export function PriceGrid({ block, ctx }: BlockProps<PriceGridBlock>) {
   const horizontal = block.view === 'horizontal';
   const popularLabel = block.popular_label ?? 'Most popular';
 
-  // Horizontal раскладывает карточки в ряд через CSS grid. Кол-во колонок
-  // = min(N,3) — задаём через inline-style, потому что Tailwind purge не
-  // переживает runtime-конкатенацию `grid-cols-${N}`. Карточки в горизонтали
-  // выкладывают цену снизу, не справа — иначе при N≥3 не хватает ширины.
+  // Horizontal: ряд из N карточек (max 3) — Tailwind purge не переживает
+  // runtime-конкатенацию `grid-cols-${N}`, поэтому inline-style.
   const cols = horizontal ? Math.min(prices.length, 3) : 1;
 
   return (
@@ -50,6 +79,7 @@ export function PriceGrid({ block, ctx }: BlockProps<PriceGridBlock>) {
       {prices.map((price) => {
         const selected = ctx.selectedPriceId === price.id;
         const isPopular = block.popular_price_id === price.id;
+        const { currency, amount } = formatPriceParts(price);
         return (
           <button
             key={price.id}
@@ -61,12 +91,9 @@ export function PriceGrid({ block, ctx }: BlockProps<PriceGridBlock>) {
               ctx.onAction('price_selected', { priceId: price.id, price });
             }}
             class={[
-              'group relative rounded-2xl border px-4 py-3.5 text-left transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--pw-accent)]',
-              horizontal
-                ? 'flex w-full flex-col items-start gap-1'
-                : 'flex w-full items-center justify-between gap-3',
+              'group relative flex w-full items-center gap-3 rounded-2xl border px-4 py-3 text-left transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--pw-accent)]',
               selected
-                ? 'border-[var(--pw-accent)] bg-[color-mix(in_srgb,var(--pw-accent)_6%,white)] shadow-[0_0_0_3px_color-mix(in_srgb,var(--pw-accent)_12%,transparent)]'
+                ? 'border-[var(--pw-accent)] shadow-[0_0_0_1px_var(--pw-accent)]'
                 : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm',
               isPopular ? 'mt-2.5' : ''
             ].join(' ')}
@@ -82,34 +109,47 @@ export function PriceGrid({ block, ctx }: BlockProps<PriceGridBlock>) {
                 {popularLabel}
               </span>
             ) : null}
-            <div class={horizontal ? 'flex w-full items-start gap-2.5' : 'flex flex-1 items-start gap-2.5'}>
-              <span
-                class={[
-                  'mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full border transition-colors',
-                  selected
-                    ? 'border-[var(--pw-accent)] bg-[var(--pw-accent)]'
-                    : 'border-gray-300 bg-white group-hover:border-gray-400'
-                ].join(' ')}
-                aria-hidden="true"
-              >
-                {selected ? <span class="h-1.5 w-1.5 rounded-full bg-white" /> : null}
+            <div class="flex flex-1 flex-col gap-0.5">
+              <span class="text-[11px] font-medium uppercase tracking-[0.08em] text-gray-500">
+                {planLabel(price)}
               </span>
-              <div class="flex flex-col">
-                <span class="text-sm font-semibold text-gray-900">{price.label ?? intervalLabel(price)}</span>
-                {price.description ? (
-                  <span class="text-xs leading-relaxed text-gray-500">{price.description}</span>
-                ) : null}
-                {price.trial_days ? (
-                  <span class="text-xs font-medium text-[var(--pw-accent)]">
-                    {price.trial_days}-day free trial
-                  </span>
-                ) : null}
+              <div class="flex items-baseline gap-1.5 leading-none">
+                <span class="text-[24px] font-normal text-gray-400">{currency}</span>
+                <span class="text-[34px] font-semibold tracking-tight text-gray-900">
+                  {amount}
+                </span>
+                <span class="ml-1 text-sm font-medium text-gray-400">
+                  / {intervalSuffix(price)}
+                </span>
               </div>
+              {price.description ? (
+                <span class="mt-1 text-xs leading-relaxed text-gray-500">{price.description}</span>
+              ) : null}
+              {price.trial_days ? (
+                <span class="mt-1 text-xs font-medium text-[var(--pw-accent)]">
+                  {price.trial_days}-day free trial
+                </span>
+              ) : null}
             </div>
-            <div class={horizontal ? 'mt-1 flex flex-col items-start' : 'flex flex-col items-end'}>
-              <span class="text-base font-semibold tracking-tight text-gray-900">{formatPrice(price)}</span>
-              <span class="text-[11px] text-gray-500">{intervalLabel(price)}</span>
-            </div>
+            <span
+              class={[
+                'flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border transition-colors',
+                selected
+                  ? 'border-[var(--pw-accent)] bg-[var(--pw-accent)] text-white'
+                  : 'border-gray-300 bg-white text-transparent group-hover:border-gray-400'
+              ].join(' ')}
+              aria-hidden="true"
+            >
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                <path
+                  d="M3.5 8.5l3 3 6-7"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+            </span>
           </button>
         );
       })}

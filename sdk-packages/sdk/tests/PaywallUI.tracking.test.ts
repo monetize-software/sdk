@@ -2,6 +2,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PaywallUI } from '../src/ui/PaywallUI';
 
+const TEST_API_ORIGIN = 'https://test.example.com';
+
 // Тесты интеграции EventTracker внутрь PaywallUI:
 // - системные emit'ы автоматически пробрасываются как track-события;
 // - public track() работает;
@@ -35,6 +37,7 @@ function makeUI(opts: { analytics?: boolean | Record<string, unknown> } = {}) {
   }
 
   const ui = new PaywallUI({
+    apiOrigin: TEST_API_ORIGIN,
     paywallId: 'pw_1',
     fetch: fetchSpy,
     autoDetectReturn: false,

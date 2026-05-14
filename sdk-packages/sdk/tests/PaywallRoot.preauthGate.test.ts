@@ -188,7 +188,7 @@ describe('PaywallRoot preauth gate', () => {
     await flush();
     clickContinue(container);
     await flush();
-    expect(createCheckout).toHaveBeenCalledWith({ priceId: 'price_1' });
+    expect(createCheckout).toHaveBeenCalledWith({ priceId: 'price_1', ignoreActivePurchase: false });
     unmount();
   });
 
@@ -233,7 +233,7 @@ describe('PaywallRoot preauth gate', () => {
     });
     await flush();
 
-    expect(createCheckout).toHaveBeenCalledWith({ priceId: 'price_1' });
+    expect(createCheckout).toHaveBeenCalledWith({ priceId: 'price_1', ignoreActivePurchase: false });
     expect(createCheckout).toHaveBeenCalledTimes(1);
     unmount();
   });
@@ -401,7 +401,7 @@ describe('PaywallRoot preauth gate', () => {
     expect(container.textContent).toContain('a@b.c');
 
     const signOutBtn = Array.from(container.querySelectorAll('button')).find(
-      (b) => b.textContent === 'Sign out'
+      (b) => b.textContent === 'Sign Out'
     );
     expect(signOutBtn).toBeTruthy();
     act(() => {

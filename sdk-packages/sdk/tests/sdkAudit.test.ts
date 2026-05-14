@@ -6,6 +6,8 @@ import { ApiGatewayClient } from '../src/core/ApiGatewayClient';
 import { PaywallError } from '../src/core/types';
 import { PaywallUI } from '../src/ui/PaywallUI';
 
+const TEST_API_ORIGIN = 'https://test.example.com';
+
 function jsonResponse(body: unknown, status = 200, headers: Record<string, string> = {}): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -157,6 +159,7 @@ describe('BillingClient.destroy clears listeners', () => {
 
   it('userListeners and balanceListeners cleared', () => {
     const billing = new BillingClient({
+      apiOrigin: TEST_API_ORIGIN,
       paywallId: 'pw_1',
       fetch: async () => jsonResponse({}),
       storage: freshStorage()
@@ -191,6 +194,7 @@ describe('apiKey/userId security warnings', () => {
   it('apiKey in browser triggers console.error', () => {
     const errSpy = console.error as unknown as ReturnType<typeof vi.fn>;
     new BillingClient({
+      apiOrigin: TEST_API_ORIGIN,
       paywallId: 'pw_1',
       apiKey: 'sk_test_xxx',
       fetch: async () => jsonResponse({}),
@@ -205,6 +209,7 @@ describe('apiKey/userId security warnings', () => {
   it('ApiGatewayClient userId without auth in browser triggers console.warn', () => {
     const warnSpy = console.warn as unknown as ReturnType<typeof vi.fn>;
     new ApiGatewayClient({
+      apiOrigin: TEST_API_ORIGIN,
       paywallId: 'pw_1',
       userId: 'usr_1',
       fetch: async () => jsonResponse({})
@@ -232,6 +237,7 @@ describe('AbortSignal threading', () => {
       });
     });
     const billing = new BillingClient({
+      apiOrigin: TEST_API_ORIGIN,
       paywallId: 'pw_1',
       fetch: fetchMock,
       storage: freshStorage()
@@ -252,6 +258,7 @@ describe('PaywallUI.getState / onStateChange', () => {
 
   it('default state is closed', () => {
     const ui = new PaywallUI({
+      apiOrigin: TEST_API_ORIGIN,
       paywallId: 'pw_1',
       fetch: async () => jsonResponse({}),
       autoDetectReturn: false
@@ -261,6 +268,7 @@ describe('PaywallUI.getState / onStateChange', () => {
 
   it('onStateChange emits initial snapshot in microtask by default', async () => {
     const ui = new PaywallUI({
+      apiOrigin: TEST_API_ORIGIN,
       paywallId: 'pw_1',
       fetch: async () => jsonResponse({}),
       autoDetectReturn: false
@@ -274,6 +282,7 @@ describe('PaywallUI.getState / onStateChange', () => {
 
   it('onStateChange with immediate:sync calls in same tick', () => {
     const ui = new PaywallUI({
+      apiOrigin: TEST_API_ORIGIN,
       paywallId: 'pw_1',
       fetch: async () => jsonResponse({}),
       autoDetectReturn: false
@@ -286,6 +295,7 @@ describe('PaywallUI.getState / onStateChange', () => {
 
   it('onStateChange with immediate:none does not deliver initial', async () => {
     const ui = new PaywallUI({
+      apiOrigin: TEST_API_ORIGIN,
       paywallId: 'pw_1',
       fetch: async () => jsonResponse({}),
       autoDetectReturn: false
@@ -298,6 +308,7 @@ describe('PaywallUI.getState / onStateChange', () => {
 
   it('unsubscribe removes listener', () => {
     const ui = new PaywallUI({
+      apiOrigin: TEST_API_ORIGIN,
       paywallId: 'pw_1',
       fetch: async () => jsonResponse({}),
       autoDetectReturn: false
@@ -317,6 +328,7 @@ describe('PaywallUI.getState / onStateChange', () => {
 
   it('applyState is idempotent for same snapshot', () => {
     const ui = new PaywallUI({
+      apiOrigin: TEST_API_ORIGIN,
       paywallId: 'pw_1',
       fetch: async () => jsonResponse({}),
       autoDetectReturn: false
@@ -334,6 +346,7 @@ describe('PaywallUI.getState / onStateChange', () => {
 
   it('error snapshot carries PaywallError', () => {
     const ui = new PaywallUI({
+      apiOrigin: TEST_API_ORIGIN,
       paywallId: 'pw_1',
       fetch: async () => jsonResponse({}),
       autoDetectReturn: false

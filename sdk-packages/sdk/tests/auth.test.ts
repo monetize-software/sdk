@@ -4,6 +4,8 @@ import { AuthClient, type AuthChangeEvent, type AuthSession } from '../src/core/
 import { PaywallError } from '../src/core/types';
 import { STORAGE_KEYS, type StorageAdapter } from '../src/core/storage';
 
+const TEST_API_ORIGIN = 'https://test.example.com';
+
 // Каждый тест получает изолированный storage — module-level memoryMap из
 // storage.ts протекает между тестами и приносит чужие auth-сессии.
 function freshStorage(seed: Record<string, string> = {}): StorageAdapter {
@@ -45,7 +47,7 @@ describe('AuthClient', () => {
   });
 
   it('throws on missing paywallId', () => {
-    expect(() => new AuthClient({ paywallId: '' })).toThrow(PaywallError);
+    expect(() => new AuthClient({ apiOrigin: TEST_API_ORIGIN, paywallId: '' })).toThrow(PaywallError);
   });
 
   it('signInWithEmail stores session and emits onAuthChange', async () => {
@@ -643,11 +645,10 @@ describe('AuthClient', () => {
       expect(openedUrl).toBeTruthy();
     });
 
-    // Извлекаем state из URL и шлём postMessage от имени callback page.
-    const u = new URL(openedUrl!);
-    const state = u.searchParams.get('state')!;
+    // State живёт в имени popup'а (`pw-oauth-${state}`) — authorize_url
+    // приходит уже сформированным с бэка, клиент в него ничего не дописывает.
+    const state = openedName!.replace(/^pw-oauth-/, '');
     expect(state.length).toBeGreaterThan(8);
-    expect(openedName).toBe(`pw-oauth-${state}`);
 
     window.dispatchEvent(
       new MessageEvent('message', {
@@ -705,21 +706,21 @@ describe('AuthClient', () => {
     });
 
     const fakePopup = { closed: false, close: vi.fn() } as unknown as Window;
-    let openedUrl = '';
+    let openedName = '';
     const auth = new AuthClient({
       paywallId: PAYWALL_ID,
       apiOrigin: API_ORIGIN,
       fetch: fetchMock,
       storage: freshStorage(),
-      openPopup: (url) => {
-        openedUrl = url;
+      openPopup: (_url, name) => {
+        openedName = name;
         return fakePopup;
       }
     });
 
     const sessionPromise = auth.signInWithOAuth({ provider: 'google' });
-    await vi.waitFor(() => expect(openedUrl).toBeTruthy());
-    const realState = new URL(openedUrl).searchParams.get('state')!;
+    await vi.waitFor(() => expect(openedName).toBeTruthy());
+    const realState = openedName.replace(/^pw-oauth-/, '');
 
     // Чужое сообщение с другим state — должно быть проигнорировано.
     window.dispatchEvent(
@@ -787,21 +788,21 @@ describe('AuthClient', () => {
       jsonResponse({ authorize_url: 'https://gotrue.example.com/auth/v1/authorize' })
     );
     const fakePopup = { closed: false, close: vi.fn() } as unknown as Window;
-    let openedUrl = '';
+    let openedName = '';
     const auth = new AuthClient({
       paywallId: PAYWALL_ID,
       apiOrigin: API_ORIGIN,
       fetch: fetchMock,
       storage: freshStorage(),
-      openPopup: (url) => {
-        openedUrl = url;
+      openPopup: (_url, name) => {
+        openedName = name;
         return fakePopup;
       }
     });
 
     const p = auth.signInWithOAuth({ provider: 'google' });
-    await vi.waitFor(() => expect(openedUrl).toBeTruthy());
-    const state = new URL(openedUrl).searchParams.get('state')!;
+    await vi.waitFor(() => expect(openedName).toBeTruthy());
+    const state = openedName.replace(/^pw-oauth-/, '');
 
     window.dispatchEvent(
       new MessageEvent('message', {

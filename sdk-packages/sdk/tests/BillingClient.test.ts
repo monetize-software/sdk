@@ -7,6 +7,8 @@ import {
   type PaywallSettings
 } from '../src/core/types';
 
+const TEST_API_ORIGIN = 'https://test.example.com';
+
 const SETTINGS: PaywallSettings = { id: 'pw_1', name: 'Upgrade to Pro', brand_color: '#000' };
 
 const PRICES: PaywallPrice[] = [
@@ -33,7 +35,9 @@ const LAYOUT = {
   blocks: [
     { type: 'heading' as const, text: 'Upgrade to Pro', level: 1 as const },
     { type: 'price_grid' as const, priceIds: ['monthly', 'yearly'] },
-    { type: 'cta_button' as const, label: 'Continue', action: 'checkout' as const }
+    { type: 'cta_button' as const, label: 'Continue', action: 'checkout' as const },
+    { type: 'guarantee_badge' as const },
+    { type: 'current_session' as const }
   ]
 };
 
@@ -65,12 +69,12 @@ describe('BillingClient', () => {
   });
 
   it('throws when paywallId is missing', () => {
-    expect(() => new BillingClient({ paywallId: '' })).toThrow(PaywallError);
+    expect(() => new BillingClient({ apiOrigin: TEST_API_ORIGIN, paywallId: '' })).toThrow(PaywallError);
   });
 
   it('bootstrap fetches /bootstrap and returns the normalized payload', async () => {
     const fetchImpl = bootstrapFetch(() => json(BOOTSTRAP));
-    const client = new BillingClient({ paywallId: 'pw_1', fetch: fetchImpl });
+    const client = new BillingClient({ apiOrigin: TEST_API_ORIGIN, paywallId: 'pw_1', fetch: fetchImpl });
 
     const b = await client.bootstrap();
 
@@ -84,7 +88,7 @@ describe('BillingClient', () => {
     const fetchImpl = bootstrapFetch(() =>
       json({ settings: SETTINGS, prices: PRICES, offers: [] })
     );
-    const client = new BillingClient({ paywallId: 'pw_1', fetch: fetchImpl });
+    const client = new BillingClient({ apiOrigin: TEST_API_ORIGIN, paywallId: 'pw_1', fetch: fetchImpl });
 
     const b = await client.bootstrap();
 
@@ -95,7 +99,7 @@ describe('BillingClient', () => {
     const fetchImpl = bootstrapFetch(() =>
       json({ settings: { ...SETTINGS, name: '' }, prices: PRICES, offers: [] })
     );
-    const client = new BillingClient({ paywallId: 'pw_1', fetch: fetchImpl });
+    const client = new BillingClient({ apiOrigin: TEST_API_ORIGIN, paywallId: 'pw_1', fetch: fetchImpl });
 
     const b = await client.bootstrap();
     expect(b.layout?.blocks[0]).toEqual({ type: 'heading', text: 'Upgrade', level: 1 });
@@ -105,14 +109,14 @@ describe('BillingClient', () => {
     const fetchImpl = bootstrapFetch(() =>
       json({ code: 'not_found', message: 'nope' }, 404)
     );
-    const client = new BillingClient({ paywallId: 'pw_1', fetch: fetchImpl });
+    const client = new BillingClient({ apiOrigin: TEST_API_ORIGIN, paywallId: 'pw_1', fetch: fetchImpl });
 
     await expect(client.bootstrap()).rejects.toMatchObject({ code: 'not_found', status: 404 });
   });
 
   it('caches bootstrap and re-fetches on force=true', async () => {
     const fetchImpl = bootstrapFetch(() => json(BOOTSTRAP));
-    const client = new BillingClient({ paywallId: 'pw_1', fetch: fetchImpl });
+    const client = new BillingClient({ apiOrigin: TEST_API_ORIGIN, paywallId: 'pw_1', fetch: fetchImpl });
 
     await client.bootstrap();
     await client.bootstrap();
@@ -128,7 +132,7 @@ describe('BillingClient', () => {
     // bootstrap() возвращает кэш без сети; свежий user приходит через
     // отдельный getUser({force:true}), который setIdentity дёргает сам.
     const fetchImpl = bootstrapFetch(() => json(BOOTSTRAP));
-    const client = new BillingClient({ paywallId: 'pw_1', fetch: fetchImpl });
+    const client = new BillingClient({ apiOrigin: TEST_API_ORIGIN, paywallId: 'pw_1', fetch: fetchImpl });
 
     await client.bootstrap();
     const before = (fetchImpl as ReturnType<typeof vi.fn>).mock.calls.length;
@@ -146,7 +150,7 @@ describe('BillingClient', () => {
 
   it('createCheckout requires identity', async () => {
     const fetchImpl = bootstrapFetch(() => json(BOOTSTRAP));
-    const client = new BillingClient({ paywallId: 'pw_1', fetch: fetchImpl });
+    const client = new BillingClient({ apiOrigin: TEST_API_ORIGIN, paywallId: 'pw_1', fetch: fetchImpl });
 
     await expect(client.createCheckout({ priceId: 'monthly' })).rejects.toMatchObject({
       code: 'identity_required'
@@ -158,6 +162,7 @@ describe('BillingClient', () => {
       json({ checkoutUrl: 'https://pay/x', userId: 'u_42', acquiring: 'stripe' })
     );
     const client = new BillingClient({
+      apiOrigin: TEST_API_ORIGIN,
       paywallId: 'pw_1',
       identity: { email: 'a@b.c', userId: 'u_42' },
       apiKey: 'ak_test',
@@ -170,7 +175,7 @@ describe('BillingClient', () => {
       errorUrl: 'https://cancel'
     });
 
-    expect(res).toEqual({ url: 'https://pay/x' });
+    expect(res).toEqual({ url: 'https://pay/x', acquiring: 'stripe' });
     const [url, init] = checkoutFetch.mock.calls[0];
     expect(url).toContain('/api/v1/paywall/pw_1/start-checkout');
     expect(init?.method).toBe('POST');
@@ -189,6 +194,7 @@ describe('BillingClient', () => {
       json({ checkoutUrl: 'https://pay/x', userId: 'u_42', acquiring: 'stripe' })
     );
     const client = new BillingClient({
+      apiOrigin: TEST_API_ORIGIN,
       paywallId: 'pw_1',
       identity: { email: 'a@b.c' },
       fetch: checkoutFetch
@@ -208,6 +214,7 @@ describe('BillingClient', () => {
       json({ checkoutUrl: 'https://pay/x', userId: 'u_42', acquiring: 'stripe' })
     );
     const client = new BillingClient({
+      apiOrigin: TEST_API_ORIGIN,
       paywallId: 'pw_1',
       identity: { email: 'a@b.c' },
       fetch: checkoutFetch
@@ -226,6 +233,7 @@ describe('BillingClient', () => {
       () => new Promise<Response>((res) => { resolveResp = res; })
     );
     const client = new BillingClient({
+      apiOrigin: TEST_API_ORIGIN,
       paywallId: 'pw_1',
       identity: { email: 'a@b.c' },
       fetch: checkoutFetch
@@ -243,7 +251,7 @@ describe('BillingClient', () => {
     resolveResp(json({ checkoutUrl: 'https://pay/x', userId: 'u_1', acquiring: 'stripe' }));
 
     const [r1, r2, r3] = await Promise.all([p1, p2, p3]);
-    expect(r1).toEqual({ url: 'https://pay/x' });
+    expect(r1).toEqual({ url: 'https://pay/x', acquiring: 'stripe' });
     expect(r2).toBe(r1);
     expect(r3).toBe(r1);
     expect(checkoutFetch.mock.calls.length).toBe(1);
@@ -259,6 +267,7 @@ describe('BillingClient', () => {
       });
     });
     const client = new BillingClient({
+      apiOrigin: TEST_API_ORIGIN,
       paywallId: 'pw_1',
       identity: { email: 'a@b.c' },
       fetch: checkoutFetch
@@ -281,6 +290,7 @@ describe('BillingClient', () => {
       json({ checkoutUrl: 'https://pay/x', userId: 'u_1', acquiring: 'stripe' })
     );
     const client = new BillingClient({
+      apiOrigin: TEST_API_ORIGIN,
       paywallId: 'pw_1',
       identity: { email: 'a@b.c' },
       fetch: checkoutFetch
@@ -314,6 +324,7 @@ describe('BillingClient', () => {
       })
     );
     const client = new BillingClient({
+      apiOrigin: TEST_API_ORIGIN,
       paywallId: 'pw_1',
       identity: { email: 'a@b.c' },
       fetch: checkoutFetch
@@ -322,7 +333,8 @@ describe('BillingClient', () => {
     const res = await client.createCheckout({ priceId: 'monthly' });
 
     expect(res).toEqual({
-      url: 'https://checkout.freemius.com/product/123/plan/456/?billing_cycle=annual'
+      url: 'https://checkout.freemius.com/product/123/plan/456/?billing_cycle=annual',
+      acquiring: 'freemius'
     });
   });
 
@@ -338,6 +350,7 @@ describe('BillingClient', () => {
         })
     );
     const client = new BillingClient({
+      apiOrigin: TEST_API_ORIGIN,
       paywallId: 'pw_1',
       identity: { email: 'a@b.c' },
       fetch: checkoutFetch
@@ -370,6 +383,7 @@ describe('BillingClient', () => {
         json({ checkoutUrl: 'https://pay/ok', userId: 'u_1', acquiring: 'stripe' })
       );
     const client = new BillingClient({
+      apiOrigin: TEST_API_ORIGIN,
       paywallId: 'pw_1',
       identity: { email: 'a@b.c' },
       fetch: checkoutFetch
@@ -377,7 +391,7 @@ describe('BillingClient', () => {
 
     await expect(client.createCheckout({ priceId: 'monthly' })).rejects.toBeDefined();
     const r = await client.createCheckout({ priceId: 'monthly' });
-    expect(r).toEqual({ url: 'https://pay/ok' });
+    expect(r).toEqual({ url: 'https://pay/ok', acquiring: 'stripe' });
     expect(checkoutFetch.mock.calls.length).toBe(2);
   });
 });
