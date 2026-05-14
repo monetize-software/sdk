@@ -5,6 +5,15 @@
   "type": "module",
   "sideEffects": false,
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/monetize-software/sdk.git",
+    "directory": "sdk-packages/sdk-extension"
+  },
+  "bugs": {
+    "url": "https://github.com/monetize-software/sdk/issues"
+  },
+  "homepage": "https://github.com/monetize-software/sdk/tree/main/sdk-packages/sdk-extension#readme",
   "files": [
     "dist",
     "src/offscreen/offscreen.html"

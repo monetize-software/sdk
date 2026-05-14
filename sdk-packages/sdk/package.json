@@ -7,12 +7,13 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/monetize-software/sdk.git"
+    "url": "git+https://github.com/monetize-software/sdk.git",
+    "directory": "sdk-packages/sdk"
   },
   "bugs": {
     "url": "https://github.com/monetize-software/sdk/issues"
   },
-  "homepage": "https://github.com/monetize-software/sdk#readme",
+  "homepage": "https://github.com/monetize-software/sdk/tree/main/sdk-packages/sdk#readme",
   "files": [
     "dist"
   ],

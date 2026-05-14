@@ -8,12 +8,12 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/monetize-software/sdk.git",
-    "directory": "sdk-react"
+    "directory": "sdk-packages/sdk-react"
   },
   "bugs": {
     "url": "https://github.com/monetize-software/sdk/issues"
   },
-  "homepage": "https://github.com/monetize-software/sdk-react#readme",
+  "homepage": "https://github.com/monetize-software/sdk/tree/main/sdk-packages/sdk-react#readme",
   "files": [
     "dist"
   ],
