@@ -12,16 +12,28 @@ This is the **monorepo** for the published packages:
 
 ## Quick start
 
+Pick the package(s) that match your stack — platform is independent of UI framework:
+
+|  | Vanilla JS / TS | React |
+|---|---|---|
+| **Website** | `sdk` | `sdk` + `sdk-react` |
+| **Chrome extension (MV3)** | `sdk-extension` | `sdk-extension` + `sdk-react` |
+
 ```bash
-# Plain JS / TS web app
+# Vanilla on a website
 pnpm add @monetize.software/sdk
 
-# React app
-pnpm add @monetize.software/sdk-react @monetize.software/sdk react
-
-# Chrome extension (MV3)
+# Vanilla in a Chrome extension
 pnpm add @monetize.software/sdk-extension
+
+# React on a website
+pnpm add @monetize.software/sdk @monetize.software/sdk-react react
+
+# React in a Chrome extension
+pnpm add @monetize.software/sdk-extension @monetize.software/sdk-react react
 ```
+
+`sdk-react` works with both web and extension SDKs — same Provider, same hooks, same components.
 
 ```ts
 import { PaywallUI } from '@monetize.software/sdk';
