@@ -43,10 +43,10 @@ online/
 docs/
 
 # Internal-документация и dev-артефакты — остаются у разработчика на диске,
-# но не публикуются в monorepo. Сюда же — README.internal.md (был исходный
-# project-wide README, который описывает platform/online infrastructure и
-# не предназначен для npm-консьюмеров SDK).
-/README.internal.md
+# но не публикуются в monorepo. Pattern *.internal.md покрывает любые
+# приватные документы (runbook'и, рассуждения, проектная архитектура,
+# которые не для npm-консьюмеров SDK).
+/*.internal.md
 /CLAUDE.md
 /TODO.md
 /*.png

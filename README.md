@@ -35,6 +35,10 @@ pnpm add @monetize.software/sdk-extension @monetize.software/sdk-react react
 
 `sdk-react` works with both web and extension SDKs — same Provider, same hooks, same components.
 
+**React frameworks:** `sdk-react` is SSR-safe out of the box — the Provider creates the `PaywallUI` instance inside `useEffect` and hooks return `null` / `loading` until then. Works with Next.js (App Router and Pages Router), Remix, TanStack Start, Astro, and React Server Components (use `'use client'` on the Provider).
+
+**Other frameworks (Vue, Svelte, Solid, vanilla):** use the core `sdk` directly — its event-based API (`paywall.on('purchase_completed', ...)`) is framework-agnostic. The React bindings are a thin convenience layer, not a hard requirement.
+
 ```ts
 import { PaywallUI } from '@monetize.software/sdk';
 
