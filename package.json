@@ -1,0 +1,24 @@
+{
+  "name": "monetize-sdk-monorepo",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Workspace root for @monetize.software/sdk + sdk-extension + sdk-react. Release orchestration через Changesets.",
+  "scripts": {
+    "changeset": "changeset",
+    "version-packages": "changeset version",
+    "release": "pnpm -r build && changeset publish",
+    "release:alpha": "changeset pre enter alpha && changeset version && pnpm -r build && changeset publish && changeset pre exit",
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "typecheck": "pnpm -r typecheck",
+    "dev": "concurrently --names sdk,react -c blue,green \"pnpm --filter @monetize.software/sdk build:watch\" \"pnpm --filter @monetize.software/sdk-react dev\""
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.27.10",
+    "concurrently": "^9.1.0"
+  },
+  "engines": {
+    "pnpm": ">=9"
+  },
+  "packageManager": "pnpm@10.28.1"
+}

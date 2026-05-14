@@ -1,0 +1,24 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Monetize SDK — Offscreen</title>
+  </head>
+  <body>
+    <!--
+      Hidden offscreen document. Hosts the singleton BillingClient/AuthClient/
+      EventTracker for the extension. Created by service worker via:
+
+        chrome.offscreen.createDocument({
+          url: chrome.runtime.getURL('offscreen.html'),
+          reasons: ['LOCAL_STORAGE'],
+          justification: 'Persist auth session and bootstrap cache across all extension surfaces via localStorage, which is unavailable in service workers.'
+        });
+
+      The offscreen document URL must be a static file bundled with the extension —
+      copy this file (or generate from this template) into your extension package
+      and reference its bundled `offscreen.js` to call startOffscreenServer().
+    -->
+    <script type="module" src="./offscreen.js"></script>
+  </body>
+</html>

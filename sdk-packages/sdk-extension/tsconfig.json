@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "jsx": "preserve",
+    "jsxImportSource": "preact",
+    "strict": false,
+    "noImplicitAny": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "outDir": "dist",
+    "types": ["node", "chrome", "vite/client"],
+    "baseUrl": ".",
+    "paths": {
+      "react": ["./node_modules/preact/compat/", "../sdk/node_modules/preact/compat/"],
+      "react-dom": ["./node_modules/preact/compat/", "../sdk/node_modules/preact/compat/"],
+      "@sdk/*": ["../sdk/src/*"]
+    }
+  },
+  "include": ["src", "tests", "tests-e2e"],
+  "exclude": ["dist", "node_modules", "demo-extension"]
+}

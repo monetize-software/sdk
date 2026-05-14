@@ -1,0 +1,18 @@
+node_modules
+dist
+dist-types
+.vite
+*.log
+.DS_Store
+
+# Playwright
+test-results
+playwright-report
+
+# Extension playground artefacts
+playgrounds/extension/dist
+
+# Локальные секреты для demo (VITE_* → import.meta.env)
+.env
+.env.local
+.env.*.local

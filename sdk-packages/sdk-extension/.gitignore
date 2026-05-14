@@ -1,0 +1,16 @@
+node_modules/
+dist/
+demo-extension/dist/
+test-results/
+playwright-report/
+.playwright-mcp/
+
+.env
+.env.local
+.env.*.local
+
+*.log
+.DS_Store
+.idea/
+.vscode/
+*.tsbuildinfo

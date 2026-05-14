@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Paywall SDK — demo</title>
+    <style>
+      :root { font-family: ui-sans-serif, system-ui, sans-serif; color-scheme: light; }
+      body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #f3f4f6; color: #111827; }
+      .card { background: white; padding: 32px 40px; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.08); max-width: 420px; text-align: center; }
+      h1 { margin: 0 0 8px; font-size: 20px; }
+      p { margin: 0 0 24px; color: #6b7280; font-size: 14px; }
+      button { height: 40px; padding: 0 20px; border-radius: 10px; border: none; background: #111827; color: white; font-weight: 500; cursor: pointer; }
+      button + button { margin-left: 8px; background: #e5e7eb; color: #111827; }
+      pre { text-align: left; font-size: 12px; background: #f9fafb; padding: 12px; border-radius: 8px; margin: 16px 0 0; max-height: 160px; overflow: auto; }
+    </style>
+    <style id="hostile-css" media="not all">
+      /* Включается через data-hostile на <html>. Агрессивные хост-стили —
+         проверяем, что shadow DOM держит их снаружи. */
+      *, *::before, *::after {
+        color: #ff00ff !important;
+        background: yellow !important;
+        font-family: 'Comic Sans MS', serif !important;
+        box-sizing: content-box !important;
+        letter-spacing: 3px !important;
+        text-transform: uppercase !important;
+      }
+      button {
+        all: unset !important;
+        color: red !important;
+        border: 5px dashed lime !important;
+      }
+      h1, h2, h3 {
+        font-size: 72px !important;
+        font-weight: 100 !important;
+        text-decoration: underline wavy red !important;
+      }
+      div { outline: 2px solid red !important; }
+      :root, body { filter: hue-rotate(90deg) !important; }
+      /* z-index атака поверх нашего хоста (у нас 2147483647 = MAX_INT32) */
+      .z-attack { position: fixed; inset: 0; background: rgba(0,0,255,0.3); z-index: 99999999; pointer-events: none; }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>Paywall SDK demo</h1>
+      <p>Клик по кнопке открывает модалку. Fetch замокан — бэк не требуется.</p>
+      <button id="open">Open paywall</button>
+      <button id="open-support">Open support</button>
+      <button id="close">Close</button>
+      <button id="hostile">Toggle hostile host CSS</button>
+      <pre id="log">events →</pre>
+    </div>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

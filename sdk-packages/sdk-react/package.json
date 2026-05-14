@@ -1,0 +1,69 @@
+{
+  "name": "@monetize.software/sdk-react",
+  "version": "3.0.0-alpha.0",
+  "description": "React bindings for @monetize.software/sdk — Provider, hooks and declarative components. Works with the web SDK and the extension SDK (any drop-in compatible PaywallUI).",
+  "type": "module",
+  "sideEffects": false,
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/monetize-software/sdk.git",
+    "directory": "sdk-react"
+  },
+  "bugs": {
+    "url": "https://github.com/monetize-software/sdk/issues"
+  },
+  "homepage": "https://github.com/monetize-software/sdk-react#readme",
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "scripts": {
+    "dev": "vite",
+    "prebuild": "pnpm --filter @monetize.software/sdk build",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "prepublishOnly": "pnpm typecheck && pnpm build",
+    "version:alpha": "npm version prerelease --preid=alpha --no-git-tag-version",
+    "version:patch": "npm version patch --no-git-tag-version",
+    "version:minor": "npm version minor --no-git-tag-version",
+    "version:major": "npm version major --no-git-tag-version",
+    "release:alpha": "npm publish --access public --tag alpha",
+    "release:latest": "npm publish --access public"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "@monetize.software/sdk": "workspace:*"
+  },
+  "peerDependenciesMeta": {
+    "@monetize.software/sdk": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@monetize.software/sdk": "workspace:*",
+    "@playwright/test": "^1.59.1",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.1.0",
+    "@types/node": "^20.17.28",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "jsdom": "^25.0.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "typescript": "^5.8.2",
+    "vite": "^6.0.5",
+    "vite-plugin-dts": "^4.3.0",
+    "vitest": "^2.1.8"
+  }
+}

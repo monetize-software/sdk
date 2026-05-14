@@ -1,0 +1,72 @@
+{
+  "name": "@monetize.software/sdk-extension",
+  "version": "3.0.0-alpha.3",
+  "description": "Monetize SDK for Chrome extensions — single source of truth via offscreen document, drop-in compatible with @monetize.software/sdk public API",
+  "type": "module",
+  "sideEffects": false,
+  "license": "MIT",
+  "files": [
+    "dist",
+    "src/offscreen/offscreen.html"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/content/index.d.ts",
+      "import": "./dist/content.js",
+      "require": "./dist/content.cjs"
+    },
+    "./offscreen": {
+      "types": "./dist/offscreen/index.d.ts",
+      "import": "./dist/offscreen.js",
+      "require": "./dist/offscreen.cjs"
+    },
+    "./sw": {
+      "types": "./dist/sw/index.d.ts",
+      "import": "./dist/sw.js",
+      "require": "./dist/sw.cjs"
+    },
+    "./offscreen.html": "./src/offscreen/offscreen.html"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "dev:demo": "vite build --watch --mode e2e --config demo-extension/vite.config.ts & vite build --watch --mode e2e --config demo-extension/vite.content.config.ts & wait",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "pnpm build:demo:e2e && playwright test",
+    "build:demo": "vite build --config demo-extension/vite.config.ts && vite build --config demo-extension/vite.content.config.ts",
+    "build:demo:e2e": "vite build --mode e2e --config demo-extension/vite.config.ts && vite build --mode e2e --config demo-extension/vite.content.config.ts",
+    "prepublishOnly": "pnpm typecheck && pnpm build",
+    "version:alpha": "npm version prerelease --preid=alpha --no-git-tag-version",
+    "version:patch": "npm version patch --no-git-tag-version",
+    "version:minor": "npm version minor --no-git-tag-version",
+    "version:major": "npm version major --no-git-tag-version",
+    "release:alpha": "npm publish --access public --tag alpha",
+    "release:latest": "npm publish --access public"
+  },
+  "dependencies": {
+    "preact": "^10.24.0"
+  },
+  "peerDependencies": {
+    "@monetize.software/sdk": "workspace:*"
+  },
+  "peerDependenciesMeta": {
+    "@monetize.software/sdk": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@monetize.software/sdk": "workspace:*",
+    "@playwright/test": "^1.59.1",
+    "@tailwindcss/vite": "^4.0.0",
+    "@types/chrome": "^0.0.287",
+    "@types/node": "^20.17.28",
+    "jsdom": "^25.0.1",
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5.8.2",
+    "vite": "^6.0.5",
+    "vite-plugin-dts": "^4.3.0",
+    "vitest": "^2.1.8"
+  }
+}

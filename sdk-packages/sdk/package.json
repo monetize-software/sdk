@@ -1,0 +1,97 @@
+{
+  "name": "@monetize.software/sdk",
+  "version": "3.0.0-alpha.3",
+  "description": "Monetize SDK — bundled billing client and paywall render engine for web and Chrome extensions",
+  "type": "module",
+  "sideEffects": false,
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/monetize-software/sdk.git"
+  },
+  "bugs": {
+    "url": "https://github.com/monetize-software/sdk/issues"
+  },
+  "homepage": "https://github.com/monetize-software/sdk#readme",
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./core": {
+      "types": "./dist/core.d.ts",
+      "import": "./dist/core.js",
+      "require": "./dist/core.cjs"
+    },
+    "./ui": {
+      "types": "./dist/ui.d.ts",
+      "import": "./dist/ui.js",
+      "require": "./dist/ui.cjs"
+    }
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "build:watch": "vite build --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "pnpm ext:build && playwright test --project=extension",
+    "test:e2e:demo": "playwright test --project=demo-stripe --project=demo-paddle --project=demo-freemius",
+    "test:e2e:demo:stripe": "playwright test --project=demo-stripe",
+    "test:e2e:demo:paddle": "playwright test --project=demo-paddle",
+    "test:e2e:demo:freemius": "playwright test --project=demo-freemius",
+    "test:e2e:checkout": "playwright test --project=checkout-stripe --project=checkout-paddle --project=checkout-freemius",
+    "test:e2e:checkout:stripe": "playwright test --project=checkout-stripe",
+    "test:e2e:checkout:paddle": "playwright test --project=checkout-paddle",
+    "test:e2e:checkout:freemius": "playwright test --project=checkout-freemius",
+    "test:e2e:all": "pnpm ext:build && playwright test",
+    "ext:build": "vite build --config playgrounds/extension/vite.config.ts",
+    "size": "size-limit",
+    "prepublishOnly": "pnpm typecheck && pnpm build",
+    "version:alpha": "npm version prerelease --preid=alpha --no-git-tag-version",
+    "version:patch": "npm version patch --no-git-tag-version",
+    "version:minor": "npm version minor --no-git-tag-version",
+    "version:major": "npm version major --no-git-tag-version",
+    "release:alpha": "npm publish --access public --tag alpha",
+    "release:latest": "npm publish --access public"
+  },
+  "dependencies": {
+    "preact": "^10.24.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.59.1",
+    "@size-limit/preset-small-lib": "^11.1.6",
+    "@tailwindcss/vite": "^4.0.0",
+    "@types/chrome": "^0.0.287",
+    "@types/node": "^20.17.28",
+    "jsdom": "^25.0.1",
+    "size-limit": "^11.1.6",
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5.8.2",
+    "vite": "^6.0.5",
+    "vite-plugin-dts": "^4.3.0",
+    "vitest": "^2.1.8"
+  },
+  "size-limit": [
+    {
+      "name": "core",
+      "path": "dist/core.js",
+      "limit": "8 KB"
+    },
+    {
+      "name": "ui",
+      "path": "dist/ui.js",
+      "limit": "60 KB"
+    },
+    {
+      "name": "full",
+      "path": "dist/index.js",
+      "limit": "70 KB"
+    }
+  ]
+}

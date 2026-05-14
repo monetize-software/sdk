@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "Paywall SDK playground",
+  "version": "0.0.1",
+  "description": "MV3 testbed for @monetize.software/sdk. Loaded unpacked for manual testing and Playwright e2e.",
+  "permissions": ["storage"],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Paywall SDK playground"
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  }
+}

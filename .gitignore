@@ -1,0 +1,43 @@
+# Dependencies
+node_modules/
+
+# Build artifacts
+**/dist/
+**/.vite/
+**/.turbo/
+
+# Test artifacts
+**/coverage/
+**/playwright-report/
+**/test-results/
+**/.changeset/.unreleased/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Environments
+.env
+.env.local
+.env.*.local
+
+# Editor
+.DS_Store
+.vscode/
+.idea/
+*.swp
+
+# Playwright-MCP runtime artifacts (per-session снимки страниц)
+.playwright-mcp/
+
+# Per-package node_modules (workspace hoisting может не всё пропылесосить)
+sdk-packages/*/node_modules/
+
+# Standalone-проекты со своим деплоем и собственными .git/ — корневой
+# monorepo их не трекает. Они продолжают работать как отдельные репо,
+# просто лежат рядом в той же файловой системе.
+platform/
+online/
+docs/

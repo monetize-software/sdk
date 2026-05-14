@@ -1,0 +1,39 @@
+@import 'tailwindcss';
+
+/* Явно указываем источники для Tailwind v4 scanner'а. Без этого, когда
+ * styles.css импортится из sibling-пакета (sdk-extension через alias
+ * @sdk → ../sdk/src), v4 auto-detect берёт scope от пакета-сборщика
+ * (demo-extension/ — там Tailwind классов почти нет) и пропускает наши
+ * Modal/PaywallRoot/блоки. Результат: utility-classes (fixed, bg-white,
+ * flex-col и т.д.) не попадают в compiled CSS, Shadow DOM рендерится
+ * голым. Path относительный к этому файлу: ../ = sdk/src/, покрывает
+ * весь src дерева. */
+@source "../**/*.{ts,tsx,js,jsx}";
+
+@layer base {
+  :host {
+    all: initial;
+    color-scheme: light;
+    font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  }
+
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  button {
+    font-family: inherit;
+    cursor: pointer;
+  }
+
+  button:disabled {
+    cursor: not-allowed;
+  }
+
+  [role='button'],
+  [role='radio'] {
+    cursor: pointer;
+  }
+}

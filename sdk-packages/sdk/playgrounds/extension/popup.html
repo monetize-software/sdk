@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Paywall SDK — extension popup</title>
+    <style>
+      html, body { margin: 0; padding: 0; }
+      body {
+        width: 780px;
+        min-height: 520px;
+        font: 14px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+        background: #f3f4f6;
+        color: #111827;
+      }
+      header {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        padding: 12px 16px;
+        background: white;
+        border-bottom: 1px solid #e5e7eb;
+      }
+      button {
+        height: 32px;
+        padding: 0 14px;
+        border-radius: 8px;
+        border: 1px solid #d1d5db;
+        background: white;
+        color: #111827;
+        cursor: pointer;
+      }
+      button.primary { background: #111827; color: white; border-color: #111827; }
+      pre {
+        margin: 0;
+        padding: 12px 16px;
+        font-size: 12px;
+        max-height: 140px;
+        overflow: auto;
+        background: white;
+        border-top: 1px solid #e5e7eb;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <button id="open" class="primary">Open paywall</button>
+      <button id="close">Close</button>
+      <span id="mode" style="margin-left: auto; font-size: 12px; color: #6b7280">MV3 popup (closed shadow DOM)</span>
+    </header>
+    <main style="padding: 24px 16px">
+      <p style="margin: 0; color: #6b7280">
+        Этот popup грузит <code>@monetize/sdk</code> как IIFE-бандл (никаких remote imports — CWS-safe).
+        Fetch замокан, SDK не ходит в сеть. Клик по «Open paywall» инициирует модалку в shadow DOM.
+      </p>
+    </main>
+    <pre id="log">events →</pre>
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>
