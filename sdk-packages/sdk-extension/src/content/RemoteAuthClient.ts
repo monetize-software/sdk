@@ -13,6 +13,7 @@ import type {
   AuthChangeEvent,
   AuthSession,
   AuthUser,
+  LastLogin,
   OAuthProvider,
   OtpVerifyType,
   SignUpResult
@@ -168,6 +169,13 @@ export class RemoteAuthClient {
 
   async revokeAllSessions(): Promise<void> {
     await this.transport.request('auth.revokeAllSessions', undefined);
+  }
+
+  /** Last-used auth method + email — читается из offscreen-storage. AuthPanel
+   *  использует для "Last used"-бейджа и pre-fill'а email. Storage paywall-
+   *  scoped, и offscreen — единый источник правды для всех вкладок/popup'ов. */
+  async getLastLogin(): Promise<LastLogin | null> {
+    return this.transport.request('auth.getLastLogin', undefined);
   }
 
   // === Anonymous sign-in ===

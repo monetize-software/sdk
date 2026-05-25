@@ -22,6 +22,7 @@ import { RemoteTrialStore } from './RemoteTrialStore';
 
 export type UserListener = (user: PaywallUser) => void;
 export type BalanceListener = (balances: Balance[]) => void;
+export type BootstrapListener = (bootstrap: PaywallBootstrap) => void;
 
 export interface RemoteBillingClientOptions {
   paywallId: string;
@@ -53,6 +54,7 @@ export class RemoteBillingClient {
 
   private userListeners = new Set<UserListener>();
   private balanceListeners = new Set<BalanceListener>();
+  private bootstrapListeners = new Set<BootstrapListener>();
   private unsubUserBroadcast: (() => void) | null = null;
   private unsubBalancesBroadcast: (() => void) | null = null;
 
@@ -93,13 +95,46 @@ export class RemoteBillingClient {
       { force: opts.force },
       { signal: opts.signal }
     );
-    this.cachedBootstrap = result;
+    this.applyBootstrap(result);
     if (result.user) this.applyUser(result.user);
     return result;
   }
 
   getCachedBootstrap(): PaywallBootstrap | null {
     return this.cachedBootstrap;
+  }
+
+  /** Подписка на bootstrap-state. Структурно совместима с
+   *  `BillingClient.onBootstrapChange` — те же микротаск-семантики для initial
+   *  snapshot. В extension-режиме offscreen пока не broadcast'ит bootstrapChange,
+   *  поэтому listener срабатывает только на self-инициированные `bootstrap()`
+   *  внутри этого RemoteBillingClient'а (popup перезапрашивает bootstrap → mirror
+   *  обновляется → listener вызывается). Cross-surface revalidate (другая вкладка
+   *  обновила bootstrap) не доезжает до popup'а — для этого нужен отдельный
+   *  bootstrapChange-broadcast в protocol.ts/server.ts. */
+  onBootstrapChange(
+    cb: BootstrapListener,
+    opts: { immediate?: 'microtask' | 'sync' | 'none' } = {}
+  ): () => void {
+    this.bootstrapListeners.add(cb);
+    const mode = opts.immediate ?? 'microtask';
+    if (this.cachedBootstrap && mode !== 'none') {
+      const snapshot = this.cachedBootstrap;
+      if (mode === 'sync') {
+        try {
+          cb(snapshot);
+        } catch (e) {
+          console.warn('[paywall] onBootstrapChange initial sync threw', e);
+        }
+      } else {
+        queueMicrotask(() => {
+          if (this.bootstrapListeners.has(cb)) cb(snapshot);
+        });
+      }
+    }
+    return () => {
+      this.bootstrapListeners.delete(cb);
+    };
   }
 
   /** Шорткат над `bootstrap()` — возвращает цены пейвола (locale-оверрайды
@@ -235,6 +270,19 @@ export class RemoteBillingClient {
     return [...result];
   }
 
+  /** Саппорт-тикет через offscreen'овский BillingClient. File-объекты
+   *  переживают chrome.runtime structured-clone (port forward'ит as-is) —
+   *  Bearer-токен/email-substitution делает offscreen, как в обычном
+   *  BillingClient. */
+  async createSupportTicket(payload: {
+    subject: string;
+    content: string;
+    email?: string;
+    files?: File[];
+  }): Promise<{ ticket: { id: number; status: string } }> {
+    return this.transport.request('billing.createSupportTicket', payload);
+  }
+
   /** Отменить подписку через бэк. По умолчанию cancel в конце текущего
    *  периода (юзер сохраняет access до renewal date'ы). reason обязательна
    *  (валидируется бэком) — собирается через select причин в host-UI. */
@@ -299,10 +347,22 @@ export class RemoteBillingClient {
     this.unsubBalancesBroadcast = null;
     this.userListeners.clear();
     this.balanceListeners.clear();
+    this.bootstrapListeners.clear();
     this.cachedBootstrap = null;
     this.cachedUser = null;
     this.cachedBalances = null;
     this.identity = null;
+  }
+
+  private applyBootstrap(bootstrap: PaywallBootstrap): void {
+    this.cachedBootstrap = bootstrap;
+    for (const cb of [...this.bootstrapListeners]) {
+      try {
+        cb(bootstrap);
+      } catch (e) {
+        console.warn('[paywall] onBootstrapChange listener threw', e);
+      }
+    }
   }
 
   /** Обновить mirror user'а и эмитнуть listener'ам если он реально изменился.

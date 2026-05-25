@@ -37,6 +37,7 @@ function makeAuthHarness(session: AuthSession | null = null): AuthHarness {
       getCachedUser: (): null => null,
       ready: async (): Promise<void> => undefined,
       getAccessToken: async (): Promise<string | null> => null,
+      getLastLogin: async (): Promise<null> => null,
       signOut: vi.fn(async (): Promise<void> => undefined)
     } as unknown as AuthClient
   };
@@ -147,14 +148,26 @@ function clickByText(container: HTMLElement, text: string): void {
   });
 }
 
-function fillInput(container: HTMLElement, label: string, value: string): void {
-  const labels = Array.from(container.querySelectorAll('label'));
-  const target = labels.find((l) => l.textContent?.includes(label));
-  const input = target?.querySelector('input, textarea') as HTMLInputElement | HTMLTextAreaElement | null;
-  if (!input) throw new Error(`input for label "${label}" not found`);
+function fillInput(container: HTMLElement, placeholder: string, value: string): void {
+  // SupportGate теперь использует placeholders вместо отдельных label'ов
+  // (filled-input стиль). Ищем input/textarea по placeholder substring.
+  const candidates = Array.from(
+    container.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('input, textarea')
+  );
+  const input = candidates.find((el) => (el.placeholder ?? '').includes(placeholder));
+  if (!input) throw new Error(`input with placeholder "${placeholder}" not found`);
   act(() => {
     input.value = value;
     input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+}
+
+function clickBack(container: HTMLElement): void {
+  // Back/Close button теперь curved-arrow icon без текста, ищем по aria-label.
+  const btn = container.querySelector<HTMLButtonElement>('button[aria-label="Back"]');
+  if (!btn) throw new Error('Back button not found');
+  act(() => {
+    btn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
   });
 }
 
@@ -177,12 +190,18 @@ describe('PaywallRoot support flow', () => {
     clickByText(container, 'Contact Support');
     await flush();
 
-    expect(container.textContent).toContain('Contact Support');
-    expect(container.textContent).toContain('Subject');
-    expect(container.textContent).toContain('Message');
+    // Заголовок Support + placeholders Enter your subject/message доказывают,
+    // что SupportGate отрендерился (новый layout: filled inputs, no labels).
+    expect(container.textContent).toContain('Support');
+    expect(
+      container.querySelector<HTMLInputElement>('input[placeholder*="Enter your subject"]')
+    ).toBeTruthy();
+    expect(
+      container.querySelector<HTMLTextAreaElement>('textarea[placeholder*="Enter your message"]')
+    ).toBeTruthy();
 
     // Back возвращает в layout (Continue снова виден, support-форма пропадает).
-    clickByText(container, '← Back');
+    clickBack(container);
     await flush();
     expect(findButton(container, 'Continue')).toBeTruthy();
     unmount();
@@ -192,12 +211,16 @@ describe('PaywallRoot support flow', () => {
     const { client } = makeClient();
     const handle = mount(client, 'support');
     // Не зависим от bootstrap — форма уже на экране.
-    expect(handle.container.textContent).toContain('Subject');
-    expect(handle.container.textContent).toContain('Message');
-    // Кнопка называется Close (не Back) в standalone-режиме.
-    expect(findButton(handle.container, '← Close')).toBeTruthy();
+    expect(
+      handle.container.querySelector('input[placeholder*="Enter your subject"]')
+    ).toBeTruthy();
+    expect(
+      handle.container.querySelector('textarea[placeholder*="Enter your message"]')
+    ).toBeTruthy();
+    // Back-button (aria-label="Back") теперь curved-arrow icon без текста.
+    expect(handle.container.querySelector('button[aria-label="Back"]')).toBeTruthy();
 
-    clickByText(handle.container, '← Close');
+    clickBack(handle.container);
     await flush();
     expect(handle.closes).toBe(1);
     handle.unmount();
@@ -213,9 +236,11 @@ describe('PaywallRoot support flow', () => {
 
     expect(container.textContent).toContain('Sending as');
     expect(container.textContent).toContain('me@me.com');
-    // input email не рендерится для залогиненного.
-    const labels = Array.from(container.querySelectorAll('label')).map((l) => l.textContent);
-    expect(labels.some((l) => l?.includes('Your email'))).toBe(false);
+    // input email не рендерится для залогиненного (placeholder "Enter your email" отсутствует).
+    const emailInput = Array.from(container.querySelectorAll<HTMLInputElement>('input')).find(
+      (el) => (el.placeholder ?? '').includes('Enter your email')
+    );
+    expect(emailInput).toBeUndefined();
     unmount();
   });
 
@@ -231,9 +256,9 @@ describe('PaywallRoot support flow', () => {
     clickByText(container, 'Contact Support');
     await flush();
 
-    fillInput(container, 'Your email', 'guest@gh.com');
-    fillInput(container, 'Subject', 'Need help');
-    fillInput(container, 'Message', 'Some details about my issue.');
+    fillInput(container, 'Enter your email', 'guest@gh.com');
+    fillInput(container, 'Enter your subject', 'Need help');
+    fillInput(container, 'Enter your message','Some details about my issue.');
 
     const sendBtn = findButton(container, 'Send');
     expect(sendBtn?.disabled).toBe(false);
@@ -266,9 +291,9 @@ describe('PaywallRoot support flow', () => {
     clickByText(container, 'Contact Support');
     await flush();
 
-    fillInput(container, 'Your email', 'guest@gh.com');
-    fillInput(container, 'Subject', 'Need help');
-    fillInput(container, 'Message', 'msg');
+    fillInput(container, 'Enter your email', 'guest@gh.com');
+    fillInput(container, 'Enter your subject', 'Need help');
+    fillInput(container, 'Enter your message','msg');
 
     const sendBtn = findButton(container, 'Send');
     act(() => {
@@ -294,8 +319,8 @@ describe('PaywallRoot support flow', () => {
 
     const handle = mount(client, 'support');
     // bootstrap не должен мешать — support виден.
-    expect(handle.container.textContent).toContain('Subject');
-    clickByText(handle.container, '← Close');
+    expect(handle.container.textContent).toContain('Support');
+    clickBack(handle.container);
     expect(handle.closes).toBe(1);
     handle.unmount();
   });

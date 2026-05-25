@@ -1,0 +1,860 @@
+/**
+ * SDK-specific переводы для ключей, у которых нет аналога в legacy.
+ *
+ * Структура: `SDK_TRANSLATIONS[v3Key][lang] = "translation"`.
+ *
+ * Покрытие — лучшее, что я мог сделать на основе общеизвестных UI-паттернов
+ * (Continue with X, Loading…, Sign out, Try again, …). Native-speaker review
+ * желателен для thai/hindi/hebrew/arabic/finnish/greek — там моя уверенность
+ * ниже. Major-languages (ru/de/es/fr/it/pt/nl/ja/ko/zh) — высокая.
+ *
+ * Используется `gen-locales.mjs` для эмиссии финальных `locales/<lang>.ts`.
+ */
+export const SDK_TRANSLATIONS = {
+  // ============ navigation ============
+  'nav.back': {
+    ru: '← Назад', uk: '← Назад', de: '← Zurück', es: '← Atrás', fr: '← Retour',
+    it: '← Indietro', pt: '← Voltar', pl: '← Wstecz', cs: '← Zpět', hu: '← Vissza',
+    ro: '← Înapoi', nl: '← Terug', sv: '← Tillbaka', da: '← Tilbage', no: '← Tilbake',
+    fi: '← Takaisin', el: '← Πίσω', tr: '← Geri', id: '← Kembali', ar: '→ رجوع',
+    ja: '← 戻る', ko: '← 뒤로', zh: '← 返回', hi: '← वापस', th: '← กลับ',
+    vi: '← Quay lại', he: '→ חזרה'
+  },
+
+  // ============ modal / paywall root ============
+  'modal.loading': {
+    ru: 'Загрузка…', uk: 'Завантаження…', de: 'Wird geladen…', es: 'Cargando…',
+    fr: 'Chargement…', it: 'Caricamento…', pt: 'Carregando…', pl: 'Ładowanie…',
+    cs: 'Načítání…', hu: 'Betöltés…', ro: 'Se încarcă…', nl: 'Laden…', sv: 'Laddar…',
+    da: 'Indlæser…', no: 'Laster…', fi: 'Ladataan…', el: 'Φόρτωση…', tr: 'Yükleniyor…',
+    id: 'Memuat…', ar: 'جارٍ التحميل…', ja: '読み込み中…', ko: '불러오는 중…',
+    zh: '加载中…', hi: 'लोड हो रहा है…', th: 'กำลังโหลด…', vi: 'Đang tải…',
+    he: 'טוען…'
+  },
+  'modal.verifying_subscription': {
+    ru: 'Проверяем подписку…', uk: 'Перевіряємо підписку…', de: 'Abonnement wird geprüft…',
+    es: 'Verificando tu suscripción…', fr: 'Vérification de votre abonnement…',
+    it: 'Verifica dell\'abbonamento…', pt: 'Verificando sua assinatura…',
+    pl: 'Sprawdzanie subskrypcji…', cs: 'Ověřování předplatného…',
+    hu: 'Előfizetés ellenőrzése…', ro: 'Se verifică abonamentul…',
+    nl: 'Abonnement controleren…', sv: 'Kontrollerar prenumeration…',
+    da: 'Kontrollerer abonnement…', no: 'Sjekker abonnementet…',
+    fi: 'Tarkistetaan tilausta…', el: 'Έλεγχος συνδρομής…', tr: 'Aboneliğiniz kontrol ediliyor…',
+    id: 'Memeriksa langganan Anda…', ar: 'جارٍ التحقق من اشتراكك…',
+    ja: 'サブスクリプションを確認中…', ko: '구독을 확인 중…', zh: '正在检查您的订阅…',
+    hi: 'आपकी सदस्यता जाँची जा रही है…', th: 'กำลังตรวจสอบการสมัครสมาชิก…',
+    vi: 'Đang kiểm tra đăng ký…', he: 'בודק את המינוי שלך…'
+  },
+  'modal.error_generic': {
+    ru: 'Что-то пошло не так', uk: 'Щось пішло не так', de: 'Etwas ist schiefgelaufen',
+    es: 'Algo salió mal', fr: 'Une erreur s\'est produite', it: 'Qualcosa è andato storto',
+    pt: 'Algo deu errado', pl: 'Coś poszło nie tak', cs: 'Něco se pokazilo',
+    hu: 'Valami hiba történt', ro: 'Ceva nu a mers bine', nl: 'Er ging iets mis',
+    sv: 'Något gick fel', da: 'Noget gik galt', no: 'Noe gikk galt',
+    fi: 'Jokin meni pieleen', el: 'Κάτι πήγε στραβά', tr: 'Bir şeyler ters gitti',
+    id: 'Terjadi kesalahan', ar: 'حدث خطأ ما', ja: 'エラーが発生しました',
+    ko: '문제가 발생했습니다', zh: '出错了', hi: 'कुछ गलत हो गया',
+    th: 'มีบางอย่างผิดพลาด', vi: 'Đã xảy ra lỗi', he: 'משהו השתבש'
+  },
+  'modal.continue': {
+    ru: 'Продолжить', uk: 'Продовжити', de: 'Weiter', es: 'Continuar', fr: 'Continuer',
+    it: 'Continua', pt: 'Continuar', pl: 'Kontynuuj', cs: 'Pokračovat', hu: 'Folytatás',
+    ro: 'Continuă', nl: 'Doorgaan', sv: 'Fortsätt', da: 'Fortsæt', no: 'Fortsett',
+    fi: 'Jatka', el: 'Συνέχεια', tr: 'Devam et', id: 'Lanjutkan', ar: 'متابعة',
+    ja: '続ける', ko: '계속', zh: '继续', hi: 'जारी रखें', th: 'ดำเนินการต่อ',
+    vi: 'Tiếp tục', he: 'המשך'
+  },
+  'modal.close_aria': {
+    ru: 'Закрыть', uk: 'Закрити', de: 'Schließen', es: 'Cerrar', fr: 'Fermer',
+    it: 'Chiudi', pt: 'Fechar', pl: 'Zamknij', cs: 'Zavřít', hu: 'Bezárás',
+    ro: 'Închide', nl: 'Sluiten', sv: 'Stäng', da: 'Luk', no: 'Lukk',
+    fi: 'Sulje', el: 'Κλείσιμο', tr: 'Kapat', id: 'Tutup', ar: 'إغلاق',
+    ja: '閉じる', ko: '닫기', zh: '关闭', hi: 'बंद करें', th: 'ปิด',
+    vi: 'Đóng', he: 'סגור'
+  },
+  'modal.purchase_success_title': {
+    ru: 'Платёж получен', uk: 'Платіж отримано', de: 'Zahlung erhalten', es: 'Pago recibido',
+    fr: 'Paiement reçu', it: 'Pagamento ricevuto', pt: 'Pagamento recebido',
+    pl: 'Płatność otrzymana', cs: 'Platba přijata', hu: 'Fizetés beérkezett',
+    ro: 'Plată primită', nl: 'Betaling ontvangen', sv: 'Betalning mottagen',
+    da: 'Betaling modtaget', no: 'Betaling mottatt', fi: 'Maksu vastaanotettu',
+    el: 'Πληρωμή ελήφθη', tr: 'Ödeme alındı', id: 'Pembayaran diterima',
+    ar: 'تم استلام الدفع', ja: 'お支払いが完了しました', ko: '결제가 완료되었습니다',
+    zh: '已收到付款', hi: 'भुगतान प्राप्त हुआ', th: 'รับการชำระเงินแล้ว',
+    vi: 'Đã nhận thanh toán', he: 'התקבל תשלום'
+  },
+  'modal.purchase_success_subtitle': {
+    ru: 'Подписка активна.', uk: 'Підписка активна.', de: 'Ihr Abonnement ist jetzt aktiv.',
+    es: 'Tu suscripción ahora está activa.', fr: 'Votre abonnement est maintenant actif.',
+    it: 'Il tuo abbonamento è ora attivo.', pt: 'Sua assinatura está ativa.',
+    pl: 'Twoja subskrypcja jest aktywna.', cs: 'Vaše předplatné je nyní aktivní.',
+    hu: 'Az előfizetése aktív.', ro: 'Abonamentul tău este acum activ.',
+    nl: 'Je abonnement is nu actief.', sv: 'Din prenumeration är nu aktiv.',
+    da: 'Dit abonnement er nu aktivt.', no: 'Abonnementet ditt er nå aktivt.',
+    fi: 'Tilauksesi on nyt aktiivinen.', el: 'Η συνδρομή σας είναι πλέον ενεργή.',
+    tr: 'Aboneliğiniz artık aktif.', id: 'Langganan Anda sekarang aktif.',
+    ar: 'اشتراكك نشط الآن.', ja: 'サブスクリプションが有効になりました。',
+    ko: '구독이 활성화되었습니다.', zh: '您的订阅已激活。',
+    hi: 'आपकी सदस्यता अब सक्रिय है।', th: 'การสมัครสมาชิกของคุณเปิดใช้งานแล้ว',
+    vi: 'Đăng ký của bạn đã được kích hoạt.', he: 'המינוי שלך פעיל כעת.'
+  },
+  'modal.purchase_restored_title': {
+    ru: 'Подписка восстановлена', uk: 'Підписку відновлено', de: 'Abonnement wiederhergestellt',
+    es: 'Suscripción restaurada', fr: 'Abonnement restauré', it: 'Abbonamento ripristinato',
+    pt: 'Assinatura restaurada', pl: 'Subskrypcja przywrócona', cs: 'Předplatné obnoveno',
+    hu: 'Előfizetés visszaállítva', ro: 'Abonament restabilit', nl: 'Abonnement hersteld',
+    sv: 'Prenumeration återställd', da: 'Abonnement gendannet', no: 'Abonnement gjenopprettet',
+    fi: 'Tilaus palautettu', el: 'Η συνδρομή αποκαταστάθηκε', tr: 'Abonelik geri yüklendi',
+    id: 'Langganan dipulihkan', ar: 'تمت استعادة الاشتراك', ja: 'サブスクリプションを復元しました',
+    ko: '구독이 복원되었습니다', zh: '订阅已恢复', hi: 'सदस्यता बहाल की गई',
+    th: 'กู้คืนการสมัครสมาชิกแล้ว', vi: 'Đã khôi phục đăng ký', he: 'המינוי שוחזר'
+  },
+  'modal.purchase_restored_subtitle': {
+    ru: 'С возвращением — подписка уже активна.', uk: 'Із поверненням — підписка вже активна.',
+    de: 'Willkommen zurück — Ihr Abonnement ist bereits aktiv.',
+    es: 'Bienvenido de nuevo — tu suscripción ya está activa.',
+    fr: 'Bon retour — votre abonnement est déjà actif.',
+    it: 'Bentornato — il tuo abbonamento è già attivo.',
+    pt: 'Bem-vindo de volta — sua assinatura já está ativa.',
+    pl: 'Witamy ponownie — subskrypcja jest już aktywna.',
+    cs: 'Vítejte zpět — vaše předplatné je již aktivní.',
+    hu: 'Üdvözöljük újra — előfizetése már aktív.',
+    ro: 'Bine ai revenit — abonamentul tău este deja activ.',
+    nl: 'Welkom terug — je abonnement is al actief.',
+    sv: 'Välkommen tillbaka — din prenumeration är redan aktiv.',
+    da: 'Velkommen tilbage — dit abonnement er allerede aktivt.',
+    no: 'Velkommen tilbake — abonnementet ditt er allerede aktivt.',
+    fi: 'Tervetuloa takaisin — tilauksesi on jo aktiivinen.',
+    el: 'Καλώς ήρθατε ξανά — η συνδρομή σας είναι ήδη ενεργή.',
+    tr: 'Tekrar hoş geldiniz — aboneliğiniz zaten aktif.',
+    id: 'Selamat datang kembali — langganan Anda sudah aktif.',
+    ar: 'مرحبًا بعودتك — اشتراكك نشط بالفعل.',
+    ja: 'おかえりなさい — サブスクリプションはすでに有効です。',
+    ko: '다시 오신 것을 환영합니다 — 구독이 이미 활성화되어 있습니다.',
+    zh: '欢迎回来 — 您的订阅已激活。',
+    hi: 'वापसी पर स्वागत है — आपकी सदस्यता पहले से सक्रिय है।',
+    th: 'ยินดีต้อนรับกลับ — การสมัครสมาชิกของคุณยังคงใช้งานอยู่',
+    vi: 'Chào mừng trở lại — đăng ký của bạn vẫn đang hoạt động.',
+    he: 'ברוך שובך — המינוי שלך כבר פעיל.'
+  },
+
+  // ============ payment flow ============
+  'payment.awaiting_title': {
+    de: 'Zahlung im neuen Tab abschließen', es: 'Completa el pago en la nueva pestaña',
+    fr: 'Finalisez le paiement dans le nouvel onglet', it: 'Completa il pagamento nella nuova scheda',
+    pt: 'Conclua o pagamento na nova aba', pl: 'Dokończ płatność w nowej karcie',
+    cs: 'Dokončete platbu v nové kartě', hu: 'Fejezze be a fizetést az új lapon',
+    ro: 'Finalizează plata în noua filă', nl: 'Voltooi de betaling in het nieuwe tabblad',
+    sv: 'Slutför betalningen i den nya fliken', da: 'Afslut betalingen i den nye fane',
+    no: 'Fullfør betalingen i den nye fanen', fi: 'Suorita maksu uudessa välilehdessä',
+    el: 'Ολοκληρώστε την πληρωμή στη νέα καρτέλα', tr: 'Yeni sekmede ödemeyi tamamlayın',
+    id: 'Selesaikan pembayaran di tab baru', ar: 'أكمل الدفع في علامة التبويب الجديدة',
+    ja: '新しいタブで支払いを完了してください', ko: '새 탭에서 결제를 완료하세요',
+    zh: '在新标签页中完成付款', hi: 'नए टैब में भुगतान पूरा करें',
+    th: 'ทำการชำระเงินให้เสร็จในแท็บใหม่', vi: 'Hoàn tất thanh toán trong tab mới',
+    he: 'השלם את התשלום בלשונית החדשה'
+  },
+  'payment.awaiting_subtitle': {
+    de: 'Wir erkennen Ihre Zahlung automatisch — oder klicken Sie unten, sobald Sie fertig sind.',
+    es: 'Detectaremos tu pago automáticamente — o haz clic abajo cuando termines.',
+    fr: 'Nous détecterons votre paiement automatiquement — ou cliquez ci-dessous une fois terminé.',
+    it: 'Rileveremo automaticamente il tuo pagamento — oppure clicca sotto quando hai finito.',
+    pt: 'Detectaremos seu pagamento automaticamente — ou clique abaixo quando terminar.',
+    nl: 'We detecteren je betaling automatisch — of klik hieronder zodra je klaar bent.',
+    ja: '自動的に支払いを検出します — または完了したら下のボタンを押してください。',
+    ko: '결제를 자동으로 감지합니다 — 또는 완료되면 아래를 클릭하세요.',
+    zh: '我们将自动检测付款 — 或在完成后点击下方按钮。'
+  },
+  'payment.checking': {
+    ru: 'Проверяем…', uk: 'Перевіряємо…', de: 'Wird geprüft…', es: 'Verificando…',
+    fr: 'Vérification…', it: 'Verifica…', pt: 'Verificando…', pl: 'Sprawdzanie…',
+    cs: 'Ověřování…', hu: 'Ellenőrzés…', ro: 'Se verifică…', nl: 'Controleren…',
+    sv: 'Kontrollerar…', da: 'Kontrollerer…', no: 'Sjekker…', fi: 'Tarkistetaan…',
+    el: 'Έλεγχος…', tr: 'Kontrol ediliyor…', id: 'Memeriksa…', ar: 'جارٍ التحقق…',
+    ja: '確認中…', ko: '확인 중…', zh: '正在检查…', hi: 'जाँच रहे हैं…',
+    th: 'กำลังตรวจสอบ…', vi: 'Đang kiểm tra…', he: 'בודק…'
+  },
+  'payment.ive_paid': {
+    ru: 'Я оплатил', uk: 'Я сплатив', de: 'Ich habe bezahlt', es: 'He pagado',
+    fr: 'J\'ai payé', it: 'Ho pagato', pt: 'Eu paguei', pl: 'Zapłaciłem',
+    cs: 'Zaplatil jsem', hu: 'Fizettem', ro: 'Am plătit', nl: 'Ik heb betaald',
+    sv: 'Jag har betalat', da: 'Jeg har betalt', no: 'Jeg har betalt',
+    fi: 'Olen maksanut', el: 'Έχω πληρώσει', tr: 'Ödeme yaptım', id: 'Saya sudah membayar',
+    ar: 'لقد دفعت', ja: '支払いました', ko: '결제했습니다', zh: '我已付款',
+    hi: 'मैंने भुगतान कर दिया', th: 'ฉันชำระเงินแล้ว', vi: 'Tôi đã thanh toán',
+    he: 'שילמתי'
+  },
+  'payment.still_processing': {
+    de: 'Die Zahlung wird noch verarbeitet. Bitte versuchen Sie es gleich erneut.',
+    es: 'El pago todavía se está procesando. Inténtalo de nuevo en un momento.',
+    fr: 'Le paiement est toujours en cours de traitement. Réessayez dans un instant.',
+    it: 'Il pagamento è ancora in elaborazione. Riprova tra un momento.',
+    pt: 'O pagamento ainda está sendo processado. Tente novamente em um momento.',
+    nl: 'De betaling wordt nog verwerkt. Probeer het zo opnieuw.',
+    ja: '支払いはまだ処理中です。少し時間をおいて再度お試しください。',
+    ko: '결제가 아직 처리 중입니다. 잠시 후 다시 시도해 주세요.',
+    zh: '付款仍在处理中。请稍后再试。'
+  },
+  'payment.popup_help_text': {
+    de: 'Hat sich das Checkout-Fenster nicht geöffnet oder wurde es blockiert? Klicken Sie hier, um es erneut zu öffnen.',
+    es: '¿La ventana de pago no se abrió o fue bloqueada? Haz clic aquí para abrirla de nuevo.',
+    fr: 'La fenêtre de paiement ne s\'est pas ouverte ou a été bloquée ? Cliquez ici pour la rouvrir.',
+    it: 'La finestra di checkout non si è aperta o è stata bloccata? Clicca qui per riaprirla.',
+    pt: 'A janela de checkout não abriu ou foi bloqueada? Clique aqui para abri-la novamente.',
+    nl: 'Het checkoutvenster ging niet open of werd geblokkeerd? Klik hier om het opnieuw te openen.',
+    ja: 'チェックアウト画面が開かなかった、またはブロックされましたか？ここをクリックして再度開いてください。',
+    ko: '결제 창이 열리지 않거나 차단되었나요? 여기를 클릭하여 다시 열어주세요.',
+    zh: '结账窗口未打开或被阻止？点击此处重新打开。'
+  },
+  'payment.open_checkout_again': {
+    ru: 'Открыть оплату снова', uk: 'Відкрити оплату знову', de: 'Checkout erneut öffnen',
+    es: 'Abrir pago de nuevo', fr: 'Rouvrir le paiement', it: 'Apri checkout di nuovo',
+    pt: 'Abrir checkout novamente', pl: 'Otwórz płatność ponownie',
+    cs: 'Otevřít platbu znovu', hu: 'Pénztár újra megnyitása',
+    ro: 'Deschide plata din nou', nl: 'Checkout opnieuw openen',
+    sv: 'Öppna kassan igen', da: 'Åbn betaling igen', no: 'Åpne betaling igjen',
+    fi: 'Avaa maksu uudelleen', el: 'Άνοιγμα πληρωμής ξανά', tr: 'Ödemeyi tekrar aç',
+    id: 'Buka pembayaran lagi', ar: 'افتح الدفع مرة أخرى', ja: 'もう一度チェックアウトを開く',
+    ko: '결제 다시 열기', zh: '重新打开结账', hi: 'चेकआउट फिर से खोलें',
+    th: 'เปิดการชำระเงินอีกครั้ง', vi: 'Mở lại thanh toán', he: 'פתח תשלום שוב'
+  },
+  'payment.tab_closed_retry': {
+    de: 'Tab geschlossen? Erneut versuchen', es: '¿Pestaña cerrada? Inténtalo de nuevo',
+    fr: 'Onglet fermé ? Réessayer', it: 'Scheda chiusa? Riprova',
+    pt: 'Aba fechada? Tente novamente', nl: 'Tabblad gesloten? Probeer opnieuw',
+    ja: 'タブを閉じた？もう一度試す', ko: '탭을 닫았나요? 다시 시도', zh: '关闭了标签页？重试'
+  },
+  'payment.popup_blocked_title': {
+    de: 'Pop-ups erlauben, um fortzufahren', es: 'Permite ventanas emergentes para continuar',
+    fr: 'Autorisez les pop-ups pour continuer', it: 'Consenti i pop-up per continuare',
+    pt: 'Permita pop-ups para continuar', nl: 'Sta pop-ups toe om door te gaan',
+    ja: '続行するにはポップアップを許可してください', ko: '계속하려면 팝업을 허용하세요',
+    zh: '允许弹出窗口以继续'
+  },
+  'payment.popup_blocked_message': {
+    de: 'Ihr Browser hat den Checkout-Tab blockiert. Klicken Sie unten, um ihn zu öffnen.',
+    es: 'Tu navegador bloqueó la pestaña de pago. Haz clic abajo para abrirla.',
+    fr: 'Votre navigateur a bloqué l\'onglet de paiement. Cliquez ci-dessous pour l\'ouvrir.',
+    it: 'Il browser ha bloccato la scheda di checkout. Clicca sotto per aprirla.',
+    pt: 'Seu navegador bloqueou a aba de checkout. Clique abaixo para abri-la.',
+    nl: 'Je browser blokkeerde het checkouttabblad. Klik hieronder om het te openen.',
+    ja: 'ブラウザがチェックアウトタブをブロックしました。下のボタンで開いてください。',
+    ko: '브라우저가 결제 탭을 차단했습니다. 아래를 클릭하여 열어주세요.',
+    zh: '您的浏览器阻止了结账标签页。点击下方打开。'
+  },
+  'payment.open_checkout_button': {
+    ru: 'Открыть оплату', uk: 'Відкрити оплату', de: 'Checkout öffnen',
+    es: 'Abrir pago', fr: 'Ouvrir le paiement', it: 'Apri checkout', pt: 'Abrir checkout',
+    pl: 'Otwórz płatność', cs: 'Otevřít platbu', hu: 'Pénztár megnyitása',
+    ro: 'Deschide plata', nl: 'Checkout openen', sv: 'Öppna kassan', da: 'Åbn betaling',
+    no: 'Åpne betaling', fi: 'Avaa maksu', el: 'Άνοιγμα πληρωμής', tr: 'Ödemeyi aç',
+    id: 'Buka pembayaran', ar: 'افتح الدفع', ja: 'チェックアウトを開く',
+    ko: '결제 열기', zh: '打开结账', hi: 'चेकआउट खोलें', th: 'เปิดการชำระเงิน',
+    vi: 'Mở thanh toán', he: 'פתח תשלום'
+  },
+
+  // ============ auth — OAuth additional providers ============
+  'auth.continue_with_github': {
+    ru: 'Продолжить через GitHub', uk: 'Продовжити через GitHub', de: 'Mit GitHub fortfahren',
+    es: 'Continuar con GitHub', fr: 'Continuer avec GitHub', it: 'Continua con GitHub',
+    pt: 'Continuar com GitHub', pl: 'Kontynuuj z GitHub', cs: 'Pokračovat s GitHub',
+    hu: 'Folytatás GitHubbal', ro: 'Continuă cu GitHub', nl: 'Doorgaan met GitHub',
+    sv: 'Fortsätt med GitHub', da: 'Fortsæt med GitHub', no: 'Fortsett med GitHub',
+    fi: 'Jatka GitHubilla', el: 'Συνέχεια με GitHub', tr: 'GitHub ile devam et',
+    id: 'Lanjutkan dengan GitHub', ar: 'متابعة مع GitHub', ja: 'GitHubで続ける',
+    ko: 'GitHub로 계속', zh: '使用 GitHub 继续', hi: 'GitHub के साथ जारी रखें',
+    th: 'ดำเนินการต่อด้วย GitHub', vi: 'Tiếp tục với GitHub', he: 'המשך עם GitHub'
+  },
+  'auth.continue_with_facebook': {
+    ru: 'Продолжить через Facebook', uk: 'Продовжити через Facebook',
+    de: 'Mit Facebook fortfahren', es: 'Continuar con Facebook', fr: 'Continuer avec Facebook',
+    it: 'Continua con Facebook', pt: 'Continuar com Facebook', pl: 'Kontynuuj z Facebookiem',
+    cs: 'Pokračovat s Facebookem', hu: 'Folytatás Facebookkal',
+    ro: 'Continuă cu Facebook', nl: 'Doorgaan met Facebook', sv: 'Fortsätt med Facebook',
+    da: 'Fortsæt med Facebook', no: 'Fortsett med Facebook', fi: 'Jatka Facebookilla',
+    el: 'Συνέχεια με Facebook', tr: 'Facebook ile devam et', id: 'Lanjutkan dengan Facebook',
+    ar: 'متابعة مع Facebook', ja: 'Facebookで続ける', ko: 'Facebook으로 계속',
+    zh: '使用 Facebook 继续', hi: 'Facebook के साथ जारी रखें',
+    th: 'ดำเนินการต่อด้วย Facebook', vi: 'Tiếp tục với Facebook', he: 'המשך עם Facebook'
+  },
+
+  // ============ auth — form additional ============
+  'auth.confirmation_code': {
+    ru: 'Код подтверждения', uk: 'Код підтвердження', de: 'Bestätigungscode',
+    es: 'Código de confirmación', fr: 'Code de confirmation', it: 'Codice di conferma',
+    pt: 'Código de confirmação', pl: 'Kod potwierdzający', cs: 'Potvrzovací kód',
+    hu: 'Megerősítő kód', ro: 'Cod de confirmare', nl: 'Bevestigingscode',
+    sv: 'Bekräftelsekod', da: 'Bekræftelseskode', no: 'Bekreftelseskode',
+    fi: 'Vahvistuskoodi', el: 'Κωδικός επιβεβαίωσης', tr: 'Doğrulama kodu',
+    id: 'Kode konfirmasi', ar: 'رمز التأكيد', ja: '確認コード', ko: '확인 코드',
+    zh: '确认码', hi: 'पुष्टि कोड', th: 'รหัสยืนยัน', vi: 'Mã xác nhận',
+    he: 'קוד אישור'
+  },
+  'auth.new_password_optional': {
+    de: 'Neues Passwort (optional — nur für Passwort-Reset)',
+    es: 'Nueva contraseña (opcional — solo para restablecer)',
+    fr: 'Nouveau mot de passe (optionnel — uniquement pour réinitialisation)',
+    it: 'Nuova password (opzionale — solo per il reset)',
+    pt: 'Nova senha (opcional — somente para redefinição)',
+    nl: 'Nieuw wachtwoord (optioneel — alleen voor wachtwoordreset)',
+    ja: '新しいパスワード (任意 — パスワードリセット時のみ)',
+    ko: '새 비밀번호 (선택 — 비밀번호 재설정 시에만)',
+    zh: '新密码（可选 — 仅用于密码重置）'
+  },
+  'auth.create_account': {
+    ru: 'Создать аккаунт', uk: 'Створити акаунт', de: 'Konto erstellen',
+    es: 'Crear cuenta', fr: 'Créer un compte', it: 'Crea account', pt: 'Criar conta',
+    pl: 'Utwórz konto', cs: 'Vytvořit účet', hu: 'Fiók létrehozása',
+    ro: 'Creează cont', nl: 'Account aanmaken', sv: 'Skapa konto', da: 'Opret konto',
+    no: 'Opprett konto', fi: 'Luo tili', el: 'Δημιουργία λογαριασμού',
+    tr: 'Hesap oluştur', id: 'Buat akun', ar: 'إنشاء حساب', ja: 'アカウント作成',
+    ko: '계정 만들기', zh: '创建账户', hi: 'खाता बनाएँ', th: 'สร้างบัญชี',
+    vi: 'Tạo tài khoản', he: 'צור חשבון'
+  },
+  'auth.verify': {
+    ru: 'Подтвердить', uk: 'Підтвердити', de: 'Bestätigen', es: 'Verificar',
+    fr: 'Vérifier', it: 'Verifica', pt: 'Verificar', pl: 'Zweryfikuj', cs: 'Ověřit',
+    hu: 'Megerősítés', ro: 'Verifică', nl: 'Verifiëren', sv: 'Verifiera',
+    da: 'Bekræft', no: 'Bekreft', fi: 'Vahvista', el: 'Επιβεβαίωση', tr: 'Doğrula',
+    id: 'Verifikasi', ar: 'تأكيد', ja: '確認', ko: '확인', zh: '验证',
+    hi: 'सत्यापित करें', th: 'ยืนยัน', vi: 'Xác minh', he: 'אמת'
+  },
+  'auth.welcome_signup': {
+    ru: 'Добро пожаловать!', uk: 'Ласкаво просимо!', de: 'Willkommen!', es: '¡Bienvenido!',
+    fr: 'Bienvenue !', it: 'Benvenuto!', pt: 'Bem-vindo!', pl: 'Witamy!', cs: 'Vítejte!',
+    hu: 'Üdvözöljük!', ro: 'Bun venit!', nl: 'Welkom!', sv: 'Välkommen!', da: 'Velkommen!',
+    no: 'Velkommen!', fi: 'Tervetuloa!', el: 'Καλώς ήρθατε!', tr: 'Hoş geldiniz!',
+    id: 'Selamat datang!', ar: 'مرحبًا!', ja: 'ようこそ!', ko: '환영합니다!',
+    zh: '欢迎！', hi: 'स्वागत है!', th: 'ยินดีต้อนรับ!', vi: 'Chào mừng!', he: 'ברוך הבא!'
+  },
+  'auth.check_email_message': {
+    de: 'Sehen Sie in Ihren E-Mails nach einem Bestätigungscode.',
+    es: 'Revisa tu correo electrónico para el código de confirmación.',
+    fr: 'Vérifiez votre e-mail pour le code de confirmation.',
+    it: 'Controlla la tua email per il codice di conferma.',
+    pt: 'Verifique seu e-mail para o código de confirmação.',
+    nl: 'Controleer je e-mail voor de bevestigingscode.',
+    ja: '確認コードのメールをご確認ください。', ko: '이메일에서 확인 코드를 확인하세요.',
+    zh: '请查看邮件以获取确认码。'
+  },
+  'auth.reset_password_title': {
+    ru: 'Сброс пароля', uk: 'Скидання пароля', de: 'Passwort zurücksetzen',
+    es: 'Restablecer contraseña', fr: 'Réinitialiser le mot de passe',
+    it: 'Reimposta password', pt: 'Redefinir senha', pl: 'Zresetuj hasło',
+    cs: 'Resetovat heslo', hu: 'Jelszó visszaállítása', ro: 'Resetare parolă',
+    nl: 'Wachtwoord opnieuw instellen', sv: 'Återställ lösenord',
+    da: 'Nulstil adgangskode', no: 'Tilbakestill passord', fi: 'Nollaa salasana',
+    el: 'Επαναφορά κωδικού', tr: 'Şifreyi sıfırla', id: 'Atur ulang kata sandi',
+    ar: 'إعادة تعيين كلمة المرور', ja: 'パスワードをリセット', ko: '비밀번호 재설정',
+    zh: '重置密码', hi: 'पासवर्ड रीसेट करें', th: 'รีเซ็ตรหัสผ่าน',
+    vi: 'Đặt lại mật khẩu', he: 'איפוס סיסמה'
+  },
+  'auth.reset_password_subtitle': {
+    de: 'Geben Sie den Code aus Ihrer E-Mail und ein neues Passwort ein.',
+    es: 'Ingresa el código de tu correo y una nueva contraseña.',
+    fr: 'Entrez le code de votre e-mail et un nouveau mot de passe.',
+    it: 'Inserisci il codice dall\'email e una nuova password.',
+    pt: 'Digite o código do seu e-mail e uma nova senha.',
+    nl: 'Voer de code uit je e-mail en een nieuw wachtwoord in.',
+    ja: 'メールに記載されたコードと新しいパスワードを入力してください。',
+    ko: '이메일의 코드와 새 비밀번호를 입력하세요.',
+    zh: '请输入邮件中的代码和新密码。'
+  },
+  'auth.reset_sent_message': {
+    de: 'Wenn diese E-Mail existiert, wurde ein Reset-Code gesendet.',
+    es: 'Si ese correo existe, hemos enviado un código de restablecimiento.',
+    fr: 'Si cet e-mail existe, un code de réinitialisation a été envoyé.',
+    it: 'Se l\'email esiste, è stato inviato un codice di reimpostazione.',
+    pt: 'Se esse e-mail existir, um código de redefinição foi enviado.',
+    nl: 'Als dat e-mailadres bestaat, is er een resetcode verzonden.',
+    ja: 'そのメールが存在する場合、リセットコードが送信されました。',
+    ko: '해당 이메일이 존재하면 재설정 코드가 발송되었습니다.',
+    zh: '如果该邮箱存在，已发送重置码。'
+  },
+  'auth.signin_failed': {
+    ru: 'Вход не удался', uk: 'Не вдалося увійти', de: 'Anmeldung fehlgeschlagen',
+    es: 'Error al iniciar sesión', fr: 'Échec de la connexion',
+    it: 'Accesso non riuscito', pt: 'Falha no login', pl: 'Logowanie nie powiodło się',
+    cs: 'Přihlášení selhalo', hu: 'A bejelentkezés sikertelen', ro: 'Conectare eșuată',
+    nl: 'Inloggen mislukt', sv: 'Inloggning misslyckades', da: 'Login mislykkedes',
+    no: 'Pålogging mislyktes', fi: 'Kirjautuminen epäonnistui',
+    el: 'Η σύνδεση απέτυχε', tr: 'Giriş başarısız', id: 'Masuk gagal',
+    ar: 'فشل تسجيل الدخول', ja: 'サインインに失敗しました', ko: '로그인 실패',
+    zh: '登录失败', hi: 'साइन-इन विफल', th: 'เข้าสู่ระบบไม่สำเร็จ',
+    vi: 'Đăng nhập thất bại', he: 'ההתחברות נכשלה'
+  },
+  'auth.generic_error': {
+    ru: 'Что-то пошло не так', uk: 'Щось пішло не так', de: 'Etwas ist schiefgelaufen',
+    es: 'Algo salió mal', fr: 'Une erreur s\'est produite', it: 'Qualcosa è andato storto',
+    pt: 'Algo deu errado', pl: 'Coś poszło nie tak', cs: 'Něco se pokazilo',
+    hu: 'Valami hiba történt', ro: 'Ceva nu a mers bine', nl: 'Er ging iets mis',
+    sv: 'Något gick fel', da: 'Noget gik galt', no: 'Noe gikk galt',
+    fi: 'Jokin meni pieleen', el: 'Κάτι πήγε στραβά', tr: 'Bir şeyler ters gitti',
+    id: 'Terjadi kesalahan', ar: 'حدث خطأ ما', ja: 'エラーが発生しました',
+    ko: '문제가 발생했습니다', zh: '出错了', hi: 'कुछ गलत हो गया',
+    th: 'มีบางอย่างผิดพลาด', vi: 'Đã xảy ra lỗi', he: 'משהו השתבש'
+  },
+  'auth.link_purchase_subheading': {
+    ru: 'Привяжем покупку к аккаунту, чтобы доступ сохранился.',
+    uk: 'Прив\'яжемо покупку до акаунта, щоб доступ зберігся.',
+    de: 'Wir verknüpfen den Kauf mit Ihrem Konto, damit der Zugriff erhalten bleibt.',
+    es: 'Vincularemos la compra a tu cuenta para conservar el acceso.',
+    fr: 'Nous lierons l\'achat à votre compte pour conserver l\'accès.',
+    it: 'Collegheremo l\'acquisto al tuo account per mantenere l\'accesso.',
+    pt: 'Vincularemos a compra à sua conta para manter o acesso.',
+    pl: 'Powiążemy zakup z Twoim kontem, aby zachować dostęp.',
+    cs: 'Propojíme nákup s vaším účtem, aby přístup zůstal zachován.',
+    hu: 'A vásárlást a fiókjához kapcsoljuk, hogy megőrizze a hozzáférést.',
+    ro: 'Vom asocia achiziția cu contul tău pentru a păstra accesul.',
+    nl: 'We koppelen de aankoop aan je account om toegang te behouden.',
+    sv: 'Vi länkar köpet till ditt konto för att behålla åtkomsten.',
+    da: 'Vi knytter købet til din konto, så adgangen bevares.',
+    no: 'Vi knytter kjøpet til kontoen din for å beholde tilgangen.',
+    fi: 'Yhdistämme oston tiliisi, jotta käyttöoikeus säilyy.',
+    el: 'Θα συνδέσουμε την αγορά με τον λογαριασμό σας για να διατηρηθεί η πρόσβαση.',
+    tr: 'Erişiminizi korumak için satın alımı hesabınıza bağlayacağız.',
+    id: 'Kami akan menautkan pembelian ke akun Anda agar akses tetap terjaga.',
+    ar: 'سنربط الشراء بحسابك للحفاظ على الوصول.',
+    ja: 'アクセスを保持するため、購入をアカウントに紐付けます。',
+    ko: '액세스를 유지하기 위해 구매를 계정에 연결합니다.',
+    zh: '我们将把购买关联到您的账户以保留访问权限。',
+    hi: 'पहुँच बनाए रखने के लिए हम खरीदारी को आपके खाते से जोड़ेंगे।',
+    th: 'เราจะเชื่อมโยงการซื้อกับบัญชีของคุณเพื่อรักษาการเข้าถึง',
+    vi: 'Chúng tôi sẽ liên kết giao dịch với tài khoản của bạn để giữ quyền truy cập.',
+    he: 'נקשר את הרכישה לחשבון שלך כדי לשמור על הגישה.'
+  },
+  'auth.signed_in': {
+    ru: 'Вы вошли', uk: 'Ви увійшли', de: 'Angemeldet', es: 'Sesión iniciada',
+    fr: 'Connecté', it: 'Connesso', pt: 'Conectado', pl: 'Zalogowano',
+    cs: 'Přihlášen', hu: 'Bejelentkezve', ro: 'Conectat', nl: 'Ingelogd',
+    sv: 'Inloggad', da: 'Logget ind', no: 'Logget inn', fi: 'Kirjautunut',
+    el: 'Συνδεδεμένος', tr: 'Giriş yapıldı', id: 'Masuk', ar: 'تم تسجيل الدخول',
+    ja: 'サインイン中', ko: '로그인됨', zh: '已登录', hi: 'साइन इन',
+    th: 'เข้าสู่ระบบแล้ว', vi: 'Đã đăng nhập', he: 'מחובר'
+  },
+  'auth.sign_out': {
+    ru: 'Выйти', uk: 'Вийти', de: 'Abmelden', es: 'Cerrar sesión', fr: 'Se déconnecter',
+    it: 'Disconnetti', pt: 'Sair', pl: 'Wyloguj', cs: 'Odhlásit se', hu: 'Kijelentkezés',
+    ro: 'Deconectare', nl: 'Uitloggen', sv: 'Logga ut', da: 'Log ud', no: 'Logg ut',
+    fi: 'Kirjaudu ulos', el: 'Αποσύνδεση', tr: 'Çıkış yap', id: 'Keluar',
+    ar: 'تسجيل الخروج', ja: 'サインアウト', ko: '로그아웃', zh: '退出',
+    hi: 'साइन आउट', th: 'ออกจากระบบ', vi: 'Đăng xuất', he: 'התנתק'
+  },
+  'auth.show_password': {
+    ru: 'Показать пароль', uk: 'Показати пароль', de: 'Passwort anzeigen',
+    es: 'Mostrar contraseña', fr: 'Afficher le mot de passe', it: 'Mostra password',
+    pt: 'Mostrar senha', pl: 'Pokaż hasło', cs: 'Zobrazit heslo', hu: 'Jelszó megjelenítése',
+    ro: 'Afișează parola', nl: 'Wachtwoord tonen', sv: 'Visa lösenord',
+    da: 'Vis adgangskode', no: 'Vis passord', fi: 'Näytä salasana',
+    el: 'Εμφάνιση κωδικού', tr: 'Şifreyi göster', id: 'Tampilkan kata sandi',
+    ar: 'إظهار كلمة المرور', ja: 'パスワードを表示', ko: '비밀번호 표시',
+    zh: '显示密码', hi: 'पासवर्ड दिखाएँ', th: 'แสดงรหัสผ่าน', vi: 'Hiện mật khẩu',
+    he: 'הצג סיסמה'
+  },
+  'auth.hide_password': {
+    ru: 'Скрыть пароль', uk: 'Сховати пароль', de: 'Passwort verbergen',
+    es: 'Ocultar contraseña', fr: 'Masquer le mot de passe', it: 'Nascondi password',
+    pt: 'Ocultar senha', pl: 'Ukryj hasło', cs: 'Skrýt heslo', hu: 'Jelszó elrejtése',
+    ro: 'Ascunde parola', nl: 'Wachtwoord verbergen', sv: 'Dölj lösenord',
+    da: 'Skjul adgangskode', no: 'Skjul passord', fi: 'Piilota salasana',
+    el: 'Απόκρυψη κωδικού', tr: 'Şifreyi gizle', id: 'Sembunyikan kata sandi',
+    ar: 'إخفاء كلمة المرور', ja: 'パスワードを非表示', ko: '비밀번호 숨기기',
+    zh: '隐藏密码', hi: 'पासवर्ड छुपाएँ', th: 'ซ่อนรหัสผ่าน', vi: 'Ẩn mật khẩu',
+    he: 'הסתר סיסמה'
+  },
+  'auth.last_used': {
+    de: 'Zuletzt · {email}', es: 'Última · {email}', fr: 'Dernière · {email}',
+    it: 'Ultimo · {email}', pt: 'Último · {email}', nl: 'Laatste · {email}',
+    ja: '前回 · {email}', ko: '최근 · {email}', zh: '最近 · {email}',
+    ru: 'Последний · {email}', uk: 'Останній · {email}'
+  },
+  'auth.last_used_no_email': {
+    ru: 'Последний', uk: 'Останній', de: 'Zuletzt', es: 'Última', fr: 'Dernière',
+    it: 'Ultimo', pt: 'Último', pl: 'Ostatni', cs: 'Naposledy', hu: 'Utolsó',
+    ro: 'Ultimul', nl: 'Laatste', sv: 'Senast', da: 'Sidst', no: 'Sist',
+    fi: 'Viimeisin', el: 'Τελευταίο', tr: 'Son', id: 'Terakhir', ar: 'الأخير',
+    ja: '前回', ko: '최근', zh: '最近', hi: 'अंतिम', th: 'ล่าสุด', vi: 'Gần nhất',
+    he: 'אחרון'
+  },
+
+  // ============ cta button ============
+  'cta.close': {
+    ru: 'Закрыть', uk: 'Закрити', de: 'Schließen', es: 'Cerrar', fr: 'Fermer',
+    it: 'Chiudi', pt: 'Fechar', pl: 'Zamknij', cs: 'Zavřít', hu: 'Bezárás',
+    ro: 'Închide', nl: 'Sluiten', sv: 'Stäng', da: 'Luk', no: 'Lukk',
+    fi: 'Sulje', el: 'Κλείσιμο', tr: 'Kapat', id: 'Tutup', ar: 'إغلاق',
+    ja: '閉じる', ko: '닫기', zh: '关闭', hi: 'बंद करें', th: 'ปิด',
+    vi: 'Đóng', he: 'סגור'
+  },
+  'cta.continue': {
+    ru: 'Продолжить', uk: 'Продовжити', de: 'Weiter', es: 'Continuar', fr: 'Continuer',
+    it: 'Continua', pt: 'Continuar', pl: 'Kontynuuj', cs: 'Pokračovat', hu: 'Folytatás',
+    ro: 'Continuă', nl: 'Doorgaan', sv: 'Fortsätt', da: 'Fortsæt', no: 'Fortsett',
+    fi: 'Jatka', el: 'Συνέχεια', tr: 'Devam et', id: 'Lanjutkan', ar: 'متابعة',
+    ja: '続ける', ko: '계속', zh: '继续', hi: 'जारी रखें', th: 'ดำเนินการต่อ',
+    vi: 'Tiếp tục', he: 'המשך'
+  },
+  'cta.get_lifetime_access': {
+    ru: 'Купить навсегда', uk: 'Купити назавжди', de: 'Lebenslangen Zugang erhalten',
+    es: 'Obtener acceso de por vida', fr: 'Obtenir un accès à vie',
+    it: 'Ottieni accesso a vita', pt: 'Obter acesso vitalício',
+    pl: 'Uzyskaj dożywotni dostęp', cs: 'Získat doživotní přístup',
+    hu: 'Élethosszig tartó hozzáférés', ro: 'Obține acces pe viață',
+    nl: 'Levenslange toegang', sv: 'Få livstidsåtkomst', da: 'Få livstidsadgang',
+    no: 'Få livstidstilgang', fi: 'Hanki elinikäinen käyttöoikeus',
+    el: 'Απόκτηση ισόβιας πρόσβασης', tr: 'Ömür boyu erişim al',
+    id: 'Dapatkan akses seumur hidup', ar: 'احصل على وصول مدى الحياة',
+    ja: '永久アクセスを取得', ko: '평생 이용권 받기', zh: '获取终身访问',
+    hi: 'आजीवन एक्सेस पाएँ', th: 'รับสิทธิ์ตลอดชีพ', vi: 'Nhận quyền truy cập trọn đời',
+    he: 'קבל גישה לכל החיים'
+  },
+  'cta.get_plan_daily': {
+    ru: 'Купить дневной тариф', uk: 'Купити денний тариф', de: 'Tagesplan erhalten',
+    es: 'Obtener plan diario', fr: 'Obtenir le plan quotidien',
+    it: 'Ottieni piano giornaliero', pt: 'Obter plano diário', pl: 'Wybierz plan dzienny',
+    cs: 'Získat denní plán', hu: 'Napi csomag választása', ro: 'Obține plan zilnic',
+    nl: 'Dagelijks plan', sv: 'Hämta daglig plan', da: 'Få daglig plan',
+    no: 'Få daglig plan', fi: 'Hanki päiväpaketti', el: 'Λήψη ημερήσιου πλάνου',
+    tr: 'Günlük plan al', id: 'Dapatkan paket harian', ar: 'احصل على الخطة اليومية',
+    ja: '日次プランを取得', ko: '일일 플랜 받기', zh: '获取日付计划',
+    hi: 'दैनिक प्लान चुनें', th: 'รับแผนรายวัน', vi: 'Chọn gói hằng ngày',
+    he: 'קבל תוכנית יומית'
+  },
+  'cta.get_plan_weekly': {
+    ru: 'Купить недельный тариф', uk: 'Купити тижневий тариф', de: 'Wochenplan erhalten',
+    es: 'Obtener plan semanal', fr: 'Obtenir le plan hebdomadaire',
+    it: 'Ottieni piano settimanale', pt: 'Obter plano semanal', pl: 'Wybierz plan tygodniowy',
+    cs: 'Získat týdenní plán', hu: 'Heti csomag választása', ro: 'Obține plan săptămânal',
+    nl: 'Wekelijks plan', sv: 'Hämta veckoplan', da: 'Få ugentlig plan',
+    no: 'Få ukentlig plan', fi: 'Hanki viikkopaketti', el: 'Λήψη εβδομαδιαίου πλάνου',
+    tr: 'Haftalık plan al', id: 'Dapatkan paket mingguan', ar: 'احصل على الخطة الأسبوعية',
+    ja: '週次プランを取得', ko: '주간 플랜 받기', zh: '获取每周计划',
+    hi: 'साप्ताहिक प्लान चुनें', th: 'รับแผนรายสัปดาห์', vi: 'Chọn gói hằng tuần',
+    he: 'קבל תוכנית שבועית'
+  },
+  'cta.get_plan_monthly': {
+    ru: 'Купить месячный тариф', uk: 'Купити місячний тариф', de: 'Monatsplan erhalten',
+    es: 'Obtener plan mensual', fr: 'Obtenir le plan mensuel',
+    it: 'Ottieni piano mensile', pt: 'Obter plano mensal', pl: 'Wybierz plan miesięczny',
+    cs: 'Získat měsíční plán', hu: 'Havi csomag választása', ro: 'Obține plan lunar',
+    nl: 'Maandelijks plan', sv: 'Hämta månadsplan', da: 'Få månedlig plan',
+    no: 'Få månedlig plan', fi: 'Hanki kuukausipaketti', el: 'Λήψη μηνιαίου πλάνου',
+    tr: 'Aylık plan al', id: 'Dapatkan paket bulanan', ar: 'احصل على الخطة الشهرية',
+    ja: '月次プランを取得', ko: '월간 플랜 받기', zh: '获取每月计划',
+    hi: 'मासिक प्लान चुनें', th: 'รับแผนรายเดือน', vi: 'Chọn gói hằng tháng',
+    he: 'קבל תוכנית חודשית'
+  },
+  'cta.get_plan_yearly': {
+    ru: 'Купить годовой тариф', uk: 'Купити річний тариф', de: 'Jahresplan erhalten',
+    es: 'Obtener plan anual', fr: 'Obtenir le plan annuel',
+    it: 'Ottieni piano annuale', pt: 'Obter plano anual', pl: 'Wybierz plan roczny',
+    cs: 'Získat roční plán', hu: 'Éves csomag választása', ro: 'Obține plan anual',
+    nl: 'Jaarlijks plan', sv: 'Hämta årsplan', da: 'Få årlig plan', no: 'Få årlig plan',
+    fi: 'Hanki vuosipaketti', el: 'Λήψη ετήσιου πλάνου', tr: 'Yıllık plan al',
+    id: 'Dapatkan paket tahunan', ar: 'احصل على الخطة السنوية', ja: '年次プランを取得',
+    ko: '연간 플랜 받기', zh: '获取年度计划', hi: 'वार्षिक प्लान चुनें',
+    th: 'รับแผนรายปี', vi: 'Chọn gói hằng năm', he: 'קבל תוכנית שנתית'
+  },
+  'cta.get_plan_generic': {
+    ru: 'Купить {interval} тариф', uk: 'Купити {interval} тариф',
+    de: '{interval} Plan erhalten', es: 'Obtener plan {interval}',
+    fr: 'Obtenir le plan {interval}', it: 'Ottieni piano {interval}',
+    pt: 'Obter plano {interval}', nl: 'Plan {interval}', ja: '{interval}プランを取得',
+    ko: '{interval} 플랜 받기', zh: '获取 {interval} 计划'
+  },
+
+  // ============ pricing ============
+  'pricing.no_prices': {
+    ru: 'Тарифов нет.', uk: 'Тарифів немає.', de: 'Keine Preise verfügbar.',
+    es: 'No hay precios disponibles.', fr: 'Aucun tarif disponible.',
+    it: 'Nessun prezzo disponibile.', pt: 'Nenhum preço disponível.',
+    pl: 'Brak dostępnych cen.', cs: 'Žádné ceny nejsou k dispozici.',
+    hu: 'Nincsenek elérhető árak.', ro: 'Niciun preț disponibil.',
+    nl: 'Geen prijzen beschikbaar.', sv: 'Inga priser tillgängliga.',
+    da: 'Ingen priser tilgængelige.', no: 'Ingen priser tilgjengelig.',
+    fi: 'Ei hintoja saatavilla.', el: 'Δεν υπάρχουν διαθέσιμες τιμές.',
+    tr: 'Fiyat yok.', id: 'Tidak ada harga tersedia.', ar: 'لا توجد أسعار متاحة.',
+    ja: '料金がありません。', ko: '가격이 없습니다.', zh: '暂无价格。',
+    hi: 'कोई मूल्य उपलब्ध नहीं।', th: 'ไม่มีราคา', vi: 'Không có giá khả dụng.',
+    he: 'אין מחירים זמינים.'
+  },
+  'pricing.plans_aria': {
+    ru: 'Тарифы', uk: 'Тарифи', de: 'Pläne', es: 'Planes', fr: 'Plans', it: 'Piani',
+    pt: 'Planos', pl: 'Plany', cs: 'Plány', hu: 'Csomagok', ro: 'Planuri',
+    nl: 'Plannen', sv: 'Planer', da: 'Planer', no: 'Planer', fi: 'Paketit',
+    el: 'Πλάνα', tr: 'Planlar', id: 'Paket', ar: 'الخطط', ja: 'プラン',
+    ko: '플랜', zh: '计划', hi: 'योजनाएँ', th: 'แผน', vi: 'Gói', he: 'תוכניות'
+  },
+  'pricing.most_popular': {
+    ru: 'Самый популярный', uk: 'Найпопулярніший', de: 'Beliebt', es: 'Más popular',
+    fr: 'Le plus populaire', it: 'Più popolare', pt: 'Mais popular',
+    pl: 'Najpopularniejszy', cs: 'Nejoblíbenější', hu: 'Legnépszerűbb',
+    ro: 'Cel mai popular', nl: 'Populairst', sv: 'Populärast', da: 'Mest populær',
+    no: 'Mest populær', fi: 'Suosituin', el: 'Δημοφιλέστερο', tr: 'En popüler',
+    id: 'Paling populer', ar: 'الأكثر شعبية', ja: '人気No.1', ko: '가장 인기',
+    zh: '最受欢迎', hi: 'सबसे लोकप्रिय', th: 'ยอดนิยม', vi: 'Phổ biến nhất',
+    he: 'הכי פופולרי'
+  },
+  'pricing.plan_label.daily': {
+    ru: 'ЕЖЕДНЕВНЫЙ ТАРИФ', uk: 'ЩОДЕННИЙ ТАРИФ', de: 'TÄGLICHER PLAN',
+    es: 'PLAN DIARIO', fr: 'PLAN QUOTIDIEN', it: 'PIANO GIORNALIERO',
+    pt: 'PLANO DIÁRIO', pl: 'PLAN DZIENNY', cs: 'DENNÍ PLÁN', hu: 'NAPI CSOMAG',
+    ro: 'PLAN ZILNIC', nl: 'DAGELIJKS PLAN', sv: 'DAGLIG PLAN', da: 'DAGLIG PLAN',
+    no: 'DAGLIG PLAN', fi: 'PÄIVITTÄINEN PAKETTI', el: 'ΗΜΕΡΗΣΙΟ ΠΛΑΝΟ',
+    tr: 'GÜNLÜK PLAN', id: 'PAKET HARIAN', ar: 'الخطة اليومية',
+    ja: '日次プラン', ko: '일일 플랜', zh: '日付计划', hi: 'दैनिक प्लान',
+    th: 'แผนรายวัน', vi: 'GÓI HẰNG NGÀY', he: 'תוכנית יומית'
+  },
+  'pricing.free_trial_days': {
+    de: '{days}-tägige kostenlose Testversion',
+    es: 'Prueba gratuita de {days} días', fr: 'Essai gratuit de {days} jours',
+    it: 'Prova gratuita di {days} giorni', pt: 'Teste grátis de {days} dias',
+    nl: '{days} dagen gratis proefperiode', ja: '{days}日間無料トライアル',
+    ko: '{days}일 무료 체험', zh: '{days}天免费试用',
+    ru: '{days}-дневная бесплатная пробная версия',
+    uk: '{days}-денний безкоштовний пробний період',
+    pl: '{days}-dniowa bezpłatna wersja próbna', cs: '{days}denní bezplatná zkušební verze',
+    hu: '{days} napos ingyenes próbaverzió', ro: '{days} zile probă gratuită',
+    sv: '{days} dagars gratis provperiod', da: '{days}-dages gratis prøveperiode',
+    no: '{days}-dagers gratis prøveperiode', fi: '{days}-päivän ilmainen kokeilu',
+    el: 'Δωρεάν δοκιμή {days} ημερών', tr: '{days} günlük ücretsiz deneme',
+    id: 'Uji coba gratis {days} hari', ar: 'تجربة مجانية لمدة {days} يومًا',
+    hi: '{days}-दिन निःशुल्क परीक्षण', th: 'ทดลองใช้ฟรี {days} วัน',
+    vi: '{days} ngày dùng thử miễn phí', he: 'ניסיון חינם של {days} ימים'
+  },
+  'pricing.interval.day': {
+    ru: 'день', uk: 'день', de: 'Tag', es: 'día', fr: 'jour', it: 'giorno',
+    pt: 'dia', pl: 'dzień', cs: 'den', hu: 'nap', ro: 'zi', nl: 'dag',
+    sv: 'dag', da: 'dag', no: 'dag', fi: 'päivä', el: 'ημέρα', tr: 'gün',
+    id: 'hari', ar: 'يوم', ja: '日', ko: '일', zh: '天', hi: 'दिन',
+    th: 'วัน', vi: 'ngày', he: 'יום'
+  },
+  'pricing.interval.period': {
+    ru: 'период', uk: 'період', de: 'Zeitraum', es: 'período', fr: 'période',
+    it: 'periodo', pt: 'período', pl: 'okres', cs: 'období', hu: 'időszak',
+    ro: 'perioadă', nl: 'periode', sv: 'period', da: 'periode', no: 'periode',
+    fi: 'jakso', el: 'περίοδος', tr: 'dönem', id: 'periode', ar: 'فترة',
+    ja: '期間', ko: '기간', zh: '周期', hi: 'अवधि', th: 'งวด', vi: 'kỳ',
+    he: 'תקופה'
+  },
+  // pricing.interval.lifetime_short — суффикс после цены ("$X / lifetime"),
+  // короткое слово вместо полного. В RU это "навсегда" (legacy.
+  // pricing.interval.lifetime), но мы НЕ маппим legacy ключ через автогенератор
+  // потому что v3 имеет 2 разных ключа (plan_label vs interval-suffix).
+  'pricing.interval.lifetime_short': {
+    ru: 'навсегда', uk: 'назавжди', de: 'lebenslang', es: 'de por vida',
+    fr: 'à vie', it: 'a vita', pt: 'vitalício', pl: 'dożywotnio', cs: 'navždy',
+    hu: 'élethosszig', ro: 'pe viață', nl: 'voor altijd', sv: 'livstid',
+    da: 'livstid', no: 'livstid', fi: 'elinikäinen', el: 'ισόβιο',
+    tr: 'ömür boyu', id: 'seumur hidup', ar: 'مدى الحياة', ja: '永久',
+    ko: '평생', zh: '永久', hi: 'आजीवन', th: 'ตลอดชีพ', vi: 'trọn đời',
+    he: 'לכל החיים'
+  },
+
+  // ============ offer / countdown ============
+  'offer.limited_time': {
+    ru: 'Ограниченное предложение', uk: 'Обмежена пропозиція',
+    de: 'Zeitlich begrenztes Angebot', es: 'Oferta por tiempo limitado',
+    fr: 'Offre à durée limitée', it: 'Offerta a tempo limitato',
+    pt: 'Oferta por tempo limitado', pl: 'Oferta ograniczona czasowo',
+    cs: 'Časově omezená nabídka', hu: 'Időszakos ajánlat',
+    ro: 'Ofertă pe timp limitat', nl: 'Tijdelijke aanbieding',
+    sv: 'Tidsbegränsat erbjudande', da: 'Tidsbegrænset tilbud',
+    no: 'Tidsbegrenset tilbud', fi: 'Rajoitetun ajan tarjous',
+    el: 'Προσφορά περιορισμένου χρόνου', tr: 'Sınırlı süreli teklif',
+    id: 'Penawaran terbatas', ar: 'عرض لفترة محدودة', ja: '期間限定オファー',
+    ko: '한정 기간 제안', zh: '限时优惠', hi: 'सीमित समय का ऑफर',
+    th: 'ข้อเสนอช่วงเวลาจำกัด', vi: 'Ưu đãi có thời hạn', he: 'הצעה לזמן מוגבל'
+  },
+  // countdown — почти везде латиница (d/h/m/s) либо локальные сокращения.
+  // Большинство языков используют латинские буквы (как индустриальный паттерн).
+  // Только RU/UK/AR/EL/JA/ZH имеют локальные эквиваленты.
+  'countdown.d': {
+    ru: 'д', uk: 'д', ja: '日', ko: '일', zh: '天', ar: 'ي', el: 'η',
+    he: 'י', hi: 'दि', th: 'ว'
+  },
+  'countdown.h': {
+    ru: 'ч', uk: 'г', ja: '時', ko: '시', zh: '小时', ar: 'س', el: 'ω',
+    he: 'ש', hi: 'घं', th: 'ชม'
+  },
+  'countdown.m': {
+    ru: 'мин', uk: 'хв', ja: '分', ko: '분', zh: '分', ar: 'د', el: 'λ',
+    he: 'דק', hi: 'मि', th: 'นาที'
+  },
+  'countdown.s': {
+    ru: 'с', uk: 'с', ja: '秒', ko: '초', zh: '秒', ar: 'ث', el: 'δ',
+    he: 'שנ', hi: 'से', th: 'วิ'
+  },
+
+  // ============ current session ============
+  'session.signed_in_as_prefix': {
+    ru: 'Вы вошли как', uk: 'Ви увійшли як', de: 'Angemeldet als',
+    es: 'Sesión iniciada como', fr: 'Connecté en tant que', it: 'Connesso come',
+    pt: 'Conectado como', pl: 'Zalogowany jako', cs: 'Přihlášen jako',
+    hu: 'Bejelentkezve mint', ro: 'Conectat ca', nl: 'Ingelogd als',
+    sv: 'Inloggad som', da: 'Logget ind som', no: 'Logget inn som',
+    fi: 'Kirjautunut nimellä', el: 'Συνδεδεμένος ως', tr: 'Şu hesapla giriş yapıldı:',
+    id: 'Masuk sebagai', ar: 'تم تسجيل الدخول باسم', ja: 'サインイン中:',
+    ko: '로그인됨:', zh: '已登录为', hi: 'के रूप में साइन इन', th: 'เข้าสู่ระบบในชื่อ',
+    vi: 'Đã đăng nhập với tư cách', he: 'מחובר בתור'
+  },
+  'session.signing_out': {
+    ru: 'Выход…', uk: 'Вихід…', de: 'Abmelden…', es: 'Cerrando sesión…',
+    fr: 'Déconnexion…', it: 'Disconnessione…', pt: 'Saindo…', pl: 'Wylogowywanie…',
+    cs: 'Odhlašování…', hu: 'Kijelentkezés…', ro: 'Deconectare…', nl: 'Uitloggen…',
+    sv: 'Loggar ut…', da: 'Logger ud…', no: 'Logger ut…', fi: 'Kirjaudutaan ulos…',
+    el: 'Αποσύνδεση…', tr: 'Çıkış yapılıyor…', id: 'Keluar…', ar: 'جارٍ تسجيل الخروج…',
+    ja: 'サインアウト中…', ko: '로그아웃 중…', zh: '退出中…', hi: 'साइन आउट हो रहा है…',
+    th: 'กำลังออกจากระบบ…', vi: 'Đang đăng xuất…', he: 'מתנתק…'
+  },
+  'session.sign_out': {
+    ru: 'Выйти', uk: 'Вийти', de: 'Abmelden', es: 'Cerrar sesión', fr: 'Se déconnecter',
+    it: 'Disconnetti', pt: 'Sair', pl: 'Wyloguj', cs: 'Odhlásit se', hu: 'Kijelentkezés',
+    ro: 'Deconectare', nl: 'Uitloggen', sv: 'Logga ut', da: 'Log ud', no: 'Logg ut',
+    fi: 'Kirjaudu ulos', el: 'Αποσύνδεση', tr: 'Çıkış yap', id: 'Keluar',
+    ar: 'تسجيل الخروج', ja: 'サインアウト', ko: '로그아웃', zh: '退出',
+    hi: 'साइन आउट', th: 'ออกจากระบบ', vi: 'Đăng xuất', he: 'התנתק'
+  },
+  'session.restore_purchases': {
+    ru: 'Восстановить покупки', uk: 'Відновити покупки', de: 'Käufe wiederherstellen',
+    es: 'Restaurar compras', fr: 'Restaurer les achats', it: 'Ripristina acquisti',
+    pt: 'Restaurar compras', pl: 'Przywróć zakupy', cs: 'Obnovit nákupy',
+    hu: 'Vásárlások visszaállítása', ro: 'Restabilește achizițiile',
+    nl: 'Aankopen herstellen', sv: 'Återställ köp', da: 'Gendan køb',
+    no: 'Gjenopprett kjøp', fi: 'Palauta ostot', el: 'Επαναφορά αγορών',
+    tr: 'Satın alımları geri yükle', id: 'Pulihkan pembelian', ar: 'استعادة المشتريات',
+    ja: '購入を復元', ko: '구매 복원', zh: '恢复购买', hi: 'खरीदारी पुनर्स्थापित करें',
+    th: 'กู้คืนการซื้อ', vi: 'Khôi phục mua hàng', he: 'שחזר רכישות'
+  },
+  'session.contact_support': {
+    ru: 'Поддержка', uk: 'Звернутися до підтримки',
+    de: 'Support kontaktieren', es: 'Contactar con soporte',
+    fr: 'Contacter le support', it: 'Contatta il supporto', pt: 'Contatar suporte',
+    pl: 'Kontakt z pomocą', cs: 'Kontaktovat podporu', hu: 'Támogatás',
+    ro: 'Contactează suportul', nl: 'Contact met support', sv: 'Kontakta support',
+    da: 'Kontakt support', no: 'Kontakt support', fi: 'Ota yhteyttä tukeen',
+    el: 'Επικοινωνία υποστήριξης', tr: 'Destekle iletişime geç', id: 'Hubungi dukungan',
+    ar: 'اتصل بالدعم', ja: 'サポートに連絡', ko: '지원팀에 문의', zh: '联系支持',
+    hi: 'सहायता से संपर्क करें', th: 'ติดต่อฝ่ายสนับสนุน', vi: 'Liên hệ hỗ trợ',
+    he: 'צור קשר עם התמיכה'
+  },
+
+  // ============ anon gate ============
+  'anon.heading_default': {
+    ru: 'Продолжить как гость', uk: 'Продовжити як гість', de: 'Als Gast fortfahren',
+    es: 'Continuar como invitado', fr: 'Continuer en tant qu\'invité',
+    it: 'Continua come ospite', pt: 'Continuar como convidado',
+    pl: 'Kontynuuj jako gość', cs: 'Pokračovat jako host', hu: 'Folytatás vendégként',
+    ro: 'Continuă ca invitat', nl: 'Doorgaan als gast', sv: 'Fortsätt som gäst',
+    da: 'Fortsæt som gæst', no: 'Fortsett som gjest', fi: 'Jatka vieraana',
+    el: 'Συνέχεια ως επισκέπτης', tr: 'Misafir olarak devam et',
+    id: 'Lanjutkan sebagai tamu', ar: 'متابعة كضيف', ja: 'ゲストとして続ける',
+    ko: '게스트로 계속', zh: '以访客身份继续', hi: 'अतिथि के रूप में जारी रखें',
+    th: 'ดำเนินการต่อในฐานะแขก', vi: 'Tiếp tục với tư cách khách', he: 'המשך כאורח'
+  },
+  'anon.description_default': {
+    de: 'Gast-Sitzung wird eingerichtet…', es: 'Configurando tu sesión de invitado…',
+    fr: 'Configuration de votre session invité…', it: 'Configurazione della sessione ospite…',
+    pt: 'Configurando sua sessão de convidado…', nl: 'Gastsessie wordt ingesteld…',
+    ja: 'ゲストセッションを設定中…', ko: '게스트 세션을 설정 중…',
+    zh: '正在设置访客会话…', ru: 'Настраиваем гостевую сессию…',
+    uk: 'Налаштовуємо гостьовий сеанс…'
+  },
+  'anon.try_again': {
+    ru: 'Попробовать снова', uk: 'Спробувати ще раз', de: 'Erneut versuchen',
+    es: 'Intentar de nuevo', fr: 'Réessayer', it: 'Riprova', pt: 'Tentar novamente',
+    pl: 'Spróbuj ponownie', cs: 'Zkusit znovu', hu: 'Próbálja újra',
+    ro: 'Încearcă din nou', nl: 'Probeer opnieuw', sv: 'Försök igen', da: 'Prøv igen',
+    no: 'Prøv igjen', fi: 'Yritä uudelleen', el: 'Δοκιμάστε ξανά', tr: 'Tekrar dene',
+    id: 'Coba lagi', ar: 'حاول مرة أخرى', ja: '再試行', ko: '다시 시도',
+    zh: '重试', hi: 'फिर से प्रयास करें', th: 'ลองอีกครั้ง', vi: 'Thử lại', he: 'נסה שוב'
+  },
+
+  // ============ support — supplements ============
+  'support.sending_as': {
+    de: 'Senden als', es: 'Enviando como', fr: 'Envoi en tant que',
+    it: 'Invio come', pt: 'Enviando como', nl: 'Verzenden als',
+    ja: '送信元:', ko: '발신:', zh: '以以下身份发送', ru: 'Отправка от',
+    uk: 'Надсилання від'
+  },
+  'support.dropzone_text': {
+    de: 'Bilder hier ablegen oder zum Auswählen klicken',
+    es: 'Suelta imágenes aquí o haz clic para seleccionar',
+    fr: 'Déposez les images ici ou cliquez pour sélectionner',
+    it: 'Trascina qui le immagini o fai clic per selezionarle',
+    pt: 'Solte imagens aqui ou clique para selecionar',
+    nl: 'Sleep afbeeldingen hierheen of klik om te selecteren',
+    ja: '画像をここにドロップまたはクリックして選択',
+    ko: '여기에 이미지를 끌어다 놓거나 클릭하여 선택',
+    zh: '将图片拖放到此处或点击选择',
+    ru: 'Перетащите изображения сюда или кликните для выбора',
+    uk: 'Перетягніть зображення сюди або клацніть для вибору'
+  },
+  'support.file_requirements': {
+    de: 'JPEG/PNG/WebP, bis zu {max} Dateien, ≤ 10 MB pro Datei',
+    es: 'JPEG/PNG/WebP, hasta {max} archivos, ≤ 10 MB cada uno',
+    fr: 'JPEG/PNG/WebP, jusqu\'à {max} fichiers, ≤ 10 Mo chacun',
+    it: 'JPEG/PNG/WebP, fino a {max} file, ≤ 10 MB ciascuno',
+    pt: 'JPEG/PNG/WebP, até {max} arquivos, ≤ 10 MB cada',
+    nl: 'JPEG/PNG/WebP, tot {max} bestanden, ≤ 10 MB elk',
+    ja: 'JPEG/PNG/WebP、最大 {max} 個、各 10MB 以下',
+    ko: 'JPEG/PNG/WebP, 최대 {max}개, 각 10MB 이하',
+    zh: 'JPEG/PNG/WebP，最多 {max} 个文件，每个 ≤ 10MB',
+    ru: 'JPEG/PNG/WebP, до {max} файлов, ≤ 10 МБ каждый',
+    uk: 'JPEG/PNG/WebP, до {max} файлів, ≤ 10 МБ кожен'
+  },
+  'support.too_many_files': {
+    de: 'Bis zu {max} Dateien', es: 'Hasta {max} archivos', fr: 'Jusqu\'à {max} fichiers',
+    it: 'Fino a {max} file', pt: 'Até {max} arquivos', nl: 'Tot {max} bestanden',
+    ja: '最大 {max} 個まで', ko: '최대 {max}개', zh: '最多 {max} 个文件',
+    ru: 'До {max} файлов', uk: 'До {max} файлів'
+  },
+  'support.invalid_file': {
+    de: 'Nur JPEG/PNG/WebP, ≤ 10 MB pro Datei',
+    es: 'Solo JPEG/PNG/WebP, ≤ 10 MB cada uno',
+    fr: 'JPEG/PNG/WebP uniquement, ≤ 10 Mo chacun',
+    it: 'Solo JPEG/PNG/WebP, ≤ 10 MB ciascuno',
+    pt: 'Apenas JPEG/PNG/WebP, ≤ 10 MB cada',
+    nl: 'Alleen JPEG/PNG/WebP, ≤ 10 MB elk',
+    ja: 'JPEG/PNG/WebPのみ、各10MB以下',
+    ko: 'JPEG/PNG/WebP만, 각 10MB 이하',
+    zh: '仅限 JPEG/PNG/WebP，每个 ≤ 10MB',
+    ru: 'Только JPEG/PNG/WebP, ≤ 10 МБ каждый',
+    uk: 'Лише JPEG/PNG/WebP, ≤ 10 МБ кожен'
+  },
+  'support.remove_file_aria': {
+    de: '{filename} entfernen', es: 'Eliminar {filename}', fr: 'Supprimer {filename}',
+    it: 'Rimuovi {filename}', pt: 'Remover {filename}', nl: '{filename} verwijderen',
+    ja: '{filename} を削除', ko: '{filename} 제거', zh: '移除 {filename}',
+    ru: 'Удалить {filename}', uk: 'Видалити {filename}'
+  },
+  'support.attachments_aria': {
+    de: 'Anhänge hochladen', es: 'Subir adjuntos', fr: 'Téléverser des pièces jointes',
+    it: 'Caricamento allegati', pt: 'Upload de anexos', nl: 'Bijlagen uploaden',
+    ja: '添付ファイルのアップロード', ko: '첨부 파일 업로드', zh: '上传附件',
+    ru: 'Загрузка вложений', uk: 'Завантаження вкладень'
+  },
+  'support.done_button': {
+    ru: 'Готово', uk: 'Готово', de: 'Fertig', es: 'Listo', fr: 'Terminé',
+    it: 'Fatto', pt: 'Concluído', pl: 'Gotowe', cs: 'Hotovo', hu: 'Kész',
+    ro: 'Gata', nl: 'Klaar', sv: 'Klart', da: 'Færdig', no: 'Ferdig',
+    fi: 'Valmis', el: 'Έτοιμο', tr: 'Tamam', id: 'Selesai', ar: 'تم',
+    ja: '完了', ko: '완료', zh: '完成', hi: 'पूरा', th: 'เสร็จสิ้น',
+    vi: 'Xong', he: 'בוצע'
+  },
+  'support.close_button': {
+    ru: 'Закрыть', uk: 'Закрити', de: 'Schließen', es: 'Cerrar', fr: 'Fermer',
+    it: 'Chiudi', pt: 'Fechar', pl: 'Zamknij', cs: 'Zavřít', hu: 'Bezárás',
+    ro: 'Închide', nl: 'Sluiten', sv: 'Stäng', da: 'Luk', no: 'Lukk',
+    fi: 'Sulje', el: 'Κλείσιμο', tr: 'Kapat', id: 'Tutup', ar: 'إغلاق',
+    ja: '閉じる', ko: '닫기', zh: '关闭', hi: 'बंद करें', th: 'ปิด',
+    vi: 'Đóng', he: 'סגור'
+  },
+
+  // ============ JA/KO/ZH override для pricing.included_per ============
+  // Legacy дал "含まれる期間 {interval}" — грамматически коряво. Перекрываем
+  // правильным word order'ом для CJK: "{interval}に含まれる", "{interval}당 포함:", "每{interval}包含:"
+  'pricing.included_per': {
+    ja: '{interval}に含まれる:', ko: '{interval}당 포함:', zh: '每{interval}包含:'
+  }
+};

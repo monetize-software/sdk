@@ -65,7 +65,10 @@ export default defineConfig({
     minify: 'esbuild',
     sourcemap: true,
     outDir: resolve(root, 'dist'),
-    emptyOutDir: true,
+    // false — иначе rebuild этого конфига стирает content.js, который пишет
+    // vite.content.config.ts. Очистку dist/ делает rimraf в build:demo/dev:demo
+    // до старта обоих vite-процессов.
+    emptyOutDir: false,
     lib: {
       // content.ts билдится отдельно (vite.content.config.ts) как IIFE —
       // MV3 content_scripts не поддерживают ES-модули.

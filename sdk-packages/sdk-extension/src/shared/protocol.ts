@@ -43,6 +43,7 @@ export type RequestKind =
   | 'billing.getIdentity'
   | 'billing.setIdentity'
   | 'billing.getVisitorId'
+  | 'billing.createSupportTicket'
   // AuthClient
   | 'auth.signInWithEmail'
   | 'auth.signUp'
@@ -59,6 +60,7 @@ export type RequestKind =
   | 'auth.oauthExchange'
   | 'auth.getAccessToken'
   | 'auth.signInAnonymously'
+  | 'auth.getLastLogin'
   // EventTracker
   | 'tracker.track'
   // Storage proxy — для consumer'ов, которые через `billing.getStorage()`

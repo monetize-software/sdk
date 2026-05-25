@@ -53,7 +53,8 @@ const BOOTSTRAP_STALE_THRESHOLD_MS = 5 * 60_000;
 const EMPTY_USER: PaywallUser = {
   has_active_subscription: false,
   purchases: [],
-  trial: null
+  trial: null,
+  had_previous_trial: false
 };
 
 function identityKey(identity: Identity | undefined): string {
@@ -1487,9 +1488,12 @@ function buildDefaultLayout(settings: PaywallSettings, prices: PaywallPrice[]): 
   return {
     type: 'modal',
     blocks: [
+      // offer_banner НЕ в default layout — PaywallRoot рендерит его как
+      // top-tab над dialog'ом (rounded-top, negative margin), за пределами
+      // scrollable area. Блок остаётся в registry для opt-in inline-вариантa.
       { type: 'heading', text: settings.name || 'Upgrade', level: 1 },
       { type: 'price_grid', priceIds: prices.map((p) => p.id) },
-      { type: 'cta_button', label: 'Continue', action: 'checkout' },
+      { type: 'cta_button', action: 'checkout' },
       { type: 'guarantee_badge' },
       { type: 'current_session' }
     ]

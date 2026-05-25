@@ -13,7 +13,9 @@ export {
   type AuthChangeListener,
   type SignUpResult,
   type OtpVerifyType,
-  type OAuthProvider
+  type OAuthProvider,
+  type LastLogin,
+  type LastLoginMethod
 } from './auth';
 export { EventTracker, type EventTrackerOptions, type TrackedEvent } from './EventTracker';
 export {

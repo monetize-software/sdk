@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { AuthClient, AuthSession } from '../core/auth';
+import { useI18n } from './i18n';
 
 // Anonymous sign-in gate. После удаления Turnstile-iframe'а (captcha в Supabase
 // выключена, защита держится на Supabase rate-limit per real-IP + CF Bot Fight
@@ -33,9 +34,12 @@ export function AnonGate({
   auth,
   onSuccess,
   onBack,
-  heading = 'Continue as guest',
-  description = 'Setting up your guest session…'
+  heading,
+  description
 }: AnonGateProps) {
+  const { t } = useI18n();
+  const resolvedHeading = heading ?? t('anon.heading_default', 'Continue as guest');
+  const resolvedDescription = description ?? t('anon.description_default', 'Setting up your guest session…');
   const [phase, setPhase] = useState<Phase>({ kind: 'signing-in' });
   // Защита от race: если юзер закрыл модалку посреди signin'а, не зовём
   // onSuccess из устаревшего промиса.
@@ -78,13 +82,13 @@ export function AnonGate({
           onClick={onBack}
           class="-ml-1 self-start rounded-md px-1.5 py-0.5 text-xs font-medium text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--pw-accent)]"
         >
-          ← Back
+          {t('nav.back', '← Back')}
         </button>
       ) : null}
 
       <div class="flex flex-col gap-1">
-        <h2 class="text-xl font-semibold text-gray-900">{heading}</h2>
-        <p class="text-sm text-gray-500">{description}</p>
+        <h2 class="text-xl font-semibold text-gray-900">{resolvedHeading}</h2>
+        <p class="text-sm text-gray-500">{resolvedDescription}</p>
       </div>
 
       {phase.kind === 'signing-in' ? (
@@ -103,7 +107,7 @@ export function AnonGate({
             onClick={run}
             class="self-start rounded-md bg-[var(--pw-accent)] px-3 py-1.5 text-sm font-medium text-white hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--pw-accent)] focus-visible:ring-offset-2"
           >
-            Try again
+            {t('anon.try_again', 'Try again')}
           </button>
         </div>
       ) : null}

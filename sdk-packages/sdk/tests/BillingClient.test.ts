@@ -35,7 +35,7 @@ const LAYOUT = {
   blocks: [
     { type: 'heading' as const, text: 'Upgrade to Pro', level: 1 as const },
     { type: 'price_grid' as const, priceIds: ['monthly', 'yearly'] },
-    { type: 'cta_button' as const, label: 'Continue', action: 'checkout' as const },
+    { type: 'cta_button' as const, action: 'checkout' as const },
     { type: 'guarantee_badge' as const },
     { type: 'current_session' as const }
   ]

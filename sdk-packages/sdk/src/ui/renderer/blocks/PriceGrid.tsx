@@ -1,5 +1,6 @@
-import type { LayoutBlock, PaywallPrice } from '../../../core/types';
+import type { LayoutBlock, PaywallOffer, PaywallPrice } from '../../../core/types';
 import type { BlockProps } from '../types';
+import { useI18n, type TFn } from '../../i18n';
 
 type PriceGridBlock = Extract<LayoutBlock, { type: 'price_grid' }>;
 
@@ -8,78 +9,213 @@ interface FormattedPrice {
   currency: string;
   /** Целая часть, без разделителей дробной. */
   amount: string;
+  /** Original (без discount), formatted — для strike-through. null если
+   *  скидки нет или discount=0%. */
+  originalAmount: string | null;
 }
 
-function formatPriceParts(price: PaywallPrice): FormattedPrice {
+// Year-план показывает per-month эквивалент сразу в основной цене:
+//   YEARLY PLAN €4.99 / month   (вместо €59.99 / year)
+// Это легаси-UX из online/PaywallPricing.tsx (`unit_amount / 12`):
+// юзеру важна стоимость в месяц для сравнения с monthly-планом, а годовое
+// списание — деталь, которая не должна доминировать в типографике. planLabel
+// остаётся "YEARLY PLAN", так что billed-cadence по-прежнему понятен из
+// названия.
+function displayedAmount(price: PaywallPrice): { amount: number; currency: string } {
   const display = price.local ?? { currency: price.currency, amount: price.amount };
+  if (price.interval === 'year') {
+    const months = (price.interval_count ?? 1) * 12;
+    return { amount: display.amount / months, currency: display.currency };
+  }
+  return { amount: display.amount, currency: display.currency };
+}
+
+// Форматирует число в currency-string без литералов, разделяет currency-symbol
+// и числовую часть. Используется и для основной цены, и для strike-through
+// original (тогда discount применять не нужно — value уже base).
+// Дробная часть авто: целое → "$8", нецелое → "$4.99". Целые без .00 заметнее
+// конвертят — глаз быстрее цепляет короткое число.
+function formatCurrencyParts(value: number, currency: string): {
+  currency: string;
+  amount: string;
+} {
+  const minFrac = value % 1 !== 0 ? 2 : 0;
   try {
     const parts = new Intl.NumberFormat(undefined, {
       style: 'currency',
-      currency: display.currency,
+      currency,
       currencyDisplay: 'narrowSymbol',
-      maximumFractionDigits: display.amount % 1 === 0 ? 0 : 2,
-      minimumFractionDigits: display.amount % 1 === 0 ? 0 : 2
-    }).formatToParts(display.amount);
-    let currency = '';
+      maximumFractionDigits: minFrac,
+      minimumFractionDigits: minFrac
+    }).formatToParts(value);
+    let cur = '';
     let amount = '';
     for (const part of parts) {
       if (part.type === 'currency') {
-        currency = part.value;
+        cur = part.value;
       } else if (part.type !== 'literal') {
         amount += part.value;
       }
     }
-    return { currency: currency || display.currency, amount: amount.trim() };
+    return { currency: cur || currency, amount: amount.trim() };
   } catch {
-    return { currency: display.currency, amount: String(display.amount) };
+    return { currency, amount: String(value) };
   }
 }
 
-function planLabel(price: PaywallPrice): string {
-  if (price.label) return price.label.toUpperCase();
-  if (!price.interval || price.interval === 'lifetime') return 'LIFETIME';
-  const map: Record<string, string> = {
-    day: 'DAILY PLAN',
-    week: 'WEEKLY PLAN',
-    month: 'MONTHLY PLAN',
-    year: 'YEARLY PLAN'
+function formatPriceParts(price: PaywallPrice, discountPercent: number | null): FormattedPrice {
+  const { amount: base, currency: cur } = displayedAmount(price);
+  if (!discountPercent) {
+    const { currency, amount } = formatCurrencyParts(base, cur);
+    return { currency, amount, originalAmount: null };
+  }
+  const discounted = base * (1 - discountPercent / 100);
+  const main = formatCurrencyParts(discounted, cur);
+  const original = formatCurrencyParts(base, cur);
+  // Strike-through показываем полностью (`€59.99`/`€9.99` — с currency-знаком),
+  // чтобы юзер сразу видел старую цену в той же валюте, без догадок.
+  return {
+    currency: main.currency,
+    amount: main.amount,
+    originalAmount: `${original.currency}${original.amount}`
   };
-  return map[price.interval] ?? `${price.interval.toUpperCase()} PLAN`;
 }
 
-function intervalSuffix(price: PaywallPrice): string {
-  if (!price.interval || price.interval === 'lifetime') return 'lifetime';
+// Подбирает offer для конкретной цены. Targeted offer (price_id === priceId)
+// имеет приоритет над глобальным (price_id === null — применяется ко всем
+// ценам пейвола). Возвращает null, если discount_percent отсутствует/0.
+function applicableOffer(
+  offers: PaywallOffer[] | undefined,
+  priceId: string
+): PaywallOffer | null {
+  if (!offers || offers.length === 0) return null;
+  const targeted = offers.find(
+    (o) => o.price_id === priceId && o.discount_percent && o.discount_percent > 0
+  );
+  if (targeted) return targeted;
+  const global = offers.find(
+    (o) => o.price_id == null && o.discount_percent && o.discount_percent > 0
+  );
+  return global ?? null;
+}
+
+function planLabel(price: PaywallPrice, t: TFn): string {
+  if (price.label) return price.label.toUpperCase();
+  if (!price.interval || price.interval === 'lifetime') {
+    return t('pricing.plan_label.lifetime', 'LIFETIME');
+  }
+  const map: Record<string, { key: string; fallback: string }> = {
+    day: { key: 'pricing.plan_label.daily', fallback: 'DAILY PLAN' },
+    week: { key: 'pricing.plan_label.weekly', fallback: 'WEEKLY PLAN' },
+    month: { key: 'pricing.plan_label.monthly', fallback: 'MONTHLY PLAN' },
+    year: { key: 'pricing.plan_label.yearly', fallback: 'YEARLY PLAN' }
+  };
+  const entry = map[price.interval];
+  if (entry) return t(entry.key, entry.fallback);
+  return `${price.interval.toUpperCase()} PLAN`;
+}
+
+// Суффикс после цены. Year → "month" (потому что amount уже /12, см.
+// displayedAmount). Lifetime → "lifetime". Прочее — singular interval
+// или "N intervals" для interval_count > 1.
+function intervalSuffix(price: PaywallPrice, t: TFn): string {
+  if (!price.interval || price.interval === 'lifetime') {
+    return t('pricing.interval.lifetime_short', 'lifetime');
+  }
+  if (price.interval === 'year') return t('pricing.interval.month', 'month');
   const n = price.interval_count ?? 1;
-  if (n === 1) return price.interval;
+  if (n === 1) return t(`pricing.interval.${price.interval}`, price.interval);
   return `${n} ${price.interval}s`;
 }
 
 export function PriceGrid({ block, ctx }: BlockProps<PriceGridBlock>) {
+  const { t } = useI18n();
   const filter = block.priceIds && block.priceIds.length > 0 ? new Set(block.priceIds) : null;
   const prices = ctx.bootstrap.prices.filter((p) => !filter || filter.has(p.id));
 
   if (prices.length === 0) {
-    return <p class="text-sm text-gray-500">No prices available.</p>;
+    return <p class="text-sm text-gray-500">{t('pricing.no_prices', 'No prices available.')}</p>;
   }
 
-  const horizontal = block.view === 'horizontal';
-  const popularLabel = block.popular_label ?? 'Most popular';
+  const popularLabel = block.popular_label ?? t('pricing.most_popular', 'Most popular');
 
-  // Horizontal: ряд из N карточек (max 3) — Tailwind purge не переживает
-  // runtime-конкатенацию `grid-cols-${N}`, поэтому inline-style.
-  const cols = horizontal ? Math.min(prices.length, 3) : 1;
+  // Compact-режим — telegram-style список: НЕТ внешнего wrapper border'а,
+  // строки разделены `border-b` (кроме последней). Зеркало legacy
+  // `TelegramPricingRadio` — там тоже нет внешней рамки, разделители
+  // живут на внутреннем label-wrapper'е каждой строки. v2 storage-ключ —
+  // `view: 'telegram'`, bootstrap нормализует в 'compact'.
+  if (block.view === 'compact') {
+    return (
+      <div
+        class="flex w-full flex-col"
+        role="radiogroup"
+        aria-label={t('pricing.plans_aria', 'Plans')}
+      >
+        {prices.map((price, idx) => (
+          <CompactRow
+            key={price.id}
+            price={price}
+            isLast={idx === prices.length - 1}
+            isPopular={block.popular_price_id === price.id}
+            popularLabel={popularLabel}
+            offer={applicableOffer(ctx.bootstrap.offers, price.id)}
+            selected={ctx.selectedPriceId === price.id}
+            onSelect={() => {
+              ctx.setSelectedPriceId(price.id);
+              ctx.onAction('price_selected', { priceId: price.id, price });
+            }}
+            t={t}
+          />
+        ))}
+      </div>
+    );
+  }
+
+  // Horizontal-режим — реальный grid из карточек side-by-side. v2 storage-ключ
+  // `view: 'row'` (SDK 3.0 only — старые legacy-paywall'ы этого ключа не
+  // выбирают; bootstrap нормализует в 'horizontal'). max 3 столбца, при 1-2
+  // ценах stretch'ат строку. Tailwind purge не переживает runtime grid-cols-N,
+  // потому inline gridTemplateColumns.
+  if (block.view === 'horizontal') {
+    const cols = Math.min(prices.length, 3);
+    return (
+      <div
+        class="grid items-stretch gap-2"
+        style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
+        role="radiogroup"
+        aria-label={t('pricing.plans_aria', 'Plans')}
+      >
+        {prices.map((price) => (
+          <RowCard
+            key={price.id}
+            price={price}
+            isPopular={block.popular_price_id === price.id}
+            popularLabel={popularLabel}
+            offer={applicableOffer(ctx.bootstrap.offers, price.id)}
+            selected={ctx.selectedPriceId === price.id}
+            onSelect={() => {
+              ctx.setSelectedPriceId(price.id);
+              ctx.onAction('price_selected', { priceId: price.id, price });
+            }}
+            t={t}
+          />
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div
-      class={horizontal ? 'grid gap-2.5' : 'flex flex-col gap-2.5'}
-      style={horizontal ? { gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` } : undefined}
+      class="flex flex-col gap-2"
       role="radiogroup"
-      aria-label="Plans"
+      aria-label={t('pricing.plans_aria', 'Plans')}
     >
       {prices.map((price) => {
         const selected = ctx.selectedPriceId === price.id;
         const isPopular = block.popular_price_id === price.id;
-        const { currency, amount } = formatPriceParts(price);
+        const offer = applicableOffer(ctx.bootstrap.offers, price.id);
+        const discountPercent = offer?.discount_percent ?? null;
+        const { currency, amount, originalAmount } = formatPriceParts(price, discountPercent);
         return (
           <button
             key={price.id}
@@ -91,35 +227,81 @@ export function PriceGrid({ block, ctx }: BlockProps<PriceGridBlock>) {
               ctx.onAction('price_selected', { priceId: price.id, price });
             }}
             class={[
-              'group relative flex w-full items-center gap-3 rounded-2xl border px-4 py-3 text-left transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--pw-accent)]',
+              'group relative inline-flex w-full mx-auto items-center justify-between flex-row-reverse gap-4 rounded-2xl border-2 p-4 text-left transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--pw-accent)]',
+              // Везде border 2px — selection выражается только цветом, layout
+              // не прыгает (равная толщина у selected/unselected). Цветовая
+              // разница accent vs gray достаточно сильная для visual hierarchy.
               selected
-                ? 'border-[var(--pw-accent)] shadow-[0_0_0_1px_var(--pw-accent)]'
-                : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm',
-              isPopular ? 'mt-2.5' : ''
+                ? 'border-[var(--pw-accent)] bg-transparent'
+                : 'border-gray-200 bg-transparent hover:bg-gray-50'
             ].join(' ')}
           >
-            {isPopular ? (
-              <span
-                class="absolute -top-2.5 left-4 rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white shadow-sm"
-                style={{
-                  background:
-                    'linear-gradient(135deg, var(--pw-accent), color-mix(in srgb, var(--pw-accent) 70%, black))'
-                }}
+            <span
+              class={[
+                'flex h-6.5 w-6.5 flex-shrink-0 items-center justify-center rounded-full border transition-colors',
+                selected
+                  ? 'border-[var(--pw-accent)] text-white'
+                  : 'border-gray-300 bg-transparent text-transparent',
+                // Popular-label badge сидит absolute сверху-справа карточки и
+                // визуально сдвигает центр content'а вниз. flex items-center
+                // на карточке держит галочку по геометрическому центру, что
+                // делает её визуально выше — компенсируем небольшим mt'ом.
+                isPopular ? 'mt-3' : ''
+              ].join(' ')}
+              style={
+                selected
+                  ? {
+                      background:
+                        'linear-gradient(135deg, color-mix(in srgb, var(--pw-accent) 70%, white) 0%, var(--pw-accent) 50%, color-mix(in srgb, var(--pw-accent) 85%, black) 100%)'
+                    }
+                  : undefined
+              }
+              aria-hidden="true"
+            >
+              <svg
+                width="14"
+                height="10"
+                viewBox="0 0 17 12"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                class={selected ? 'opacity-100' : 'opacity-0'}
               >
-                {popularLabel}
-              </span>
-            ) : null}
+                <path
+                  d="M16.5234 0.476562C16.9805 0.898438 16.9805 1.63672 16.5234 2.05859L7.52344 11.0586C7.10156 11.5156 6.36328 11.5156 5.94141 11.0586L1.44141 6.55859C0.984375 6.13672 0.984375 5.39844 1.44141 4.97656C1.86328 4.51953 2.60156 4.51953 3.02344 4.97656L6.75 8.66797L14.9414 0.476562C15.3633 0.0195312 16.1016 0.0195312 16.5234 0.476562Z"
+                  fill="currentColor"
+                />
+              </svg>
+            </span>
             <div class="flex flex-1 flex-col gap-0.5">
-              <span class="text-[11px] font-medium uppercase tracking-[0.08em] text-gray-500">
-                {planLabel(price)}
-              </span>
-              <div class="flex items-baseline gap-1.5 leading-none">
-                <span class="text-[24px] font-normal text-gray-400">{currency}</span>
-                <span class="text-[34px] font-semibold tracking-tight text-gray-900">
-                  {amount}
+              {/* Label + strike+badge на одной строке (flex-wrap для узких
+                  карточек) — компактный 2-row layout вместо 3-row. Tags идут
+                  справа от label с gap'ом, при переполнении переносятся. */}
+              <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <span class="text-xs font-normal uppercase tracking-normal text-gray-800/70">
+                  {planLabel(price, t)}
                 </span>
-                <span class="ml-1 text-sm font-medium text-gray-400">
-                  / {intervalSuffix(price)}
+                {originalAmount ? (
+                  // opacity-60 приглушает strike: глаз сначала ловит label
+                  // и discount-badge, потом main price; original «бывшая цена»
+                  // — третичная информация, не должна конкурировать с label.
+                  <span class="text-[15px] font-normal text-gray-400 opacity-60 line-through decoration-gray-400 decoration-[1.5px]">
+                    {originalAmount}
+                  </span>
+                ) : null}
+                {discountPercent ? (
+                  // Emerald pill — фиксированный «успех/выгода», не зависит от
+                  // brand_color. Читается даже на тёмных бренд-акцентах.
+                  <span class="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-bold leading-none text-emerald-700">
+                    -{discountPercent}%
+                  </span>
+                ) : null}
+              </div>
+              <div class="flex items-baseline gap-2 flex-wrap">
+                <span class="text-[26px] leading-tight whitespace-nowrap text-gray-800 font-medium">
+                  <span class="opacity-90">{currency}</span> {amount}
+                  <span class="text-sm font-normal text-gray-500">
+                    {' '}/ {intervalSuffix(price, t)}
+                  </span>
                 </span>
               </div>
               {price.description ? (
@@ -127,32 +309,245 @@ export function PriceGrid({ block, ctx }: BlockProps<PriceGridBlock>) {
               ) : null}
               {price.trial_days ? (
                 <span class="mt-1 text-xs font-medium text-[var(--pw-accent)]">
-                  {price.trial_days}-day free trial
+                  {t('pricing.free_trial_days', '{days}-day free trial', { days: price.trial_days })}
                 </span>
               ) : null}
             </div>
-            <span
-              class={[
-                'flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border transition-colors',
-                selected
-                  ? 'border-[var(--pw-accent)] bg-[var(--pw-accent)] text-white'
-                  : 'border-gray-300 bg-white text-transparent group-hover:border-gray-400'
-              ].join(' ')}
-              aria-hidden="true"
-            >
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-                <path
-                  d="M3.5 8.5l3 3 6-7"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                />
-              </svg>
-            </span>
+            {isPopular ? (
+              <span
+                // Solid accent + white text — высокий contrast, glasses-test'ом
+                // глаз сразу выхватывает popular pick. Pastel-вариант
+                // конкурировал по visual weight с самой ценой и не работал
+                // ни как highlight, ни как информация.
+                class="absolute -top-[9px] -right-[6px] rounded-[11px] border-[5px] border-white px-2 py-1 text-[12px] font-semibold text-white"
+                style={{ background: 'var(--pw-accent)' }}
+              >
+                {popularLabel}
+              </span>
+            ) : null}
           </button>
         );
       })}
     </div>
+  );
+}
+
+// Короткий one-word label для compact-режима ("Month" / "Year" / "Lifetime")
+// вместо длинного "MONTHLY PLAN". Зеркало legacy `getIntervalName` для
+// TelegramPricingRadio: чем компактнее ряд — тем компактнее лейбл, иначе
+// текст начинает конкурировать с ценой.
+function compactLabel(price: PaywallPrice, t: TFn): string {
+  if (price.label) return price.label;
+  if (!price.interval || price.interval === 'lifetime') {
+    return t('pricing.interval.lifetime_short', 'lifetime');
+  }
+  return t(`pricing.interval.${price.interval}`, price.interval);
+}
+
+// Компактная строка для compact-режима. Зеркало legacy `TelegramPricingRadio`:
+//   [radio] | [label + popular-pill]  ······  [strike+badge ▸ price]
+// Разделители живут на внутреннем label-wrapper'е (`border-b`), последняя
+// строка без border'а. Selection выражается только цветом radio-кружочка —
+// никакого bg-tint'а, чтобы не конфликтовало с pricing-сеткой. Шрифты — text-md
+// без жирного, как в legacy (heroui text-md ≈ 16px).
+function CompactRow({
+  price,
+  isLast,
+  isPopular,
+  popularLabel,
+  offer,
+  selected,
+  onSelect,
+  t
+}: {
+  price: PaywallPrice;
+  isLast: boolean;
+  isPopular: boolean;
+  popularLabel: string;
+  offer: PaywallOffer | null;
+  selected: boolean;
+  onSelect: () => void;
+  t: TFn;
+}) {
+  const discountPercent = offer?.discount_percent ?? null;
+  const { currency, amount, originalAmount } = formatPriceParts(price, discountPercent);
+  return (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={selected}
+      onClick={onSelect}
+      class="group relative inline-flex w-full max-w-[360px] mx-auto items-center justify-between gap-4 px-4 pt-3.5 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--pw-accent)]"
+    >
+      <span
+        class={[
+          'flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border transition-colors mb-3',
+          selected
+            ? 'border-[var(--pw-accent)] text-white'
+            : 'border-gray-300 bg-transparent text-transparent'
+        ].join(' ')}
+        style={
+          selected
+            ? {
+                background:
+                  'linear-gradient(135deg, color-mix(in srgb, var(--pw-accent) 70%, white) 0%, var(--pw-accent) 50%, color-mix(in srgb, var(--pw-accent) 85%, black) 100%)'
+              }
+            : undefined
+        }
+        aria-hidden="true"
+      >
+        <svg
+          width="14"
+          height="10"
+          viewBox="0 0 17 12"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+          class={selected ? 'opacity-100' : 'opacity-0'}
+        >
+          <path
+            d="M16.5234 0.476562C16.9805 0.898438 16.9805 1.63672 16.5234 2.05859L7.52344 11.0586C7.10156 11.5156 6.36328 11.5156 5.94141 11.0586L1.44141 6.55859C0.984375 6.13672 0.984375 5.39844 1.44141 4.97656C1.86328 4.51953 2.60156 4.51953 3.02344 4.97656L6.75 8.66797L14.9414 0.476562C15.3633 0.0195312 16.1016 0.0195312 16.5234 0.476562Z"
+            fill="currentColor"
+          />
+        </svg>
+      </span>
+      {/* Внутренний wrapper, на нём `border-b` — разделитель между строками.
+          Сидит за radio'м (по flex-flow), даёт визуальную нижнюю линию ровно
+          под label/price колонками, как в legacy. */}
+      <div
+        class={[
+          'flex flex-1 items-center gap-1.5 pb-3.5',
+          isLast ? '' : 'border-b border-gray-200'
+        ].join(' ')}
+      >
+        <div class="flex flex-wrap items-center gap-1 gap-x-1.5">
+          <span class="text-base font-normal capitalize text-gray-800">
+            {compactLabel(price, t)}
+          </span>
+          {isPopular ? (
+            // Pastel brand-mix pill — точно как `badge` в TelegramPricingRadio.
+            // Низкий visual weight: pill про "имя плана" (most popular), а не
+            // про savings — не должна конкурировать с -X% discount-pill.
+            <span
+              class="rounded-[9px] px-2 py-1 text-[10px] font-bold"
+              style={{
+                background:
+                  'linear-gradient(160deg, color-mix(in srgb, var(--pw-accent) 6%, white) 0%, color-mix(in srgb, var(--pw-accent) 15%, white) 100%)',
+                color: 'var(--pw-accent)'
+              }}
+            >
+              {popularLabel}
+            </span>
+          ) : null}
+          {discountPercent ? (
+            <span class="rounded-md bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold leading-none text-emerald-700">
+              -{discountPercent}%
+            </span>
+          ) : null}
+        </div>
+        <div class="flex-1" />
+        <span class="flex items-baseline gap-1.5 text-base font-normal text-gray-600">
+          {originalAmount ? (
+            <span class="text-xs text-gray-400 line-through decoration-gray-400 decoration-[1.5px]">
+              {originalAmount}
+            </span>
+          ) : null}
+          <span class="whitespace-nowrap">
+            <span class="opacity-90">{currency}</span>{amount}
+            <span class="text-xs text-gray-400">
+              {' '}/ {intervalSuffix(price, t)}
+            </span>
+          </span>
+        </span>
+      </div>
+    </button>
+  );
+}
+
+// Компактная карточка для horizontal-grid'а. UX-модель — Stripe pricing tables:
+// selection выражается border-цветом + tinted bg всей карточки, без отдельного
+// radio-кружочка (в узкой колонке любая icon-метка конкурирует с ценой за
+// внимание). Popular-badge — absolute pill сверху-справа (как в default view):
+// освобождает вертикаль внутри карточки, читается как premium-маркер. Все
+// карточки в ряду выровнены через `items-stretch` на grid'е (см. вызов).
+function RowCard({
+  price,
+  isPopular,
+  popularLabel,
+  offer,
+  selected,
+  onSelect,
+  t
+}: {
+  price: PaywallPrice;
+  isPopular: boolean;
+  popularLabel: string;
+  offer: PaywallOffer | null;
+  selected: boolean;
+  onSelect: () => void;
+  t: TFn;
+}) {
+  const discountPercent = offer?.discount_percent ?? null;
+  const { currency, amount, originalAmount } = formatPriceParts(price, discountPercent);
+  return (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={selected}
+      onClick={onSelect}
+      class={[
+        'group relative flex h-full flex-col items-center justify-start gap-1 rounded-2xl border-2 px-3 pb-4 pt-3.5 text-center transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--pw-accent)]',
+        selected
+          ? 'border-[var(--pw-accent)]'
+          : 'border-gray-200 hover:bg-gray-50'
+      ].join(' ')}
+      style={
+        selected
+          ? { background: 'color-mix(in srgb, var(--pw-accent) 6%, transparent)' }
+          : undefined
+      }
+    >
+      {/* Label с фиксированной min-height на 2 строки — длинные ("YEARLY PLAN")
+          и короткие ("LIFETIME") не сдвигают цену между карточками. */}
+      <span class="flex min-h-[2.4em] items-center text-[11px] font-normal uppercase leading-tight text-gray-800/70">
+        {planLabel(price, t)}
+      </span>
+      {/* Strike-row сверху ПЕРЕД main amount: сначала "была $10" + "-20%",
+          потом крупно "$8". Reserve фиксированной высоты у всех карточек
+          (даже без discount) — иначе main amount без скидки прыгает выше
+          соседей со скидкой. h-[22px] ≈ высота pill'а с line-height. */}
+      <div class="flex h-[22px] items-center justify-center gap-1.5">
+        {originalAmount ? (
+          <span class="text-[12px] text-gray-400 line-through decoration-gray-400 decoration-[1.5px]">
+            {originalAmount}
+          </span>
+        ) : null}
+        {discountPercent ? (
+          <span class="rounded-md bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold leading-none text-emerald-700">
+            -{discountPercent}%
+          </span>
+        ) : null}
+      </div>
+      <span class="text-[26px] leading-none whitespace-nowrap text-gray-800 font-medium">
+        <span class="opacity-90">{currency}</span>{amount}
+      </span>
+      <span class="text-xs font-normal text-gray-500">
+        / {intervalSuffix(price, t)}
+      </span>
+      {price.trial_days ? (
+        <span class="mt-1 text-[11px] font-medium text-[var(--pw-accent)]">
+          {t('pricing.free_trial_days', '{days}-day free trial', { days: price.trial_days })}
+        </span>
+      ) : null}
+      {isPopular ? (
+        <span
+          // Solid accent + white text + white border-ring — отстраивает badge
+          // от border'а карточки, имитирует "наклейку". Зеркало default-view.
+          class="absolute -top-[10px] left-1/2 -translate-x-1/2 whitespace-nowrap rounded-[11px] border-[3px] border-white px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white"
+          style={{ background: 'var(--pw-accent)' }}
+        >
+          {popularLabel}
+        </span>
+      ) : null}
+    </button>
   );
 }

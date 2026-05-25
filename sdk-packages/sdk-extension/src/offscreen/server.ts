@@ -95,6 +95,10 @@ export class OffscreenServer {
       this.billing.cancelSubscription({ ...params, signal: ctx.signal })
     );
 
+    this.transport.on('billing.createSupportTicket', async (params) =>
+      this.billing.createSupportTicket(params)
+    );
+
     this.transport.on('billing.getIdentity', () => this.billing.getIdentity() ?? null);
     this.transport.on('billing.setIdentity', (params) => {
       this.billing.setIdentity(params.identity ?? undefined);
@@ -158,6 +162,7 @@ export class OffscreenServer {
       auth.resendConfirmation(params)
     );
     this.transport.on('auth.revokeAllSessions', async () => auth.revokeAllSessions());
+    this.transport.on('auth.getLastLogin', async () => auth.getLastLogin());
 
     // OAuth split-API (Phase 4.5). Verifier живёт внутри AuthClient'а
     // между двумя этими request'ами, content только открывает popup и

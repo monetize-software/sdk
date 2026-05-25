@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'preact/hooks';
+import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import type { BillingClient } from '../core/BillingClient';
 import type { AuthSession } from '../core/auth';
 import type { LayoutBlock, PaywallBootstrap } from '../core/types';
@@ -6,8 +6,10 @@ import { PaywallError } from '../core/types';
 import { Modal } from './Modal';
 import { AuthGate } from './AuthGate';
 import { AnonGate } from './AnonGate';
+import { OfferTopBanner, pickActiveOffer } from './renderer/blocks/OfferBanner';
 import { SupportGate } from './SupportGate';
 import { Renderer } from './renderer/Renderer';
+import { I18nProvider, useI18n } from './i18n';
 
 export type PaywallView = 'layout' | 'support' | 'auth' | 'anon';
 
@@ -85,6 +87,9 @@ type GateState =
       kind: 'auth_gate';
       pendingCheckout?: { priceId: string };
       origin?: 'layout' | 'standalone';
+      /** Контекст открытия — управляет заголовком gate'а
+       *  ("Restore Purchases" vs "Welcome back!"). Дефолт — 'preauth'. */
+      intent?: 'restore' | 'preauth' | 'standalone';
     }
   // origin='standalone' — paywall.openAnonGate(): модалка открыта только ради
   // анонимного логина, после signin'а закрываем модалку. origin='layout' — пока
@@ -264,9 +269,16 @@ export function PaywallRoot({
   // Закрытие/повторное открытие модалки сбрасывает gate. Standalone-flows
   // (openSupport / openAuth) PaywallUI вызывает на уже смонтированном компоненте
   // через handle.update({initialView: 'support'|'auth'}) — useState-initializer
-  // отрабатывает только на первом mount'е, поэтому без этого useEffect'а gate
+  // отрабатывает только на первом mount'е, поэтому без этого эффекта gate
   // оставался бы 'layout' (с тарифами) при последующих standalone open'ах.
-  useEffect(() => {
+  //
+  // useLayoutEffect (не useEffect): после close gate уходит в 'layout', и при
+  // следующем openAuth/openSupport обычный useEffect запускался ПОСЛЕ paint'а,
+  // из-за чего юзер на один кадр видел тарифы вместо auth-формы (особенно
+  // заметно в extension-popup'е, где RemoteAuth+RemoteBilling добавляют
+  // транспортные RTT и main thread чаще yield'ит между render'ами).
+  // useLayoutEffect синхронизирует gate ДО paint'а — flicker'а нет.
+  useLayoutEffect(() => {
     if (!open) {
       setGate({ kind: 'layout' });
       resumingRef.current = false;
@@ -425,11 +437,17 @@ export function PaywallRoot({
     }
     if (action === 'restore') {
       // CurrentSession-блок: гость кликнул "Restore purchases". Открываем
-      // gate без pendingCheckout — после signIn auto-resume просто схлопнётся.
+      // gate с intent='restore' — заголовок и submit станут "Restore Purchases".
       // Без AuthClient'а ничего не делаем (managed-auth не подключён).
+      // Анон-сессия не считается логином (см. CurrentSession-блок): она
+      // существует только для api-gateway-токена, у юзера нет email и
+      // ему нужен realsignin чтобы привязать прошлую покупку. Без этой
+      // проверки кнопка Restore молча no-op'ила бы как только у юзера
+      // появлялся анон-токен (что в extension'ах — почти всегда).
       if (!client.auth) return;
-      if (client.auth.getCachedSession()) return;
-      setGate({ kind: 'auth_gate' });
+      const session = client.auth.getCachedSession();
+      if (session && !session.user.is_anonymous) return;
+      setGate({ kind: 'auth_gate', intent: 'restore' });
       return;
     }
     if (action === 'support') {
@@ -445,7 +463,12 @@ export function PaywallRoot({
         return;
       }
       const mode = state.data.settings.checkout_mode ?? 'guest';
-      const needsAuth = mode === 'preauth' && !!client.auth && !client.auth.getCachedSession();
+      // Анон-сессия не покрывает preauth-требование: чекаут под анон-токеном
+      // создаст подписку под аккаунтом без email, который юзер потом не
+      // сможет восстановить. Анон считается «нет логина», нужен real signin.
+      const cachedSession = client.auth?.getCachedSession() ?? null;
+      const hasRealSession = !!cachedSession && !cachedSession.user.is_anonymous;
+      const needsAuth = mode === 'preauth' && !!client.auth && !hasRealSession;
       if (needsAuth) {
         setGate({ kind: 'auth_gate', pendingCheckout: { priceId } });
         return;
@@ -455,16 +478,25 @@ export function PaywallRoot({
   };
 
   const brand = state.status === 'ready' ? state.data.settings.brand_color : null;
-  const testMode = state.status === 'ready' ? !!state.data.settings.is_test_mode : false;
   // allow_close=undefined трактуем как true (default до bootstrap'а — пейвол
   // должен быть закрываемым во время loading/error, иначе юзера запрёт). После
   // ready settings.allow_close=false запретит ESC/overlay/крестик.
   const allowClose =
     state.status === 'ready' ? state.data.settings.allow_close !== false : true;
 
+  // Offer top-tab: только на основном layout-view (цены/фичи). На auth/support
+  // экранах banner не имеет смысла — юзер уже за пределами «купить сейчас»
+  // flow'а, urgency-таймер только отвлекает. Зеркало легаси PaywallModal,
+  // где offer-banner был привязан к route='paywall'.
+  const isLayoutView =
+    gate.kind === 'layout' && state.status === 'ready';
+  const activeOffer = isLayoutView ? pickActiveOffer(state.data.offers) : null;
+  const topBanner = activeOffer ? <OfferTopBanner offer={activeOffer} /> : null;
+
   const gateBlock: AuthPanelBlock = {
     type: 'auth_panel',
-    heading: 'Sign in to continue',
+    // Заголовок не задаём — AuthGate сам решит по intent'у (restore →
+    // "Restore Purchases", остальные → дефолтный "Welcome back!").
     allow_signup: true,
     allow_password_reset: true,
     // Не скрываем при наличии сессии — auto-resume useEffect отрабатывает быстрее,
@@ -490,13 +522,27 @@ export function PaywallRoot({
       />
     ) : null;
 
+  // В gate-view'ах AuthGate/SupportGate сами рисуют curved Back-кнопку в
+  // правом верхнем углу. Modal'овский X-крестик там же — две кнопки накладывались
+  // бы друг на друга. ESC/overlay-клик остаются рабочими (если allowClose=true).
+  // Standalone openAuth() — AuthGate не рисует Back (модалка открыта только
+  // ради signin'а, layout некуда возвращаться); тогда X-крестик нужен, иначе
+  // юзеру некуда деться кроме ESC.
+  const hideCloseButton =
+    (gate.kind === 'auth_gate' && gate.origin !== 'standalone') ||
+    gate.kind === 'support';
+
+  const bootstrapForI18n = state.status === 'ready' ? state.data : null;
+
   return (
+    <I18nProvider bootstrap={bootstrapForI18n}>
     <Modal
       open={open}
       onClose={onClose}
       brandColor={brand}
-      testMode={testMode}
+      topBanner={topBanner}
       allowClose={allowClose}
+      hideCloseButton={hideCloseButton}
       inline={inline}
       labelledBy="pw-title"
     >
@@ -507,28 +553,9 @@ export function PaywallRoot({
       ) : supportView ? (
         supportView
       ) : state.status === 'loading' || state.status === 'idle' || gate.kind === 'verifying' ? (
-        <div class="flex flex-col items-center justify-center gap-3 py-12">
-          <span class="inline-block h-7 w-7 animate-spin rounded-full border-[2.5px] border-gray-200 border-t-[var(--pw-accent)]" />
-          <span class="text-xs font-medium tracking-wide text-gray-500">
-            {gate.kind === 'verifying' ? 'Checking your subscription…' : 'Loading…'}
-          </span>
-        </div>
+        <LoadingView verifying={gate.kind === 'verifying'} />
       ) : state.status === 'error' ? (
-        <div class="flex flex-col items-center gap-2 py-8 text-center">
-          <div class="flex h-11 w-11 items-center justify-center rounded-full bg-red-50">
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-              <path
-                d="M10 6v5M10 14h.01"
-                stroke="#dc2626"
-                stroke-width="2"
-                stroke-linecap="round"
-              />
-              <circle cx="10" cy="10" r="8" stroke="#dc2626" stroke-width="1.75" />
-            </svg>
-          </div>
-          <p class="text-sm font-semibold tracking-tight text-gray-900">Something went wrong</p>
-          <p class="text-xs leading-relaxed text-gray-500">{state.error.message}</p>
-        </div>
+        <ErrorView message={state.error.message} />
       ) : gate.kind === 'auth_gate' && client.auth ? (
         <AuthGate
           block={gateBlock}
@@ -539,6 +566,7 @@ export function PaywallRoot({
           // signin'а, Back-кнопка дублирует ESC/X. Скрываем. Для preauth/
           // restore-flow Back ведёт обратно в layout — оставляем.
           showBack={gate.origin !== 'standalone'}
+          intent={gate.intent ?? (gate.origin === 'standalone' ? 'standalone' : 'preauth')}
           onBack={() => {
             if (gate.origin === 'standalone') onClose();
             else setGate({ kind: 'layout' });
@@ -580,40 +608,7 @@ export function PaywallRoot({
           onRetry={() => runCheckout(gate.priceId)}
         />
       ) : gate.kind === 'popup_blocked' ? (
-        <div class="flex flex-col items-center gap-3 py-8 text-center">
-          <div
-            class="flex h-11 w-11 items-center justify-center rounded-full"
-            style={{ background: 'color-mix(in srgb, var(--pw-accent) 12%, white)', color: 'var(--pw-accent)' }}
-            aria-hidden="true"
-          >
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-              <path
-                d="M4 5h12v10H4z"
-                stroke="currentColor"
-                stroke-width="1.75"
-                stroke-linejoin="round"
-              />
-              <path d="M7 9l3 3 4-5" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" />
-            </svg>
-          </div>
-          <p class="text-sm font-semibold tracking-tight text-gray-900">Allow popups to continue</p>
-          <p class="max-w-[18rem] text-xs leading-relaxed text-gray-500">
-            Your browser blocked the checkout tab. Click below to open it.
-          </p>
-          <button
-            type="button"
-            onClick={() => reopenCheckout(gate.priceId, gate.url)}
-            class="mt-1 rounded-xl px-4 py-2 text-xs font-semibold text-white transition-all hover:-translate-y-px hover:brightness-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--pw-accent)]"
-            style={{
-              background:
-                'linear-gradient(180deg, color-mix(in srgb, var(--pw-accent) 92%, white), var(--pw-accent))',
-              boxShadow:
-                '0 1px 2px rgba(15,23,42,0.08), 0 6px 14px -4px color-mix(in srgb, var(--pw-accent) 50%, transparent)'
-            }}
-          >
-            Open checkout
-          </button>
-        </div>
+        <PopupBlockedView onReopen={() => reopenCheckout(gate.priceId, gate.url)} />
       ) : (
         <Renderer
           layout={state.data.layout!}
@@ -624,6 +619,76 @@ export function PaywallRoot({
         />
       )}
     </Modal>
+    </I18nProvider>
+  );
+}
+
+function LoadingView({ verifying }: { verifying: boolean }) {
+  const { t } = useI18n();
+  return (
+    <div class="flex flex-col items-center justify-center gap-3 py-12">
+      <span class="inline-block h-7 w-7 animate-spin rounded-full border-[2.5px] border-gray-200 border-t-[var(--pw-accent)]" />
+      <span class="text-xs font-medium tracking-wide text-gray-500">
+        {verifying
+          ? t('modal.verifying_subscription', 'Checking your subscription…')
+          : t('modal.loading', 'Loading…')}
+      </span>
+    </div>
+  );
+}
+
+function ErrorView({ message }: { message: string }) {
+  const { t } = useI18n();
+  return (
+    <div class="flex flex-col items-center gap-2 py-8 text-center">
+      <div class="flex h-11 w-11 items-center justify-center rounded-full bg-red-50">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+          <path d="M10 6v5M10 14h.01" stroke="#dc2626" stroke-width="2" stroke-linecap="round" />
+          <circle cx="10" cy="10" r="8" stroke="#dc2626" stroke-width="1.75" />
+        </svg>
+      </div>
+      <p class="text-sm font-semibold tracking-tight text-gray-900">
+        {t('modal.error_generic', 'Something went wrong')}
+      </p>
+      <p class="text-xs leading-relaxed text-gray-500">{message}</p>
+    </div>
+  );
+}
+
+function PopupBlockedView({ onReopen }: { onReopen: () => void }) {
+  const { t } = useI18n();
+  return (
+    <div class="flex flex-col items-center gap-3 py-8 text-center">
+      <div
+        class="flex h-11 w-11 items-center justify-center rounded-full"
+        style={{ background: 'color-mix(in srgb, var(--pw-accent) 12%, white)', color: 'var(--pw-accent)' }}
+        aria-hidden="true"
+      >
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+          <path d="M4 5h12v10H4z" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round" />
+          <path d="M7 9l3 3 4-5" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+      </div>
+      <p class="text-sm font-semibold tracking-tight text-gray-900">
+        {t('payment.popup_blocked_title', 'Allow popups to continue')}
+      </p>
+      <p class="max-w-[18rem] text-xs leading-relaxed text-gray-500">
+        {t('payment.popup_blocked_message', 'Your browser blocked the checkout tab. Click below to open it.')}
+      </p>
+      <button
+        type="button"
+        onClick={onReopen}
+        class="mt-1 rounded-xl px-4 py-2 text-xs font-semibold text-white transition-all hover:-translate-y-px hover:brightness-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--pw-accent)]"
+        style={{
+          background:
+            'linear-gradient(180deg, color-mix(in srgb, var(--pw-accent) 92%, white), var(--pw-accent))',
+          boxShadow:
+            '0 1px 2px rgba(15,23,42,0.08), 0 6px 14px -4px color-mix(in srgb, var(--pw-accent) 50%, transparent)'
+        }}
+      >
+        {t('payment.open_checkout_button', 'Open checkout')}
+      </button>
+    </div>
   );
 }
 
@@ -652,6 +717,7 @@ function AwaitingPaymentView({
   onReopen: () => void;
   onRetry: () => void;
 }) {
+  const { t } = useI18n();
   const [checking, setChecking] = useState(false);
   const [stillPending, setStillPending] = useState(false);
   const stillPendingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -704,7 +770,7 @@ function AwaitingPaymentView({
         onClick={onBack}
         class="-ml-1 self-start rounded-md px-1.5 py-0.5 text-xs font-medium text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--pw-accent)]"
       >
-        ← Back
+        {t('nav.back', '← Back')}
       </button>
       <div class="flex flex-col items-center gap-3 py-6 text-center">
         <div class="relative flex h-12 w-12 items-center justify-center">
@@ -715,9 +781,14 @@ function AwaitingPaymentView({
           />
           <span class="relative inline-block h-7 w-7 animate-spin rounded-full border-[2.5px] border-gray-200 border-t-[var(--pw-accent)]" />
         </div>
-        <p class="text-sm font-semibold tracking-tight text-gray-900">Complete payment in the new tab</p>
+        <p class="text-sm font-semibold tracking-tight text-gray-900">
+          {t('payment.awaiting_title', 'Complete payment in the new tab')}
+        </p>
         <p class="max-w-[20rem] text-xs leading-relaxed text-gray-500">
-          We'll detect your payment automatically — or click below once you're done.
+          {t(
+            'payment.awaiting_subtitle',
+            "We'll detect your payment automatically — or click below once you're done."
+          )}
         </p>
         <button
           type="button"
@@ -731,24 +802,24 @@ function AwaitingPaymentView({
               '0 1px 2px rgba(15,23,42,0.08), 0 6px 14px -4px color-mix(in srgb, var(--pw-accent) 50%, transparent)'
           }}
         >
-          {checking ? 'Checking…' : "I've paid"}
+          {checking ? t('payment.checking', 'Checking…') : t('payment.ive_paid', "I've paid")}
         </button>
         {stillPending ? (
           <p class="text-xs leading-relaxed text-gray-500">
-            Payment is still being processed. Please try again in a moment.
+            {t('payment.still_processing', 'Payment is still being processed. Please try again in a moment.')}
           </p>
         ) : null}
       </div>
       <div class="rounded-2xl border border-gray-200 bg-gray-50/60 p-3.5">
         <p class="text-xs leading-relaxed text-gray-600">
-          Checkout window didn't open or got blocked? Click here to open it again.
+          {t('payment.popup_help_text', "Checkout window didn't open or got blocked? Click here to open it again.")}
         </p>
         <button
           type="button"
           onClick={onReopen}
           class="mt-2.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 transition-colors hover:border-gray-300 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--pw-accent)]"
         >
-          Open checkout again
+          {t('payment.open_checkout_again', 'Open checkout again')}
         </button>
       </div>
       <button
@@ -756,7 +827,7 @@ function AwaitingPaymentView({
         onClick={onRetry}
         class="self-center rounded-md px-2 py-1 text-xs text-gray-500 underline-offset-2 hover:text-gray-900 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--pw-accent)]"
       >
-        Tab closed? Try again
+        {t('payment.tab_closed_retry', 'Tab closed? Try again')}
       </button>
     </div>
   );
@@ -773,6 +844,7 @@ function PurchaseSuccessView({
    *  оплатил. */
   restored?: boolean;
 }) {
+  const { t } = useI18n();
   return (
     <div class="flex flex-col items-center gap-3 py-8 text-center">
       <div
@@ -796,12 +868,17 @@ function PurchaseSuccessView({
         </svg>
       </div>
       <p id="pw-title" class="mt-1 text-lg font-semibold tracking-tight text-gray-900">
-        {restored ? 'Subscription restored' : 'Payment received'}
+        {restored
+          ? t('modal.purchase_restored_title', 'Subscription restored')
+          : t('modal.purchase_success_title', 'Payment received')}
       </p>
       <p class="text-sm leading-relaxed text-gray-500">
         {restored
-          ? 'Welcome back — your subscription is already active.'
-          : 'Your subscription is now active.'}
+          ? t(
+              'modal.purchase_restored_subtitle',
+              'Welcome back — your subscription is already active.'
+            )
+          : t('modal.purchase_success_subtitle', 'Your subscription is now active.')}
       </p>
       <button
         type="button"
@@ -814,7 +891,7 @@ function PurchaseSuccessView({
             '0 1px 2px rgba(15,23,42,0.08), 0 8px 20px -6px color-mix(in srgb, var(--pw-accent) 50%, transparent)'
         }}
       >
-        Continue
+        {t('modal.continue', 'Continue')}
       </button>
     </div>
   );

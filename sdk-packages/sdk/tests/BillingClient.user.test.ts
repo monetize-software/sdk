@@ -18,7 +18,8 @@ function freshStorage() {
 const EMPTY: PaywallUser = {
   has_active_subscription: false,
   purchases: [],
-  trial: null
+  trial: null,
+  had_previous_trial: false
 };
 
 const ACTIVE: PaywallUser = {
@@ -31,7 +32,8 @@ const ACTIVE: PaywallUser = {
       cancel_at_period_end: false
     }
   ],
-  trial: null
+  trial: null,
+  had_previous_trial: false
 };
 
 function jsonResponse(body: unknown, status = 200): Response {

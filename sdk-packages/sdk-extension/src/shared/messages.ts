@@ -19,6 +19,7 @@ import type {
 import type {
   AuthChangeEvent,
   AuthSession,
+  LastLogin,
   OAuthProvider,
   OtpVerifyType,
   SignUpResult
@@ -50,6 +51,16 @@ declare module './protocol' {
     'billing.getIdentity': void;
     'billing.setIdentity': { identity: Identity | null };
     'billing.getVisitorId': void;
+    /** File-объекты переживают chrome.runtime structured-clone через port'ы
+     *  (SW forward'ит as-is). Лимиты на размер (10MB/файл, 5 файлов) валидирует
+     *  SDK перед отправкой и backend ещё раз — оба чтобы не зашибить SW heap'ом
+     *  при злоупотреблении. */
+    'billing.createSupportTicket': {
+      subject: string;
+      content: string;
+      email?: string;
+      files?: File[];
+    };
 
     'auth.signInWithEmail': { email: string; password: string };
     'auth.signUp': {
@@ -100,6 +111,9 @@ declare module './protocol' {
       userMeta?: Record<string, string>;
       forceCaptcha?: boolean;
     };
+    /** Last-used auth method + email per-paywall — для UI бейджа «Last used»
+     *  в AuthPanel. Storage живёт в offscreen'е, читаем через transport. */
+    'auth.getLastLogin': void;
 
     'tracker.track': { name: string; props?: Record<string, unknown> };
 
@@ -136,6 +150,7 @@ declare module './protocol' {
     'billing.getIdentity': Identity | null;
     'billing.setIdentity': void;
     'billing.getVisitorId': string;
+    'billing.createSupportTicket': { ticket: { id: number; status: string } };
 
     'auth.signInWithEmail': AuthSession;
     'auth.signUp': SignUpResult;
@@ -152,6 +167,7 @@ declare module './protocol' {
     'auth.oauthExchange': AuthSession;
     'auth.getAccessToken': string | null;
     'auth.signInAnonymously': AuthSession;
+    'auth.getLastLogin': LastLogin | null;
 
     'tracker.track': void;
 

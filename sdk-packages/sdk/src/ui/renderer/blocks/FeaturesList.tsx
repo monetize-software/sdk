@@ -9,29 +9,26 @@ export function FeaturesList({ block }: BlockProps<FeaturesListBlock>) {
     <ul class="flex flex-col gap-2.5" role="list">
       {block.items.map((item) => (
         <li key={item.id} class="flex items-start gap-3 text-sm text-gray-700">
-          <span
-            class="mt-px flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full"
-            style={{
-              background:
-                'color-mix(in srgb, var(--pw-accent) 12%, white)',
-              color: 'var(--pw-accent)'
-            }}
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 20 20"
+            fill="none"
+            class="mt-0.5 flex-shrink-0 text-emerald-500"
             aria-hidden="true"
           >
-            <svg width="12" height="12" viewBox="0 0 20 20" fill="none">
-              <path
-                d="M5 10l3 3 7-7"
-                stroke="currentColor"
-                stroke-width="2.5"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              />
-            </svg>
-          </span>
+            <path
+              d="M4 10.5l3.5 3.5 8.5-8.5"
+              stroke="currentColor"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
           <div class="flex flex-col gap-0.5">
             <span class="font-medium leading-snug text-gray-900">{item.name}</span>
             {item.desc ? (
-              <span class="text-xs leading-relaxed text-gray-500">{item.desc}</span>
+              <span class="text-xs leading-relaxed text-gray-400">{item.desc}</span>
             ) : null}
           </div>
         </li>

@@ -1,0 +1,16 @@
+# Прекоммит для SDK-монорепо. Зеркало того что упадёт в CI — pnpm tsc по всем
+# пакетам workspace'а (sdk / sdk-extension / sdk-react). Делаем это здесь, чтобы
+# багу типа «RemoteAuthClient разошёлся с AuthClient» (см. *.test-d.ts файлы)
+# не уезжать в main и не падать только в popup'е extension'а runtime'ом.
+#
+# Скоупим по `git diff --cached`: pre-commit срабатывает на ЛЮБОМ git commit
+# в этом репо, но платформа (platform/) и online — отдельные проекты со своими
+# деплоями, гонять их через SDK-typecheck смысла нет. Если staged файлов в
+# sdk-packages/ нет, пропускаем без шума.
+STAGED_SDK=$(git diff --cached --name-only --diff-filter=ACM | grep '^sdk-packages/' || true)
+if [ -z "$STAGED_SDK" ]; then
+  exit 0
+fi
+
+echo "→ sdk-packages changes detected, running typecheck"
+pnpm typecheck

@@ -19,7 +19,15 @@ export interface PaywallPrice {
 export interface PaywallOffer {
   id: string;
   discount_percent: number | null;
+  /** Абсолютная expiration date (ISO 8601). Если задана — countdown отсчитывает
+   *  до этого момента, по истечении offer считается истёкшим. */
   expires_at: string | null;
+  /** Относительный таймер: сколько минут offer живёт **от первого просмотра
+   *  пейвола** данным юзером. Старт хранится в clientStorage под ключом
+   *  `pw-offer-{id}-start`, по истечении — auto-cleanup. Используется, когда
+   *  бэк хочет показывать "remaining time" без жёсткой server-time, а считать
+   *  относительно сессии юзера. expires_at имеет приоритет если задано. */
+  duration_minutes?: number | null;
   price_id: string | null;
   label?: string | null;
 }
@@ -155,9 +163,13 @@ export type LayoutBlock =
   | {
       type: 'price_grid';
       priceIds?: string[];
-      /** Раскладка карточек цен. `vertical` (default) — стек сверху вниз;
-       *  `horizontal` — ряд side-by-side. v2-аналог `view: 'default' | 'telegram'`. */
-      view?: 'vertical' | 'horizontal';
+      /** Раскладка карточек цен:
+       *  - `vertical` (default) — стек карточек сверху вниз;
+       *  - `compact` — компактный список (одна строка на цену, без карточки,
+       *    с разделителем); v2-аналог `view: 'telegram'`;
+       *  - `horizontal` — несколько карточек рядом в ряд; v2-only с момента
+       *    SDK 3.0 (legacy не показывает выбор этой опции в админке). */
+      view?: 'vertical' | 'compact' | 'horizontal';
       /** ID цены, которая помечается лейблом «популярный план». v2-аналог
        *  пары `price_label_id` + `price_label`. */
       popular_price_id?: string;
@@ -165,7 +177,15 @@ export type LayoutBlock =
        *  v2-аналог `price_label_text`. Локализация — через bootstrap.locales. */
       popular_label?: string;
     }
-  | { type: 'cta_button'; label: string; action: 'checkout' | 'close'; priceId?: string }
+  | {
+      type: 'cta_button';
+      /** Текст на кнопке. Если не задан — рендерер сам подберёт по
+       *  selected price'у и `trial_days`: "Start N-Day Free Trial",
+       *  "Get Lifetime Access", "Get Monthly Plan" и т.п. */
+      label?: string;
+      action: 'checkout' | 'close';
+      priceId?: string;
+    }
   | {
       /** Footer-блок под cta_button: залогинен — рисует "Signed in as <email> | Sign out",
        *  иначе — кнопку "Restore purchases", которая открывает auth-gate без pendingCheckout
@@ -183,8 +203,23 @@ export type LayoutBlock =
       /** Скрывать панель, если юзер уже залогинен. По умолчанию true.
        *  false — показываем "Signed in as ... [Sign out]" даже после логина. */
       hide_when_authenticated?: boolean;
-      /** Заголовок над формой (h2). Если опущен — заголовок не рендерится. */
+      /** Кастомный заголовок над формой. Если задан — отображается вместо
+       *  дефолтного (определяется по mode'у — "Welcome back!" / "Welcome!" /
+       *  "Forgot password?" / ...). Без `submit_label` также используется как
+       *  submit-лейбл для signin (например `heading="Restore Purchases"` →
+       *  submit тоже "Restore Purchases"). Длинные heading (типа "Войдите,
+       *  чтобы продолжить покупку") в кнопку влезают плохо — задай
+       *  `submit_label` отдельно. */
       heading?: string;
+      /** Подпись под заголовком. Если опущен — подставляется default-текст
+       *  для текущего mode'а. Передай пустую строку чтобы скрыть подпись. */
+      subheading?: string;
+      /** Явный текст submit-кнопки. Имеет приоритет над heading-эхо. Нужен
+       *  для интентов с длинным descriptive heading'ом (preauth: "Войдите,
+       *  чтобы продолжить покупку" — кнопка только "Войти"). Для коротких
+       *  action-headings (restore: "Restore Purchases") опускай — эхо
+       *  даёт правильный UX. */
+      submit_label?: string;
     }
   | {
       /** Список фич/преимуществ продукта. v2-аналог `features_list` + `features_view`.
@@ -215,6 +250,23 @@ export type LayoutBlock =
       /** Иконка слева от заголовка. По умолчанию `dollar_shield` —
        *  зелёный shield с долларом (legacy-вид). `none` — без иконки. */
       icon?: 'dollar_shield' | 'none';
+    }
+  | {
+      /** Urgency-баннер с countdown'ом до конца offer'а. Берёт первый offer
+       *  из `bootstrap.offers` с валидным `expires_at` или `duration_minutes`.
+       *  Авто-скрывается по истечении, чтобы не показывать "0d 0h 0m 0s".
+       *  Размещение — обычно первый блок в layout (над heading). */
+      type: 'offer_banner';
+      /** ID конкретного offer'а из bootstrap.offers. Если не задано — берётся
+       *  первый offer с активным таймером. */
+      offer_id?: string;
+      /** Текст слева от countdown'а. Если опущен — берётся `offer.label`,
+       *  иначе fallback "Limited-time offer". К нему дописывается процент:
+       *  "{title} {discount_percent}%" если discount задан. */
+      title?: string;
+      /** В превью админки — игнорировать expired-state, всё равно показывать
+       *  banner с нулями. Прод-режим — false (banner исчезает). */
+      force?: boolean;
     };
 
 export interface Layout {
@@ -292,6 +344,12 @@ export interface PaywallUser {
   has_active_subscription: boolean;
   purchases: PaywallUserPurchase[];
   trial: { started_at: string | null; expires_at: string | null } | null;
+  /** Был ли у юзера хотя бы один trial по этому пейволу когда-либо (включая
+   *  истёкшие и отменённые). Anti-abuse флаг для UI: CtaButton скрывает
+   *  "Start N-Day Free Trial" если true. Серверный enforcement в
+   *  `/start-checkout` дублирует — даже если UI обмануть, бэк не отдаст
+   *  trial_days в Stripe/Paddle. */
+  had_previous_trial: boolean;
 }
 
 export interface PaywallBootstrap {

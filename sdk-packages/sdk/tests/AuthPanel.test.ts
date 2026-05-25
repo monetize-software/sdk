@@ -26,6 +26,7 @@ function makeAuthMock(overrides: Partial<AuthClient> = {}): AuthClient {
     getCachedUser: vi.fn(() => null),
     ready: vi.fn(async () => undefined),
     getAccessToken: vi.fn(async () => null),
+    getLastLogin: vi.fn(async () => null),
     ...overrides
   };
   return stub as AuthClient;
@@ -100,9 +101,9 @@ describe('AuthPanel render', () => {
     expect(inputs.length).toBe(2);
     expect(inputs[0].type).toBe('email');
     expect(inputs[1].type).toBe('password');
-    // Submit-кнопка с лейблом Sign in.
+    // Submit-кнопка с лейблом Sign In.
     const submit = container.querySelector('button[type="submit"]');
-    expect(submit?.textContent).toContain('Sign in');
+    expect(submit?.textContent).toContain('Sign In');
   });
 
   it('renders OAuth buttons when block.providers is set', () => {
@@ -152,22 +153,38 @@ describe('AuthPanel render', () => {
     expect(signOutSpy).toHaveBeenCalled();
   });
 
-  it('toggle to signup mode shows Create account submit', () => {
+  it('toggle to signup mode shows Sign Up submit (collapsed) then Create Account (expanded)', () => {
     const auth = makeAuthMock();
     const { container } = renderPanel(BLOCK_DEFAULT, { auth });
-    const link = Array.from(container.querySelectorAll('button')).find((b) =>
-      /Create account/i.test(b.textContent ?? '')
+    // Toggle через "Sign Up" link в футере (signin → signup).
+    const link = Array.from(container.querySelectorAll('button')).find(
+      (b) => (b.textContent ?? '').trim() === 'Sign Up'
     );
     act(() => link!.click());
+    // Collapsed: только email + submit "Sign Up".
     const submit = container.querySelector('button[type="submit"]');
-    expect(submit?.textContent).toContain('Create account');
+    expect(submit?.textContent).toContain('Sign Up');
+    expect(container.querySelector('input[type="password"]')).toBeNull();
+    // Раскрываем кликом submit с заполненным email.
+    const email = container.querySelector<HTMLInputElement>('input[type="email"]')!;
+    act(() => {
+      email.value = 'new@b.c';
+      email.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    const form = container.querySelector('form')!;
+    act(() => {
+      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    });
+    expect(container.querySelectorAll('input[type="password"]').length).toBe(2);
+    const submit2 = container.querySelector('button[type="submit"]');
+    expect(submit2?.textContent).toContain('Create Account');
   });
 
-  it('hides "Create account" link when allow_signup=false', () => {
+  it('hides "Sign Up" link when allow_signup=false', () => {
     const auth = makeAuthMock();
     const { container } = renderPanel({ ...BLOCK_DEFAULT, allow_signup: false }, { auth });
-    const link = Array.from(container.querySelectorAll('button')).find((b) =>
-      /Create account/i.test(b.textContent ?? '')
+    const link = Array.from(container.querySelectorAll('button')).find(
+      (b) => (b.textContent ?? '').trim() === 'Sign Up'
     );
     expect(link).toBeUndefined();
   });
@@ -255,22 +272,31 @@ describe('AuthPanel render', () => {
     const auth = makeAuthMock({ signUp });
     const { container } = renderPanel(BLOCK_DEFAULT, { auth });
 
-    // Toggle signup
-    const toSignup = Array.from(container.querySelectorAll('button')).find((b) =>
-      /Create account/i.test(b.textContent ?? '')
+    // Toggle signup через "Sign Up" link
+    const toSignup = Array.from(container.querySelectorAll('button')).find(
+      (b) => (b.textContent ?? '').trim() === 'Sign Up'
     );
     act(() => toSignup!.click());
 
-    // Fill + submit
+    // Шаг 1: fill email + первый submit (раскрывает password+confirm).
     const email = container.querySelector<HTMLInputElement>('input[type="email"]')!;
-    const password = container.querySelector<HTMLInputElement>('input[type="password"]')!;
+    const form = container.querySelector('form')!;
     await act(async () => {
       email.value = 'new@b.c';
       email.dispatchEvent(new Event('input', { bubbles: true }));
-      password.value = 'pw_new';
-      password.dispatchEvent(new Event('input', { bubbles: true }));
     });
-    const form = container.querySelector('form')!;
+    await act(async () => {
+      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    });
+
+    // Шаг 2: fill password + confirm и второй submit — реальный signUp call.
+    const passwords = container.querySelectorAll<HTMLInputElement>('input[type="password"]');
+    await act(async () => {
+      passwords[0].value = 'pw_new';
+      passwords[0].dispatchEvent(new Event('input', { bubbles: true }));
+      passwords[1].value = 'pw_new';
+      passwords[1].dispatchEvent(new Event('input', { bubbles: true }));
+    });
     await act(async () => {
       form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
     });

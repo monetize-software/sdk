@@ -9,6 +9,7 @@
   "changesets": [
     "sdk-api-origin-required",
     "sdk-extension-cws-warning",
+    "sdk-popup-bugfixes-alpha5",
     "sdk-react-initial-release"
   ]
 }

@@ -2,6 +2,7 @@ import type { ComponentChildren } from 'preact';
 import { useState } from 'preact/hooks';
 import type { LayoutBlock } from '../../../core/types';
 import type { BlockProps } from '../types';
+import { useI18n } from '../../i18n';
 
 type CurrentSessionBlock = Extract<LayoutBlock, { type: 'current_session' }>;
 
@@ -14,6 +15,7 @@ type CurrentSessionBlock = Extract<LayoutBlock, { type: 'current_session' }>;
 // Анон-сессия (is_anonymous=true) трактуется как «нет логина»: анон существует
 // только ради api-gateway-токена, у юзера нет email и UX-смысла «Signed in».
 export function CurrentSession({ ctx }: BlockProps<CurrentSessionBlock>) {
+  const { t } = useI18n();
   const session = ctx.authSession;
   const auth = ctx.auth;
   const [signingOut, setSigningOut] = useState(false);
@@ -33,18 +35,25 @@ export function CurrentSession({ ctx }: BlockProps<CurrentSessionBlock>) {
       }
     };
 
+    // "Signed in as <email>" — рендерим вручную из двух частей, чтобы email
+    // оставался в bold-вёрстке. {email} placeholder в локали игнорируется —
+    // строка показывается до email, b-тег c email-ом идёт после.
     return (
       <div class="-mt-3 flex flex-col items-center gap-1.5 pt-1 text-center text-[13px] text-gray-500">
         <span>
-          Signed in as{' '}
+          {t('session.signed_in_as_prefix', 'Signed in as')}{' '}
           <b class="font-medium text-gray-700">{session.user.email}</b>
         </span>
         <div class="flex items-center justify-center gap-3">
           <AccentLink onClick={onSignOut} disabled={!auth || signingOut}>
-            {signingOut ? 'Signing out…' : 'Sign Out'}
+            {signingOut
+              ? t('session.signing_out', 'Signing out…')
+              : t('session.sign_out', 'Sign Out')}
           </AccentLink>
           <Dot />
-          <AccentLink onClick={onSupport}>Contact Support</AccentLink>
+          <AccentLink onClick={onSupport}>
+            {t('session.contact_support', 'Contact Support')}
+          </AccentLink>
         </div>
       </div>
     );
@@ -52,9 +61,11 @@ export function CurrentSession({ ctx }: BlockProps<CurrentSessionBlock>) {
 
   return (
     <div class="-mt-3 flex items-center justify-center gap-3 pt-1 text-center text-[13px]">
-      <AccentLink onClick={() => ctx.onAction('restore')}>Restore purchases</AccentLink>
+      <AccentLink onClick={() => ctx.onAction('restore')}>
+        {t('session.restore_purchases', 'Restore purchases')}
+      </AccentLink>
       <Dot />
-      <AccentLink onClick={onSupport}>Contact Support</AccentLink>
+      <AccentLink onClick={onSupport}>{t('session.contact_support', 'Contact Support')}</AccentLink>
     </div>
   );
 }
@@ -73,7 +84,7 @@ function AccentLink({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      class="font-semibold underline underline-offset-2 transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-60 focus:outline-none focus-visible:opacity-80"
+      class="font-semibold transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-60 focus:outline-none focus-visible:opacity-80"
       style={{ color: 'var(--pw-accent)' }}
     >
       {children}

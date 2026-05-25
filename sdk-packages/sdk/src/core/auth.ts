@@ -63,6 +63,18 @@ export type OtpVerifyType = 'email' | 'recovery' | 'signup' | 'magiclink' | 'inv
 
 export type OAuthProvider = 'google' | 'apple' | 'github' | 'facebook';
 
+/** Метод, которым юзер залогинился в последний раз на этом пейволе.
+ *  Хранится per-paywall в storage и используется UI чтобы:
+ *   - предзаполнить email-инпут last-known email'ом;
+ *   - подсветить ту же OAuth-кнопку / email-форму бейджем "Last used".
+ *  `email` — email/password forms (signin или signup → confirm). */
+export type LastLoginMethod = OAuthProvider | 'email';
+
+export interface LastLogin {
+  method: LastLoginMethod;
+  email: string | null;
+}
+
 /** Дискриминатор для `onAuthChange`. Позволяет listener'у отличать первый
  *  callback (восстановление сессии из storage / синтетический snapshot для
  *  свежей подписки) от реальных переходов. Конвенция Supabase, минус события,
@@ -133,7 +145,12 @@ export class AuthClient {
    *  startOAuthFlow и completeOAuthFlow. GC'атся через OAUTH_FLOW_TTL_MS. */
   private oauthFlows = new Map<
     string,
-    { verifier: string; userMeta: Record<string, string> | undefined; startedAt: number }
+    {
+      verifier: string;
+      userMeta: Record<string, string> | undefined;
+      provider: OAuthProvider;
+      startedAt: number;
+    }
   >();
 
   constructor(opts: AuthClientOptions) {
@@ -303,6 +320,7 @@ export class AuthClient {
     );
     const session = this.toSession(resp, resp.user);
     this.setSession(session, { event: 'SIGNED_IN' });
+    this.recordLastLogin('email', input.email);
     return session;
   }
 
@@ -342,10 +360,15 @@ export class AuthClient {
       }
     );
     if (resp.status === 'confirmation_required') {
+      // Email-метод фиксируем заранее: после verifyOtp юзер вернётся уже без
+      // нашего знания о выбранном flow (verifyOtp общий и для recovery), а
+      // method хочется записать именно для UI-бейджа «Last used».
+      this.recordLastLogin('email', input.email);
       return { kind: 'confirmation_required', user: resp.user };
     }
     const session = this.toSession(resp, resp.user);
     this.setSession(session, { event: 'SIGNED_IN' });
+    this.recordLastLogin('email', input.email);
     return { kind: 'signed_in', session };
   }
 
@@ -831,8 +854,16 @@ export class AuthClient {
     this.oauthFlows.set(state, {
       verifier,
       userMeta: input.userMeta,
+      provider: input.provider,
       startedAt: Date.now()
     });
+
+    // Method фиксируем до popup'а: provider в input явно указан юзером, в этой
+    // точке мы 100% знаем что он выбрал. Не делать через app_metadata.provider
+    // после exchange'а — для уже зарегистрированного юзера GoTrue возвращает
+    // ПЕРВЫЙ зарегистрированный provider, а не текущий (зеркало легаси-фикса
+    // в online/app/paywall/auth/callback/AuthCallback.tsx).
+    this.recordLastLoginMethod(input.provider);
 
     return { authorize_url, state };
   }
@@ -876,6 +907,11 @@ export class AuthClient {
     }
     const session = this.toSession(resp, resp.user);
     this.setSession(session, { event: 'SIGNED_IN' });
+    // Email из session.user пишем только если бэк его вернул. У Apple email
+    // приходит только на первом signin (если юзер не "Hide my email"); во всех
+    // последующих login'ах session.user.email может быть null — тогда сохраняем
+    // только method (он уже записан в startOAuthFlow).
+    if (session.user.email) this.recordLastLoginEmail(session.user.email);
     return session;
   }
 
@@ -1238,6 +1274,47 @@ export class AuthClient {
   }
 
   /**
+   * Last-used auth method + email — для UI бейджа "Last used" и pre-fill'а
+   * email-инпута. Storage paywall-scoped, поэтому переключение между
+   * пейволами на одном host'е не пересекает данные. Чтение всегда возвращает
+   * объект — отсутствующие поля = null. */
+  async getLastLogin(): Promise<LastLogin | null> {
+    try {
+      const [method, email] = await Promise.all([
+        this.storage.getItem(STORAGE_KEYS.lastLoginMethod(this.paywallId)),
+        this.storage.getItem(STORAGE_KEYS.lastLoginEmail(this.paywallId))
+      ]);
+      if (!method) return null;
+      if (!isLastLoginMethod(method)) return null;
+      return { method, email: typeof email === 'string' && email ? email : null };
+    } catch {
+      return null;
+    }
+  }
+
+  /** Запись method и email атомарно (для email/password flows — оба известны
+   *  на момент signin/signup'а). OAuth-flows используют раздельные
+   *  recordLastLoginMethod (до popup) и recordLastLoginEmail (после exchange). */
+  private recordLastLogin(method: LastLoginMethod, email: string | null): void {
+    this.recordLastLoginMethod(method);
+    if (email) this.recordLastLoginEmail(email);
+  }
+
+  private recordLastLoginMethod(method: LastLoginMethod): void {
+    // Fire-and-forget — UI-фича, не блокируем signin flow. Ошибки storage
+    // (quota / private mode) ломают только бейдж, не сам signin.
+    this.storage
+      .setItem(STORAGE_KEYS.lastLoginMethod(this.paywallId), method)
+      .catch(() => {});
+  }
+
+  private recordLastLoginEmail(email: string): void {
+    this.storage
+      .setItem(STORAGE_KEYS.lastLoginEmail(this.paywallId), email)
+      .catch(() => {});
+  }
+
+  /**
    * Читает stable visitor_id из storage если он там уже есть. НЕ генерит:
    * AuthClient может быть инстанцирован раньше BillingClient, а синтетический
    * visitor_id без касания пейвола не имеет смысла (нет гостевых покупок,
@@ -1339,6 +1416,12 @@ export function waitForOAuthCode(popup: Window, expectedState: string): Promise<
 
     window.addEventListener('message', onMessage);
   });
+}
+
+function isLastLoginMethod(v: unknown): v is LastLoginMethod {
+  return (
+    v === 'google' || v === 'apple' || v === 'github' || v === 'facebook' || v === 'email'
+  );
 }
 
 function sameSession(a: AuthSession | null, b: AuthSession | null): boolean {

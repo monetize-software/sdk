@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from 'preact/hooks';
 import type { BillingClient } from '../core/BillingClient';
 import type { AuthSession } from '../core/auth';
 import { PaywallError } from '../core/types';
+import { useI18n } from './i18n';
 
 export interface SupportGateProps {
   client: BillingClient;
@@ -22,6 +23,7 @@ const ACCEPTED_MIME = ['image/jpeg', 'image/png', 'image/webp'];
 const EMAIL_RE = /.+@.+\..+/;
 
 export function SupportGate({ client, authSession, origin, onBack }: SupportGateProps) {
+  const { t } = useI18n();
   const sessionEmail = authSession?.user.email ?? '';
   // Если есть сессия — email фиксируем из неё, форма его не редактирует.
   const lockedEmail = sessionEmail ? sessionEmail : null;
@@ -57,13 +59,19 @@ export function SupportGate({ client, authSession, origin, onBack }: SupportGate
     const e = (lockedEmail ?? email).trim();
     const s = subject.trim();
     const m = message.trim();
-    if (!e) next.email = 'Required';
-    else if (!EMAIL_RE.test(e.toLowerCase())) next.email = 'Invalid email';
+    if (!e) next.email = t('support.required', 'Required');
+    else if (!EMAIL_RE.test(e.toLowerCase())) next.email = t('support.invalid_email', 'Invalid email');
     if (s.length < SUBJECT_MIN || s.length > SUBJECT_MAX) {
-      next.subject = `${SUBJECT_MIN}–${SUBJECT_MAX} characters`;
+      next.subject = t('support.subject_length', '{min}–{max} characters', {
+        min: SUBJECT_MIN,
+        max: SUBJECT_MAX
+      });
     }
     if (m.length < 1 || m.length > CONTENT_MAX) {
-      next.message = `1–${CONTENT_MAX} characters`;
+      next.message = t('support.message_length', '{min}–{max} characters', {
+        min: 1,
+        max: CONTENT_MAX
+      });
     }
     setErrors(next);
     return Object.keys(next).length === 0;
@@ -103,145 +111,195 @@ export function SupportGate({ client, authSession, origin, onBack }: SupportGate
     setSubmittedEmail(null);
   };
 
+  // Footer-shadow + scroll-area pattern идентичен Renderer.tsx — кнопки
+  // прибиты к низу dialog'а и читабельны на коротких viewport'ах (extension
+  // popup ≤600px), скроллится только контент над ними.
+  const footerClass = 'flex flex-col gap-3 bg-white px-6 pb-6 pt-3 sm:px-8';
+  const footerStyle = { boxShadow: '0 -4px 12px -4px rgba(15,23,42,0.06)' };
+
   if (submittedEmail) {
     return (
-      <div class="flex flex-col items-center gap-4 py-2 text-center">
-        <div
-          class="flex h-14 w-14 items-center justify-center rounded-full"
-          style={{
-            background:
-              'linear-gradient(135deg, color-mix(in srgb, var(--pw-accent) 85%, white), var(--pw-accent))',
-            color: '#fff',
-            boxShadow:
-              '0 0 0 8px color-mix(in srgb, var(--pw-accent) 12%, transparent), 0 8px 20px -6px color-mix(in srgb, var(--pw-accent) 45%, transparent)'
-          }}
-          aria-hidden="true"
-        >
-          <svg viewBox="0 0 24 24" class="h-7 w-7">
-            <path
-              fill="currentColor"
-              d="M12 0a12 12 0 1 0 0 24 12 12 0 0 0 0-24Zm6.93 8.2-6.85 9.29a1.01 1.01 0 0 1-1.43.19L5.76 13.77a1 1 0 1 1 1.25-1.56l4.08 3.26 6.23-8.45a1 1 0 1 1 1.61 1.18Z"
-            />
-          </svg>
-        </div>
-        <div class="text-lg font-semibold tracking-tight text-gray-900">Request submitted</div>
-        <div class="max-w-[320px] text-sm leading-relaxed text-gray-500">
-          We&apos;ve received your message and will respond to{' '}
-          <b class="text-gray-700">{submittedEmail}</b>.
-        </div>
-        <div class="mt-2 flex items-center justify-center gap-3">
-          <button
-            type="button"
-            onClick={onBack}
-            class="rounded-xl px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--pw-accent)]"
-          >
-            {origin === 'standalone' ? 'Done' : 'Back'}
-          </button>
-          <button
-            type="button"
-            onClick={resetForm}
-            class="flex h-10 items-center justify-center rounded-xl px-4 text-sm font-semibold text-white transition-all hover:-translate-y-px hover:brightness-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--pw-accent)]"
+      <div class="relative flex-1 min-h-0 flex flex-col">
+        <div class="flex-1 min-h-0 overflow-y-auto flex flex-col items-center gap-4 px-6 pb-3 pt-6 sm:px-8 sm:pb-4 sm:pt-8 text-center">
+          <div
+            class="flex h-14 w-14 items-center justify-center rounded-full"
             style={{
               background:
-                'linear-gradient(180deg, color-mix(in srgb, var(--pw-accent) 92%, white), var(--pw-accent))',
+                'linear-gradient(135deg, color-mix(in srgb, var(--pw-accent) 85%, white), var(--pw-accent))',
+              color: '#fff',
               boxShadow:
-                '0 1px 2px rgba(15,23,42,0.08), 0 6px 14px -4px color-mix(in srgb, var(--pw-accent) 50%, transparent)'
+                '0 0 0 8px color-mix(in srgb, var(--pw-accent) 12%, transparent), 0 8px 20px -6px color-mix(in srgb, var(--pw-accent) 45%, transparent)'
             }}
+            aria-hidden="true"
           >
-            Send another request
-          </button>
+            <svg viewBox="0 0 24 24" class="h-7 w-7">
+              <path
+                fill="currentColor"
+                d="M12 0a12 12 0 1 0 0 24 12 12 0 0 0 0-24Zm6.93 8.2-6.85 9.29a1.01 1.01 0 0 1-1.43.19L5.76 13.77a1 1 0 1 1 1.25-1.56l4.08 3.26 6.23-8.45a1 1 0 1 1 1.61 1.18Z"
+              />
+            </svg>
+          </div>
+          <div class="text-lg font-semibold tracking-tight text-gray-900">
+            {t('support.success_heading', 'Request submitted')}
+          </div>
+          <div class="max-w-[320px] text-sm leading-relaxed text-gray-500">
+            {/* email рендерим отдельным <b>, prefix-only ключ — для языков с
+               порядком "received message will be sent to X" этого хватает. */}
+            {t(
+              'support.success_message_prefix',
+              "We've received your message and will respond to"
+            )}{' '}
+            <b class="text-gray-700">{submittedEmail}</b>.
+          </div>
+        </div>
+        <div class={footerClass} style={footerStyle}>
+          <div class="flex items-center justify-center gap-3">
+            <button
+              type="button"
+              onClick={onBack}
+              class="rounded-xl px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--pw-accent)]"
+            >
+              {origin === 'standalone'
+                ? t('support.done_button', 'Done')
+                : t('nav.back_aria', 'Back')}
+            </button>
+            <button
+              type="button"
+              onClick={resetForm}
+              class="flex h-10 items-center justify-center rounded-xl px-4 text-sm font-semibold text-white transition-all hover:-translate-y-px hover:brightness-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--pw-accent)]"
+              style={{
+                background:
+                  'linear-gradient(180deg, color-mix(in srgb, var(--pw-accent) 92%, white), var(--pw-accent))',
+                boxShadow:
+                  '0 1px 2px rgba(15,23,42,0.08), 0 6px 14px -4px color-mix(in srgb, var(--pw-accent) 50%, transparent)'
+              }}
+            >
+              {t('support.send_another', 'Send another request')}
+            </button>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div class="flex flex-col gap-3">
-      <div class="flex items-center justify-between">
-        <button
-          type="button"
-          onClick={onBack}
-          class="-ml-1 rounded-md px-1.5 py-0.5 text-xs font-medium text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--pw-accent)]"
-        >
-          ← {origin === 'standalone' ? 'Close' : 'Back'}
-        </button>
-      </div>
-      <h2 class="text-lg font-semibold tracking-tight text-gray-900">Contact Support</h2>
-      <p class="text-xs leading-relaxed text-gray-500">
-        Fill out the form below and we&apos;ll get back to you.
-      </p>
-
-      <form onSubmit={onSubmit} class="flex flex-col gap-3">
-        {!lockedEmail ? (
-          <Field
-            type="email"
-            label="Your email"
-            value={email}
-            onInput={setEmail}
-            error={errors.email}
-            autocomplete="email"
-            required
-          />
-        ) : (
-          <div class="rounded-xl border border-gray-200 bg-gray-50/60 px-3 py-2 text-xs text-gray-500">
-            Sending as <b class="font-medium text-gray-700">{lockedEmail}</b>
+    <form onSubmit={onSubmit} class="relative flex-1 min-h-0 flex flex-col">
+      <BackArrowButton onClick={onBack} ariaLabel={t('nav.back_aria', 'Back')} />
+      <div class="flex-1 min-h-0 overflow-y-auto px-6 pb-3 pt-6 sm:px-8 sm:pb-4 sm:pt-8">
+        <div class="flex flex-col gap-5">
+          <div class="flex flex-col gap-2 pr-10">
+            <h2 class="text-3xl font-bold tracking-tight text-gray-900">
+              {t('support.heading', 'Support')}
+            </h2>
+            <p class="text-base leading-relaxed text-gray-600">
+              {t('support.instruction', 'Please fill out the form below to submit your support request.')}
+            </p>
           </div>
-        )}
-        <Field
-          type="text"
-          label="Subject"
-          value={subject}
-          onInput={setSubject}
-          error={errors.subject}
-          required
-        />
-        <TextareaField
-          label="Message"
-          value={message}
-          onInput={setMessage}
-          error={errors.message}
-          required
-        />
 
-        <Dropzone files={files} onChange={setFiles} disabled={submitting} />
+          <div class="flex flex-col gap-3">
+            {!lockedEmail ? (
+              <FilledField
+                type="email"
+                placeholder={t('support.email_placeholder', 'Enter your email *')}
+                value={email}
+                onInput={setEmail}
+                error={errors.email}
+                autocomplete="email"
+                required
+              />
+            ) : (
+              <div class="rounded-2xl bg-gray-100 px-5 py-3 text-sm text-gray-600">
+                {t('support.sending_as', 'Sending as')}{' '}
+                <b class="font-medium text-gray-900">{lockedEmail}</b>
+              </div>
+            )}
+            <FilledField
+              type="text"
+              placeholder={t('support.subject_placeholder', 'Enter your subject *')}
+              value={subject}
+              onInput={setSubject}
+              error={errors.subject}
+              required
+            />
+            <FilledTextarea
+              placeholder={t('support.message_placeholder', 'Enter your message *')}
+              value={message}
+              onInput={setMessage}
+              error={errors.message}
+              required
+            />
+            <Dropzone files={files} onChange={setFiles} disabled={submitting} />
+          </div>
+        </div>
+      </div>
 
-        {errors.submit && <p class="text-xs text-red-600">{errors.submit}</p>}
-
-        <div class="mt-1 flex items-center justify-end gap-2">
+      <div class={footerClass} style={footerStyle}>
+        {errors.submit && <p class="text-sm text-red-600">{errors.submit}</p>}
+        <div class="flex items-center justify-end gap-3">
           <button
             type="button"
             onClick={onBack}
             disabled={submitting}
-            class="rounded-xl px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--pw-accent)]"
+            class="rounded-full px-4 py-2 text-base font-medium text-gray-700 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--pw-accent)]"
           >
-            {origin === 'standalone' ? 'Close' : 'Back'}
+            {origin === 'standalone'
+              ? t('support.close_button', 'Close')
+              : t('nav.back_aria', 'Back')}
           </button>
           <button
             type="submit"
             disabled={!isValid || submitting}
-            class="flex h-10 items-center justify-center rounded-xl px-4 text-sm font-semibold text-white transition-all hover:-translate-y-px hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:brightness-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--pw-accent)]"
+            class="pw-cta-shimmer relative flex h-12 items-center justify-center overflow-hidden rounded-full px-8 text-base font-semibold text-white transition-transform duration-150 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--pw-accent)]"
             style={{
               background:
-                'linear-gradient(180deg, color-mix(in srgb, var(--pw-accent) 92%, white), var(--pw-accent))',
+                'linear-gradient(135deg, color-mix(in srgb, var(--pw-accent) 55%, white) 0%, var(--pw-accent) 55%, color-mix(in srgb, var(--pw-accent) 90%, black) 100%)',
               boxShadow:
-                '0 1px 2px rgba(15,23,42,0.08), 0 6px 14px -4px color-mix(in srgb, var(--pw-accent) 50%, transparent)'
+                '0 0 20px 0 color-mix(in srgb, var(--pw-accent) 25%, transparent), inset 0 0 8px 0 color-mix(in srgb, white 25%, transparent)'
             }}
           >
             {submitting ? (
-              <span class="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+              <span class="relative z-10 inline-block h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
             ) : (
-              'Send'
+              <span class="relative z-10">{t('support.send_button', 'Send')}</span>
             )}
           </button>
         </div>
-      </form>
-    </div>
+      </div>
+    </form>
   );
 }
 
-interface FieldProps {
+function BackArrowButton({ onClick, ariaLabel }: { onClick: () => void; ariaLabel: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={ariaLabel}
+      class="absolute right-4 top-4 z-10 flex h-8 w-8 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--pw-accent)]"
+    >
+      <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+        <path
+          d="M5 8h8a4 4 0 0 1 0 8H9"
+          stroke="currentColor"
+          stroke-width="1.75"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+        <path
+          d="M8 4 4 8l4 4"
+          stroke="currentColor"
+          stroke-width="1.75"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+      </svg>
+    </button>
+  );
+}
+
+interface FilledFieldProps {
   type: 'email' | 'text';
-  label: string;
+  placeholder: string;
   value: string;
   onInput: (v: string) => void;
   error?: string;
@@ -249,52 +307,66 @@ interface FieldProps {
   required?: boolean;
 }
 
-function Field({ type, label, value, onInput, error, autocomplete, required }: FieldProps) {
+function FilledField({
+  type,
+  placeholder,
+  value,
+  onInput,
+  error,
+  autocomplete,
+  required
+}: FilledFieldProps) {
   return (
-    <label class="flex flex-col gap-1.5">
-      <span class="text-xs font-medium text-gray-700">{label}</span>
+    <div>
       <input
         type={type}
         value={value}
+        placeholder={placeholder}
         onInput={(e) => onInput((e.target as HTMLInputElement).value)}
         autocomplete={autocomplete}
         required={required}
-        class={`h-11 w-full rounded-xl border bg-white px-3.5 text-sm text-gray-900 shadow-[0_1px_0_rgba(15,23,42,0.02)] outline-none transition-all placeholder:text-gray-400 ${
+        class={`h-14 w-full rounded-2xl bg-gray-100 px-5 text-base text-gray-900 outline-none transition-all placeholder:text-gray-500 hover:bg-gray-200/60 focus:bg-gray-200/60 ${
           error
-            ? 'border-red-400 focus:border-red-500 focus:shadow-[0_0_0_3px_rgba(239,68,68,0.18)]'
-            : 'border-gray-200 hover:border-gray-300 focus:border-[var(--pw-accent)] focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--pw-accent)_18%,transparent)]'
+            ? 'shadow-[0_0_0_2px_rgba(239,68,68,0.5)]'
+            : 'focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--pw-accent)_30%,transparent)]'
         }`}
       />
-      {error && <span class="text-xs text-red-600">{error}</span>}
-    </label>
+      {error && <span class="mt-1 ml-2 block text-sm text-red-600">{error}</span>}
+    </div>
   );
 }
 
-interface TextareaFieldProps {
-  label: string;
+interface FilledTextareaProps {
+  placeholder: string;
   value: string;
   onInput: (v: string) => void;
   error?: string;
   required?: boolean;
 }
 
-function TextareaField({ label, value, onInput, error, required }: TextareaFieldProps) {
+function FilledTextarea({
+  placeholder,
+  value,
+  onInput,
+  error,
+  required
+}: FilledTextareaProps) {
   return (
-    <label class="flex flex-col gap-1.5">
-      <span class="text-xs font-medium text-gray-700">{label}</span>
+    <div>
       <textarea
         value={value}
+        placeholder={placeholder}
         onInput={(e) => onInput((e.target as HTMLTextAreaElement).value)}
         required={required}
-        rows={4}
-        class={`min-h-[104px] w-full rounded-xl border bg-white px-3.5 py-2.5 text-sm leading-relaxed text-gray-900 shadow-[0_1px_0_rgba(15,23,42,0.02)] outline-none transition-all placeholder:text-gray-400 ${
+        rows={5}
+        class={`min-h-[120px] w-full rounded-2xl bg-gray-100 px-5 py-3.5 text-base leading-relaxed text-gray-900 outline-none transition-all placeholder:text-gray-500 hover:bg-gray-200/60 focus:bg-gray-200/60 ${
           error
-            ? 'border-red-400 focus:border-red-500 focus:shadow-[0_0_0_3px_rgba(239,68,68,0.18)]'
-            : 'border-gray-200 hover:border-gray-300 focus:border-[var(--pw-accent)] focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--pw-accent)_18%,transparent)]'
+            ? 'shadow-[0_0_0_2px_rgba(239,68,68,0.5)]'
+            : 'focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--pw-accent)_30%,transparent)]'
         }`}
       />
-      {error && <span class="text-xs text-red-600">{error}</span>}
-    </label>
+      {error && <span class="mt-1 ml-2 block text-sm text-red-600">{error}</span>}
+    </div>
   );
 }
 
@@ -305,6 +377,7 @@ interface DropzoneProps {
 }
 
 function Dropzone({ files, onChange, disabled }: DropzoneProps) {
+  const { t } = useI18n();
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -314,14 +387,14 @@ function Dropzone({ files, onChange, disabled }: DropzoneProps) {
     setError(null);
     const arr = Array.from(incoming);
     if (files.length + arr.length > MAX_FILES) {
-      setError(`Up to ${MAX_FILES} files`);
+      setError(t('support.too_many_files', 'Up to {max} files', { max: MAX_FILES }));
       return;
     }
     const valid = arr.filter(
       (f) => ACCEPTED_MIME.includes(f.type) && f.size <= MAX_FILE_SIZE
     );
     if (valid.length !== arr.length) {
-      setError('Only JPEG/PNG/WebP, ≤ 10MB each');
+      setError(t('support.invalid_file', 'Only JPEG/PNG/WebP, ≤ 10MB each'));
       return;
     }
     onChange([...files, ...valid]);
@@ -329,11 +402,13 @@ function Dropzone({ files, onChange, disabled }: DropzoneProps) {
 
   return (
     <div>
-      <span class="text-xs font-medium text-gray-700">Attachments (optional)</span>
+      <span class="text-xs font-medium text-gray-700">
+        {t('support.attachments_label', 'Attachments (optional)')}
+      </span>
       <div
         role="button"
         tabIndex={0}
-        aria-label="Attachments upload"
+        aria-label={t('support.attachments_aria', 'Attachments upload')}
         onClick={() => !disabled && inputRef.current?.click()}
         onDragOver={(e) => {
           e.preventDefault();
@@ -351,9 +426,13 @@ function Dropzone({ files, onChange, disabled }: DropzoneProps) {
             : 'border-gray-300 hover:border-gray-400 hover:bg-gray-50/60'
         } ${disabled ? 'cursor-not-allowed opacity-60' : ''}`}
       >
-        <div class="text-xs text-gray-500">Drop images here or click to select</div>
+        <div class="text-xs text-gray-500">
+          {t('support.dropzone_text', 'Drop images here or click to select')}
+        </div>
         <div class="mt-0.5 text-[11px] text-gray-400">
-          JPEG/PNG/WebP, up to {MAX_FILES} files, ≤ 10MB each
+          {t('support.file_requirements', 'JPEG/PNG/WebP, up to {max} files, ≤ 10MB each', {
+            max: MAX_FILES
+          })}
         </div>
       </div>
       <input
@@ -385,7 +464,7 @@ function Dropzone({ files, onChange, disabled }: DropzoneProps) {
                 }}
                 disabled={disabled}
                 class="text-gray-500 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-60"
-                aria-label={`Remove ${f.name}`}
+                aria-label={t('support.remove_file_aria', 'Remove {filename}', { filename: f.name })}
               >
                 ✕
               </button>

@@ -51,6 +51,7 @@ function makeAuthHarness(initialSession: AuthSession | null = null): AuthHarness
     getCachedUser: (): null => null,
     ready: async (): Promise<void> => undefined,
     getAccessToken: async (): Promise<string | null> => null,
+    getLastLogin: async (): Promise<null> => null,
     signOut
   } as unknown as AuthClient;
   return {
@@ -212,9 +213,9 @@ describe('PaywallRoot preauth gate', () => {
     await flush();
     // createCheckout не должен дёрнуться — gate перехватил.
     expect(createCheckout).not.toHaveBeenCalled();
-    // На экране — Sign in to continue + Back.
-    expect(container.textContent).toContain('Sign in to continue');
-    expect(container.textContent).toContain('Back');
+    // На экране — preauth-intent heading "Log in to continue your purchase" + Back-кнопка.
+    expect(container.textContent).toContain('Log in to continue your purchase');
+    expect(container.querySelector('button[aria-label="Back"]')).toBeTruthy();
     unmount();
   });
 
@@ -341,9 +342,7 @@ describe('PaywallRoot preauth gate', () => {
     clickContinue(container);
     await flush();
 
-    const back = Array.from(container.querySelectorAll('button')).find(
-      (b) => b.textContent && b.textContent.includes('Back')
-    );
+    const back = container.querySelector<HTMLButtonElement>('button[aria-label="Back"]');
     expect(back).toBeTruthy();
     act(() => {
       back!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
@@ -383,7 +382,7 @@ describe('PaywallRoot preauth gate', () => {
     await flush();
     expect(container.textContent).not.toContain('Continue with Google');
     expect(container.textContent).not.toContain('Continue with Apple');
-    expect(container.textContent).toContain('Sign in to continue');
+    expect(container.textContent).toContain('Log in to continue your purchase');
     unmount();
   });
 
@@ -435,8 +434,8 @@ describe('PaywallRoot preauth gate', () => {
     });
     await flush();
 
-    // Gate открыт — видим заголовок auth-формы.
-    expect(container.textContent).toContain('Sign in to continue');
+    // Gate открыт с intent='restore' — видим кастомный заголовок.
+    expect(container.textContent).toContain('Restore Purchases');
 
     // Имитируем signIn — gate схлопывается, createCheckout НЕ вызывается
     // (рестор не несёт pendingCheckout).
