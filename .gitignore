@@ -45,8 +45,9 @@ docs/
 # Internal-документация и dev-артефакты — остаются у разработчика на диске,
 # но не публикуются в monorepo. Pattern *.internal.md покрывает любые
 # приватные документы (runbook'и, рассуждения, проектная архитектура,
-# которые не для npm-консьюмеров SDK).
-/*.internal.md
+# которые не для npm-консьюмеров SDK). Без anchor'а `/` — pattern работает
+# на всех уровнях, включая sdk-packages/WORKFLOW.internal.md.
+**/*.internal.md
 /CLAUDE.md
 /TODO.md
 /*.png

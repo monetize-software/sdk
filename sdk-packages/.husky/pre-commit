@@ -7,10 +7,14 @@
 # в этом репо, но платформа (platform/) и online — отдельные проекты со своими
 # деплоями, гонять их через SDK-typecheck смысла нет. Если staged файлов в
 # sdk-packages/ нет, пропускаем без шума.
+#
+# Git вызывает хук из worktree root'а — пути в `git diff --cached` относительные
+# к нему, поэтому grep по `^sdk-packages/` корректен. pnpm typecheck нужно
+# дёргать из sdk-packages/, где живёт workspace package.json после перевозки.
 STAGED_SDK=$(git diff --cached --name-only --diff-filter=ACM | grep '^sdk-packages/' || true)
 if [ -z "$STAGED_SDK" ]; then
   exit 0
 fi
 
 echo "→ sdk-packages changes detected, running typecheck"
-pnpm typecheck
+cd "$(git rev-parse --show-toplevel)/sdk-packages" && pnpm typecheck

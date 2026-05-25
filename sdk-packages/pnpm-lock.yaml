@@ -18,7 +18,7 @@ importers:
         specifier: ^9.1.7
         version: 9.1.7
 
-  sdk-packages/sdk:
+  sdk:
     dependencies:
       preact:
         specifier: ^10.24.0
@@ -61,7 +61,7 @@ importers:
         specifier: ^2.1.8
         version: 2.1.9(@types/node@20.19.41)(jsdom@25.0.1)(lightningcss@1.32.0)
 
-  sdk-packages/sdk-extension:
+  sdk-extension:
     dependencies:
       preact:
         specifier: ^10.24.0
@@ -101,7 +101,7 @@ importers:
         specifier: ^2.1.8
         version: 2.1.9(@types/node@20.19.41)(jsdom@25.0.1)(lightningcss@1.32.0)
 
-  sdk-packages/sdk-react:
+  sdk-react:
     devDependencies:
       '@monetize.software/sdk':
         specifier: workspace:*

@@ -1,9 +1,0 @@
-# Workspace ограничен npm-публикуемыми SDK-пакетами в sdk-packages/.
-# platform/online/docs — standalone-проекты с собственным деплоем
-# (Cloudflare/DO droplet'ы); их версионирование не имеет смысла связывать
-# с npm-релизами, поэтому в workspace они не попадают.
-#
-# Changesets обнаруживает только пакеты внутри sdk-packages/ как
-# взаимосвязанные.
-packages:
-  - 'sdk-packages/*'

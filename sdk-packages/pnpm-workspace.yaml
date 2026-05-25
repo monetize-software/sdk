@@ -1,0 +1,10 @@
+# Workspace ограничен npm-публикуемыми SDK-пакетами. sdk-packages/ — корень
+# монорепо после переноса (раньше workspace жил на уровне выше, рядом с
+# platform/online/docs — это вызывало pnpm walking-up конфликты в соседних
+# каталогах). Сейчас sdk/sdk-extension/sdk-react — siblings под этим
+# workspace root'ом.
+#
+# platform/online/docs — standalone-проекты с собственным деплоем
+# (Cloudflare/DO droplet'ы), на git-root уровне, в workspace не входят.
+packages:
+  - '*'

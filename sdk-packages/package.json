@@ -12,7 +12,7 @@
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck",
     "dev": "concurrently --names sdk,react -c blue,green \"pnpm --filter @monetize.software/sdk build:watch\" \"pnpm --filter @monetize.software/sdk-react dev\"",
-    "prepare": "husky"
+    "prepare": "cd .. && husky sdk-packages/.husky"
   },
   "devDependencies": {
     "@changesets/cli": "^2.27.10",
