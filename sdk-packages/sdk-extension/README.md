@@ -23,20 +23,12 @@ content script (per tab) ──port──▶ service worker ──port──▶ 
 ```
 
 - **content-script:** UI + RemoteBillingClient (proxy over a port into offscreen).
-- **service worker:** content↔offscreen router; OAuth flow via `chrome.identity`
-  (offscreen can't access it directly).
+- **service worker:** content↔offscreen router. OAuth uses a popup window opened
+  against your `apiOrigin` (custom_domain) — `chrome.identity` is **not** used.
 - **offscreen:** the real SDK state, survives tab closes, the sole coordination
   point for auth refresh / trial counter / analytics batching.
 
-## Status
-
-Phase 0 — skeleton: package.json, vite multi-entry, wire-protocol types,
-stubs for content/offscreen/sw and a demo-extension manifest. Actual routing
-and `RemoteBillingClient` come in the next phases.
-
-See TODO in the repo and `src/shared/protocol.ts` for the message contract.
-
-## Usage (target shape, when complete)
+## Usage
 
 **In the extension:**
 
@@ -69,18 +61,24 @@ permissions to match its own UX. Minimum for the SDK to work:
 ```json
 {
   "permissions": ["offscreen", "storage"],
-  "host_permissions": ["https://api.monetize.software/*"],
+  "host_permissions": ["https://your-paywall-domain.com/*"],
   "background": { "service_worker": "sw.js", "type": "module" }
 }
 ```
 
-Optional:
+`host_permissions` must list **your `apiOrigin`** — the `custom_domain` configured
+for your paywall in the platform (the same value you pass to `new PaywallUI({ apiOrigin })`).
+This is the only origin the SDK calls from offscreen / SW / content-script (bootstrap,
+checkout, billing, auth). There is no `api.monetize.software` — every customer ships
+their own custom domain.
 
-- `"permissions": ["identity"]` — if you enable OAuth flows (`auth: true` + Google/etc.).
-- `web_accessible_resources` for `offscreen.html` is **not required** — the
-  document is created by the service worker via `chrome.offscreen.createDocument`,
-  that's a Chrome API and doesn't need WAR. Listing it adds attack surface (any
-  site could `<iframe>` your offscreen, plus it fingerprints your extension ID).
+`web_accessible_resources` for `offscreen.html` is **not required** — the document
+is created by the service worker via `chrome.offscreen.createDocument`, a Chrome API
+that doesn't need WAR. Listing it adds attack surface (any site could `<iframe>` your
+offscreen, plus it fingerprints your extension ID).
+
+The SDK does **not** use `chrome.identity` — OAuth runs via a popup window opened
+against your `apiOrigin`, so no `"identity"` permission is needed.
 
 ### `host_permissions` — what to pick
 
@@ -91,8 +89,8 @@ injected into (together with `content_scripts.matches`).
 | Scenario | Recommendation |
 |---|---|
 | **Host extension already needs `<all_urls>`** (recorder, all-sites tool, assistant) | Keep `<all_urls>`. SDK works as-is. **Risk:** Chrome Web Store review for `<all_urls>` is a manual audit and takes longer; AV vendors (Avast/Kaspersky/etc.) are more likely to flag such extensions as PUA. That's the price of broad injection — it's a property of your use case, not an SDK risk. |
-| **Host extension only talks to your backend and gates its own features** (popup tool, side-panel app) | Do NOT request `<all_urls>`. Your `apiOrigin` is enough: `["https://api.your-domain.com/*"]`. No content-script injection on every site needed. |
-| **Hybrid** — popup tool, but content-script needed on a narrow list of domains | Constrain both `host_permissions` and `content_scripts.matches` to those domains: `["https://*.your-target.com/*", "https://api.your-domain.com/*"]`. |
+| **Host extension only talks to your backend and gates its own features** (popup tool, side-panel app) | Do NOT request `<all_urls>`. Your `apiOrigin` (custom_domain) is enough: `["https://your-paywall-domain.com/*"]`. No content-script injection on every site needed. |
+| **Hybrid** — popup tool, but content-script needed on a narrow list of domains | Constrain both `host_permissions` and `content_scripts.matches` to those domains: `["https://*.your-target.com/*", "https://your-paywall-domain.com/*"]`. |
 
 The main signal to CWS/AV: the narrower `host_permissions`, the less suspicion.
 Keep `<all_urls>` only when it's genuinely required for your UX, and be ready to

@@ -1,13 +1,17 @@
 # @monetize.software/sdk-react
 
-React bindings для [`@monetize.software/sdk`](../sdk) — Provider, хуки и декларативные компоненты для пейвола. Работает с web SDK и extension SDK (любой drop-in-совместимый `PaywallUI`).
+React bindings for [`@monetize.software/sdk`](../sdk) — Provider, hooks and
+declarative paywall components. Works with the web SDK and the extension SDK
+(any drop-in-compatible `PaywallUI`).
 
-- **Bundle**: < 2 KB gzip (только bindings, никакого UI — он внутри SDK).
-- **React**: >= 18, использует `useSyncExternalStore` для concurrent-safe чтения снимков.
-- **SSR**: безопасно. На сервере хуки отдают `null` / `{ status: 'loading' }`, инстанс PaywallUI создаётся только на клиенте.
-- **TypeScript**: полный тип-уровень контракт ([`src/contract.ts`](src/contract.ts)) — если в основном SDK поедет публичная поверхность, сборка sdk-react падает на этапе `tsc`.
+- **Bundle**: < 2 KB gzip (bindings only — the UI lives inside the SDK).
+- **React**: >= 18, uses `useSyncExternalStore` for concurrent-safe snapshot reads.
+- **SSR**: safe out of the box. On the server, hooks return `null` /
+  `{ status: 'loading' }`; the `PaywallUI` instance is created only on the client.
+- **TypeScript**: full type-level contract ([`src/contract.ts`](src/contract.ts)) —
+  if the public surface of the SDK shifts, the `sdk-react` build fails at `tsc`.
 
-## Установка
+## Installation
 
 ```bash
 pnpm add @monetize.software/sdk-react @monetize.software/sdk react
@@ -25,7 +29,13 @@ import {
 
 function App() {
   return (
-    <PaywallProvider options={{ paywallId: 'YOUR_ID', auth: true }}>
+    <PaywallProvider
+      options={{
+        paywallId: 'YOUR_ID',
+        apiOrigin: 'https://your-paywall-domain.com',
+        auth: true
+      }}
+    >
       <PaywallGate fallback={<UpgradeCTA />}>
         <PremiumFeature />
       </PaywallGate>
@@ -37,53 +47,59 @@ function App() {
 
 function UpgradeCTA() {
   const user = usePaywallUser();
-  return <p>Привет, {user?.email ?? 'гость'}! Открой полный доступ.</p>;
+  return <p>Hi, {user?.email ?? 'guest'}! Unlock full access.</p>;
 }
 ```
 
+`apiOrigin` must match the `custom_domain` configured for your paywall in the
+platform.
+
 ## Provider
 
-`<PaywallProvider>` принимает один из двух пропсов:
+`<PaywallProvider>` accepts one of two props:
 
 ```tsx
-// Вариант 1 — Provider сам создаёт инстанс
+// Option 1 — Provider creates the instance itself
 <PaywallProvider options={{ paywallId, apiOrigin, auth: true }}>
 
-// Вариант 2 — готовый инстанс снаружи (extension / shared / тесты)
+// Option 2 — host supplies a ready instance (extension / shared singleton / tests)
 import { createPaywallUI } from '@monetize.software/sdk-extension';
-const paywall = createPaywallUI({ paywallId });
+const paywall = createPaywallUI({ paywallId, apiOrigin });
 
 <PaywallProvider instance={paywall}>
 ```
 
-Если `paywallId` динамически меняется, перемонтируй Provider через `<PaywallProvider key={paywallId} options={...}>` — реактивная пересборка опций намеренно не делается.
+If `paywallId` changes dynamically, remount the Provider via
+`<PaywallProvider key={paywallId} options={...}>` — reactive option rebuilds are
+intentionally not performed.
 
-## Хуки
+## Hooks
 
-| Хук | Возвращает | Когда триггерит rerender |
+| Hook | Returns | When it triggers a rerender |
 |---|---|---|
-| `usePaywall()` | `PaywallUI \| null` | смена инстанса (редко) |
-| `usePaywallState()` | `{ open, view, error }` | любое изменение state-машины |
-| `usePaywallUser()` | `PaywallUser \| null` | event `userChange` |
+| `usePaywall()` | `PaywallUI \| null` | instance change (rare) |
+| `usePaywallState()` | `{ open, view, error }` | any state-machine change |
+| `usePaywallUser()` | `PaywallUser \| null` | `userChange` event |
 | `usePaywallAccess(opts?)` | `{ status, result }` | `userChange` / `purchase_completed` |
 | `usePaywallPrices()` | `{ prices, loading, error }` | bootstrap refresh |
 | `usePaywallTrial()` | `TrialStatus \| null` | `trial_blocked` / `trial_expired` |
 | `usePaywallVisibility()` | `VisibilityStatus \| null` | `ready` / `visibility_blocked` |
-| `usePaywallEvent(event, handler)` | — | подписка с stable-handler-ref |
+| `usePaywallEvent(event, handler)` | — | subscribes with a stable handler ref |
 
-Все хуки безопасны до mount-а Provider'а (отдают `null` / loading) — можно использовать в SSR без `'use client'`-обёрток на ветке дерева.
+All hooks are safe before the Provider mounts (they return `null` / loading) —
+you can use them in SSR without `'use client'` wrappers on the consuming subtree.
 
-## Компоненты
+## Components
 
 ### `<PaywallGate>`
 
-Декларативный гейт: loading → fallback → children.
+Declarative gate: loading → fallback → children.
 
 ```tsx
 <PaywallGate
   loading={<Skeleton />}
   fallback={({ open }) => <button onClick={open}>Upgrade</button>}
-  openOnBlocked={false}  // если true — автоматом дёргает paywall.open()
+  openOnBlocked={false}  // if true — calls paywall.open() automatically
 >
   <PremiumFeature />
 </PaywallGate>
@@ -91,7 +107,9 @@ const paywall = createPaywallUI({ paywallId });
 
 ### `<PaywallButton>` / `<PaywallSupportButton>`
 
-Сахар над `paywall.open()`. По умолчанию рендерится как нативный `<button>` со всеми твоими `className`/`disabled`/`aria-*`. Для кастомного элемента — render-prop:
+Sugar over `paywall.open()`. By default renders a native `<button>` with all
+your `className`/`disabled`/`aria-*` props forwarded. For a custom element use
+the render prop:
 
 ```tsx
 <PaywallButton render={({ open, ready }) => (
@@ -99,7 +117,7 @@ const paywall = createPaywallUI({ paywallId });
 )} />
 ```
 
-`mode` переключает между `open()` / `openSupport()` / `openAuth()` / `openAnonGate()`:
+`mode` switches between `open()` / `openSupport()` / `openAuth()` / `openAnonGate()`:
 
 ```tsx
 <PaywallButton mode="support">Need help?</PaywallButton>
@@ -109,48 +127,57 @@ const paywall = createPaywallUI({ paywallId });
 ## SSR / Next.js
 
 ```tsx
-'use client';  // на Provider, не на дерево потомков
+'use client';  // on the Provider, not on the consumer subtree
 
 import { PaywallProvider } from '@monetize.software/sdk-react';
 
 export function PaywallProviders({ children }) {
   return (
-    <PaywallProvider options={{ paywallId: process.env.NEXT_PUBLIC_PAYWALL_ID! }}>
+    <PaywallProvider
+      options={{
+        paywallId: process.env.NEXT_PUBLIC_PAYWALL_ID!,
+        apiOrigin: process.env.NEXT_PUBLIC_PAYWALL_ORIGIN!
+      }}
+    >
       {children}
     </PaywallProvider>
   );
 }
 ```
 
-Хуки можно вызывать из server components только при типизированных-null-сценариях (всё равно вернётся `null`/`loading`). Рекомендация — выносить хук-логику в client component.
+Hooks can be called from server components in typed-null scenarios (they'll
+return `null` / loading anyway). The recommendation is to keep hook logic in a
+client component.
 
-## Защита от изменений в SDK
+## SDK contract guard
 
-`pnpm typecheck` проверяет [`src/contract.ts`](src/contract.ts) — там перечислены все точки опоры на public API SDK (методы PaywallUI, поля snapshot'ов, имена событий). Любое разъезжание в `../sdk` ловится здесь раньше, чем в проде.
+`pnpm typecheck` validates [`src/contract.ts`](src/contract.ts) — it lists every
+point of contact with the public SDK API (`PaywallUI` methods, snapshot fields,
+event names). Any drift in `../sdk` is caught here before it hits production.
 
-После изменений в SDK обнови dist для типов:
+After SDK changes, refresh the dist for type resolution:
 
 ```bash
 cd ../sdk && pnpm build
 cd ../sdk-react && pnpm typecheck
 ```
 
-## Разработка
+## Development
 
 ```bash
 pnpm install
 pnpm dev          # → http://localhost:5080/demo/
-pnpm typecheck    # TS-валидация + контракт
+pnpm typecheck    # TS validation + contract guard
 pnpm test         # vitest + @testing-library/react
-pnpm test:e2e     # playwright против демо
+pnpm test:e2e     # playwright against the demo
 pnpm build        # ESM + CJS + d.ts → dist/
 ```
 
 ## API reference
 
-Полные JSDoc-комментарии на каждый публичный экспорт смотри в исходниках:
+Full JSDoc comments on every public export are inline in the sources:
 
 - [`src/PaywallProvider.tsx`](src/PaywallProvider.tsx) — Provider, lifecycle
-- [`src/hooks/`](src/hooks/) — все хуки
-- [`src/components/`](src/components/) — декларативные компоненты
-- [`src/contract.ts`](src/contract.ts) — точки опоры на SDK
+- [`src/hooks/`](src/hooks/) — all hooks
+- [`src/components/`](src/components/) — declarative components
+- [`src/contract.ts`](src/contract.ts) — SDK contact points

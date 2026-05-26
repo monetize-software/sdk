@@ -7,6 +7,7 @@
     "@monetize.software/sdk-react": "3.0.0-alpha.0"
   },
   "changesets": [
+    "readme-cleanup-alpha7",
     "sdk-api-origin-required",
     "sdk-extension-cws-warning",
     "sdk-locale-override-auth-errors",

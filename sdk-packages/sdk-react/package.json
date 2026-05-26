@@ -1,6 +1,6 @@
 {
   "name": "@monetize.software/sdk-react",
-  "version": "3.0.0-alpha.4",
+  "version": "3.0.0-alpha.5",
   "description": "React bindings for @monetize.software/sdk — Provider, hooks and declarative components. Works with the web SDK and the extension SDK (any drop-in compatible PaywallUI).",
   "type": "module",
   "sideEffects": false,
