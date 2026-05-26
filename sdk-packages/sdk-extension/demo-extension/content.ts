@@ -29,6 +29,7 @@ interface WidgetState {
   balances: Balance[] | null;
   expanded: boolean;
   flash: string | null;
+  anonBusy: boolean;
   /** 'main' — карточка с account + кнопками; 'ask' — DeepSeek чат; 'image' —
    *  Replicate генерация; 'upscale' — Replicate Clarity Upscaler с file input.
    *  Переключается через nav-кнопки в карточке. */
@@ -56,7 +57,7 @@ async function bootstrapPaywall(): Promise<void> {
 
   const paywall = new PaywallUI({
     paywallId: __demo_paywall_id ?? '3',
-    apiOrigin: __demo_api_origin ?? 'http://152.42.143.9:3000',
+    apiOrigin: __demo_api_origin ?? 'https://onlineapp.stream',
     shadowMode: 'open',
     auth: true
   });
@@ -115,6 +116,7 @@ function mountWidget(paywall: PaywallUI): void {
     balances: paywall.billing.getCachedBalances(),
     expanded: false,
     flash: null,
+    anonBusy: false,
     view: 'main',
     askPrompt: '',
     askBusy: false,
@@ -180,7 +182,8 @@ function mountWidget(paywall: PaywallUI): void {
       void paywall.billing.getBalances({ force: true }).catch(() => {});
       setFlash(`Signed in: ${s?.user?.email ?? ''}`);
     } else if (event === 'SIGNED_OUT') {
-      state.balances = null;
+      // user/balances обновятся через onUserChange/onBalanceChange (SDK
+      // эмитит EMPTY_USER + [] в setIdentity(undefined)). Здесь только flash.
       setFlash('Signed out');
     } else {
       // INITIAL_SESSION (restore из storage при reload), TOKEN_REFRESHED,
@@ -217,7 +220,7 @@ function mountWidget(paywall: PaywallUI): void {
           path: '',
           method: 'POST',
           body: {
-            model: 'deepseek-chat',
+            model: 'deepseek/deepseek-chat',
             messages: [{ role: 'user', content: prompt }],
             max_tokens: 256
           }
@@ -433,6 +436,19 @@ function mountWidget(paywall: PaywallUI): void {
                    <button class="btn ghost" data-action="sign-out">Sign out</button>`
           }
         </div>
+        ${
+          !session
+            ? `<div class="row">
+                <button class="btn ghost" data-action="sign-up">Sign up</button>
+                <button class="btn ghost" data-action="anon" ${state.anonBusy ? 'disabled' : ''}>${
+                  state.anonBusy ? 'Signing in…' : 'Anon login'
+                }</button>
+              </div>`
+            : ''
+        }
+        <div class="row">
+          <button class="btn ghost" data-action="support">Contact support</button>
+        </div>
         <div class="hint">${
           premium
             ? 'All premium features unlocked on this device.'
@@ -555,13 +571,33 @@ function mountWidget(paywall: PaywallUI): void {
           state.expanded = false;
           render();
         } else if (action === 'sign-in') {
-          paywall.openAuth();
+          paywall.openSignin();
+        } else if (action === 'sign-up') {
+          paywall.openSignup();
+        } else if (action === 'anon') {
+          if (state.anonBusy) return;
+          state.anonBusy = true;
+          render();
+          paywall
+            .signInAnonymously()
+            .then((s) => {
+              setFlash(`Signed in as guest: ${s.user.id.slice(0, 8)}…`);
+            })
+            .catch((e) => {
+              setFlash(`Anon sign-in failed: ${e instanceof Error ? e.message : String(e)}`);
+            })
+            .finally(() => {
+              state.anonBusy = false;
+              render();
+            });
         } else if (action === 'sign-out') {
           void paywall.auth?.signOut();
         } else if (action === 'open') {
           paywall.open();
         } else if (action === 'renew') {
           paywall.open({ renew: true });
+        } else if (action === 'support') {
+          paywall.openSupport();
         } else if (action === 'view-main') {
           state.view = 'main';
           render();

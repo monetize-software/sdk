@@ -54,7 +54,9 @@ type RequiredMethods =
   | 'open'
   | 'openSupport'
   | 'openAuth'
-  | 'openAnonGate'
+  | 'openSignin'
+  | 'openSignup'
+  | 'signInAnonymously'
   | 'close'
   | 'on'
   | 'off'
@@ -87,7 +89,7 @@ type _AssertOpenSignature = Parameters<PaywallUI['open']> extends [(OpenOptions 
   ? true
   : false;
 
-// openSupport/openAuth/openAnonGate имеют ту же сигнатуру — компонент
+// openSupport/openAuth/openSignin/openSignup имеют ту же сигнатуру — компонент
 // PaywallButton переключается между ними через `mode` prop.
 type _AssertOpenSupportSignature = Parameters<PaywallUI['openSupport']> extends [(OpenOptions | undefined)?]
   ? true

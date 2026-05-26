@@ -11,6 +11,7 @@ const da = {
   'anon.try_again': 'Prøv igen',
   'auth.check_email_message': 'Tjek din e-mail — vi har sendt en bekræftelseskode.',
   'auth.check_email_title': 'Tjek din e-mail',
+  'auth.confirm_email_title': 'Bekræft din e-mail',
   'auth.confirmation_code': 'Bekræftelseskode',
   'auth.continue_with_apple': 'Fortsæt med Apple',
   'auth.continue_with_facebook': 'Fortsæt med Facebook',

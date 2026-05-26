@@ -8,7 +8,7 @@ const params = new URLSearchParams(window.location.search);
 
 startOffscreenServer({
   paywallId: params.get('paywallId') ?? '3',
-  apiOrigin: params.get('apiOrigin') ?? 'http://152.42.143.9:3000',
+  apiOrigin: params.get('apiOrigin') ?? 'https://onlineapp.stream',
   // auth: true в content-side PaywallUI создаёт RemoteAuthClient — он шлёт
   // request'ы 'auth.*'. Если здесь не включить — offscreen ответит
   // "Unknown request kind". Должно совпадать с конфигом content-script'а.

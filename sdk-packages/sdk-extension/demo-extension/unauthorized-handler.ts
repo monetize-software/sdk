@@ -4,13 +4,12 @@
 //
 // Идея: запоминаем в chrome.storage признак "юзер когда-либо логинился реальной
 // identity" (email/OAuth, не анонимно). Когда gateway отвечает 401:
-//   - если признак есть → openAuth() — показать форму, host знает что у юзера
+//   - если признак есть → openSignin() — показать форму, host знает что у юзера
 //     есть аккаунт, и просто помогает ему перелогиниться;
 //   - если нет, и пейвол разрешает анон-логин (`allow_anonymous=true` в
-//     bootstrap) → openAnonGate() — silent восстановление;
-//   - если нет и `allow_anonymous=false` → openAuth(), потому что анон-флоу
-//     гарантированно вернёт 403 от бэка, бессмысленно показывать спиннер
-//     и потом ошибку «Forbidden».
+//     bootstrap) → signInAnonymously() — headless silent восстановление;
+//   - если нет и `allow_anonymous=false` → openSignin(), потому что анон-флоу
+//     гарантированно вернёт 403 от бэка, бессмысленно делать silent-попытку.
 //
 // Признак НЕ очищается на signOut/expiry — это persistent сигнал, иначе при
 // каждом разлогине теряли бы знание "у юзера есть реальный аккаунт".
@@ -45,7 +44,7 @@ export async function recoverFromUnauthorized(paywall: PaywallUI): Promise<void>
 
   // Был реальный логин — показываем форму, без анон-восстановления.
   if (stored[HAD_REAL_AUTH_KEY]) {
-    paywall.openAuth();
+    paywall.openSignin();
     return;
   }
 
@@ -55,17 +54,21 @@ export async function recoverFromUnauthorized(paywall: PaywallUI): Promise<void>
   // в худшем случае получим 403 и UI покажет «Forbidden / Try again».
   const allowAnon = paywall.billing.getCachedBootstrap()?.settings.allow_anonymous;
   if (allowAnon === false) {
-    paywall.openAuth();
+    paywall.openSignin();
     return;
   }
 
-  paywall.openAnonGate();
+  // Headless silent anon-signin — без модалки. Promise проглатываем: при
+  // ошибке authChange всё равно не выстрелит, и pending-retry не сработает
+  // (Bearer останется пустым). UX покажет ту же ошибку Forbidden.
+  paywall.signInAnonymously().catch(() => {});
 }
 
 // ===== Auto-retry после auth =====
 //
-// Когда gateway.call падает с 401, мы открываем auth/anon-gate, ждём
-// authChange c not-null session и автоматически повторяем исходный вызов.
+// Когда gateway.call падает с 401, мы открываем signin-форму (или делаем
+// headless anon-signin), ждём authChange c not-null session и автоматически
+// повторяем исходный вызов.
 // Это даёт UX «нажал кнопку → залогинился во всплывшем окне → результат
 // пришёл», без необходимости юзеру нажимать кнопку второй раз.
 //
@@ -97,7 +100,7 @@ function ensureAuthListener(paywall: PaywallUI): void {
 
 /** Запустить gateway-call с auto-retry после 401-recovery. Если fn() падает
  *  с PaywallError(status=401), helper:
- *    1. дёргает recoverFromUnauthorized — открывает auth/anon-gate;
+ *    1. дёргает recoverFromUnauthorized — открывает signin-форму или делает headless anon-signin;
  *    2. ждёт ближайший authChange с not-null session;
  *    3. ретраит fn() один раз.
  *

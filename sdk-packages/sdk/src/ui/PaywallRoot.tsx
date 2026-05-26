@@ -5,13 +5,12 @@ import type { LayoutBlock, PaywallBootstrap } from '../core/types';
 import { PaywallError } from '../core/types';
 import { Modal } from './Modal';
 import { AuthGate } from './AuthGate';
-import { AnonGate } from './AnonGate';
 import { OfferTopBanner, pickActiveOffer } from './renderer/blocks/OfferBanner';
 import { SupportGate } from './SupportGate';
 import { Renderer } from './renderer/Renderer';
 import { I18nProvider, useI18n } from './i18n';
 
-export type PaywallView = 'layout' | 'support' | 'auth' | 'anon';
+export type PaywallView = 'layout' | 'support' | 'auth';
 
 /**
  * Публичный snapshot состояния PaywallUI для host'а. Производится из internal
@@ -27,7 +26,6 @@ export interface PaywallStateSnapshot {
     | 'error'
     | 'layout'
     | 'auth'
-    | 'anon'
     | 'support'
     | 'awaiting_payment'
     | 'popup_blocked'
@@ -37,11 +35,6 @@ export interface PaywallStateSnapshot {
   error: PaywallError | null;
 }
 
-// 'anon' — отдельная вью для signInAnonymously (silent resume / fresh signin).
-// Не сливается с 'auth', потому что UX разный: auth — формы email/oauth,
-// anon — спиннер без интеракции; и flow завершения тоже разный (анон не идёт
-// через has_active_subscription pre-check после signin'а).
-
 export interface PaywallRootProps {
   client: BillingClient;
   open: boolean;
@@ -50,6 +43,9 @@ export interface PaywallRootProps {
   /** Какой view показать при open=true. 'support' стартует сразу с саппорт-формой,
    *  Back/Done закрывают модалку (origin='standalone'). По умолчанию 'layout'. */
   initialView?: PaywallView;
+  /** Mode для AuthPanel когда `initialView='auth'` — 'signin' (дефолт) или
+   *  'signup'. Выставляется PaywallUI'ем из openSignup()/openSignin(). */
+  initialAuthMode?: 'signin' | 'signup';
   /** Server-confirmed покупка — показать success-вью с кнопкой Continue.
    *  Управляется снаружи (PaywallUI выставляет true из watcher.onActive),
    *  сбрасывается на open()/close(). Перебивает любые другие view. */
@@ -95,14 +91,6 @@ type GateState =
        *  ("Restore Purchases" vs "Welcome back!"). Дефолт — 'preauth'. */
       intent?: 'restore' | 'preauth' | 'standalone';
     }
-  // origin='standalone' — paywall.openAnonGate(): модалка открыта только ради
-  // анонимного логина, после signin'а закрываем модалку. origin='layout' — пока
-  // не используется (анон-блока в layout нет), но оставляем для симметрии с
-  // auth_gate на случай будущего inline-варианта.
-  | {
-      kind: 'anon_gate';
-      origin: 'layout' | 'standalone';
-    }
   // origin='layout' — пришли из current_session-блока, Back возвращает в layout.
   // origin='standalone' — модалка открыта только для саппорта (paywall.openSupport()),
   // Back закрывает модалку.
@@ -147,7 +135,6 @@ function computePaywallSnapshot(
   }
   if (gate.kind === 'support') return { open: true, view: 'support', error: null };
   if (gate.kind === 'auth_gate') return { open: true, view: 'auth', error: null };
-  if (gate.kind === 'anon_gate') return { open: true, view: 'anon', error: null };
   if (gate.kind === 'awaiting_payment') {
     return { open: true, view: 'awaiting_payment', error: null };
   }
@@ -173,6 +160,7 @@ export function PaywallRoot({
   onClose,
   onEvent,
   initialView,
+  initialAuthMode,
   purchased,
   renew,
   onState,
@@ -189,7 +177,6 @@ export function PaywallRoot({
   const [gate, setGate] = useState<GateState>(() => {
     if (initialView === 'support') return { kind: 'support', origin: 'standalone' };
     if (initialView === 'auth') return { kind: 'auth_gate', origin: 'standalone' };
-    if (initialView === 'anon') return { kind: 'anon_gate', origin: 'standalone' };
     return { kind: 'layout' };
   });
   // Защита от двойного auto-resume: useEffect ниже зависит от authSession,
@@ -248,7 +235,11 @@ export function PaywallRoot({
         // согласованный сигнал, как из любых других путей (UserWatcher, 409 в
         // checkout, auth-resume). renew=true пропускает эту проверку — host явно
         // показывает «Renew»/«Upgrade», тарифы должны быть видны.
-        if (data.user?.has_active_subscription && !renew) {
+        //
+        // initialView — standalone-flow (openSupport/openAuth/openSignup). Host
+        // явно открыл саппорт/auth-форму, перетирать gate в restored success —
+        // нарушение intent'а; host'у саппорт сейчас важнее статуса подписки.
+        if (data.user?.has_active_subscription && !renew && !initialView) {
           onEvent('purchase_completed', {
             priceId: null,
             sessionId: null,
@@ -293,8 +284,6 @@ export function PaywallRoot({
       setGate({ kind: 'support', origin: 'standalone' });
     } else if (initialView === 'auth') {
       setGate({ kind: 'auth_gate', origin: 'standalone' });
-    } else if (initialView === 'anon') {
-      setGate({ kind: 'anon_gate', origin: 'standalone' });
     }
   }, [open, initialView]);
 
@@ -572,28 +561,11 @@ export function PaywallRoot({
           // restore-flow Back ведёт обратно в layout — оставляем.
           showBack={gate.origin !== 'standalone'}
           intent={gate.intent ?? (gate.origin === 'standalone' ? 'standalone' : 'preauth')}
+          initialMode={gate.origin === 'standalone' ? initialAuthMode : undefined}
           onBack={() => {
             if (gate.origin === 'standalone') onClose();
             else setGate({ kind: 'layout' });
           }}
-        />
-      ) : gate.kind === 'anon_gate' && client.auth ? (
-        <AnonGate
-          auth={client.auth}
-          // standalone — pure anon-flow (paywall.openAnonGate()). Закрываем
-          // модалку после signin'а: host подцепит свежую session через
-          // onAuthChange/onUserChange. Для layout-варианта возвращаемся в
-          // тарифы; pendingCheckout анону не выписываем (анон по дизайну
-          // не покупает — он юзает api-gateway без email).
-          onSuccess={() => {
-            if (gate.origin === 'standalone') onClose();
-            else setGate({ kind: 'layout' });
-          }}
-          onBack={
-            gate.origin === 'standalone'
-              ? undefined
-              : () => setGate({ kind: 'layout' })
-          }
         />
       ) : gate.kind === 'awaiting_payment' ? (
         <AwaitingPaymentView
@@ -769,7 +741,7 @@ function AwaitingPaymentView({
   };
 
   return (
-    <div class="flex flex-col gap-3">
+    <div class="flex flex-col gap-3 px-6 pb-6 pt-4 sm:px-8 sm:pb-8 sm:pt-5">
       <button
         type="button"
         onClick={onBack}

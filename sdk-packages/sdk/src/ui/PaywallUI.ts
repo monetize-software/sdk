@@ -7,17 +7,17 @@ import {
 import { BillingClient, type BillingClientOptions } from '../core/BillingClient';
 import { EventTracker } from '../core/EventTracker';
 import { createTrialStore, type TrialStore } from '../core/trial';
-import type {
-  Acquiring,
-  Identity,
-  PaywallBootstrap,
+import {
   PaywallError,
-  PaywallPrice,
-  PaywallUser,
-  TrialConfig,
-  TrialStatus,
-  UserLanguageInfo,
-  VisibilityStatus
+  type Acquiring,
+  type Identity,
+  type PaywallBootstrap,
+  type PaywallPrice,
+  type PaywallUser,
+  type TrialConfig,
+  type TrialStatus,
+  type UserLanguageInfo,
+  type VisibilityStatus
 } from '../core/types';
 import { mountShadow, type MountHandle } from './mount';
 import {
@@ -229,6 +229,11 @@ export interface GetAccessOptions {
   skipVisibility?: boolean;
   signal?: AbortSignal;
 }
+
+/** Internal-only расширение `OpenOptions` — `authMode` мы не светим в публичный
+ *  API (есть dedicated `openSignin`/`openSignup`), но через private-методы
+ *  плюс mountAndShow прокидываем именно тут. */
+type InternalOpenOptions = OpenOptions & { authMode?: 'signin' | 'signup' };
 
 export interface OpenOptions {
   identity?: Identity;
@@ -564,28 +569,54 @@ export class PaywallUI {
   }
 
   /**
-   * Открывает модалку с anonymous-gate. AnonGate сразу зовёт
-   * `auth.signInAnonymously()`:
-   *   - если в storage есть `anonRefreshToken` — silent resume через
-   *     /auth/refresh, модалка схлопывается мгновенно (юзер видит лёгкий
-   *     спиннер ~100мс);
-   *   - иначе — fresh POST /auth/anonymous/signin без captcha (защита от
-   *     abuse держится на Supabase per-real-IP rate-limit + CF Bot Fight Mode).
-   *
-   * После успешного signIn'а модалка закрывается; host подхватывает свежую
-   * session через `auth.onAuthChange` или `paywall.onUserChange`. Для UX
-   * "просто залогиниться чтобы api-gateway работал, без покупок".
-   *
-   * Без managed-auth (`auth` не подключён) метод — no-op. Триал и
-   * visibility-таргетинг этот flow обходит: анон-логин не должен зависеть
-   * от страны юзера или trial-стейджа.
+   * Шорткат над `openAuth()` — открывает модалку сразу на signin-форме.
+   * Эквивалент `openAuth()` (signin — дефолт). Существует для симметрии с
+   * `openSignup()` и читаемости host-кода:
+   *   - `paywall.openSignin()` — «вход в существующий аккаунт»
+   *   - `paywall.openSignup()` — «новая регистрация»
+   * Без managed-auth — no-op.
    */
-  openAnonGate(opts: OpenOptions = {}): void {
+  openSignin(opts: OpenOptions = {}): void {
     if (!this.auth) return;
-    this.openInternal('anon', { ...opts, skipTrial: true, skipVisibility: true });
+    this.openInternal('auth', { ...opts, skipTrial: true, authMode: 'signin' });
   }
 
-  private openInternal(view: PaywallView, opts: OpenOptions): void {
+  /**
+   * Открывает модалку с auth-gate сразу в режиме регистрации (signup-mode
+   * AuthPanel'а — email/password/repeat). Если в paywall layout админ
+   * отключил allow_signup, AuthPanel игнорит mode и стартует с signin —
+   * соблюдается admin-конфиг.
+   * Без managed-auth — no-op.
+   */
+  openSignup(opts: OpenOptions = {}): void {
+    if (!this.auth) return;
+    this.openInternal('auth', { ...opts, skipTrial: true, authMode: 'signup' });
+  }
+
+  /**
+   * Headless anonymous signin без открытия модалки. Внутри:
+   * idempotent (если уже анон — instant return) → resume через сохранённый
+   * refresh_token → fresh /auth/anonymous/signin. Дедуплицирует
+   * параллельные вызовы внутри AuthClient'а.
+   *
+   * Удобно для host-кнопок типа «Continue as guest» — host сам управляет
+   * loading-стейтом на своей кнопке, без полупустой модалки со спиннером.
+   * Без managed-auth — резолвится rejected promise'ом (нет AuthClient'а
+   * чтобы делать signin).
+   */
+  signInAnonymously(): Promise<AuthSession> {
+    if (!this.auth) {
+      return Promise.reject(
+        new PaywallError(
+          'invalid_config',
+          'signInAnonymously requires managed-auth. Pass `auth: true` to PaywallUI.'
+        )
+      );
+    }
+    return this.auth.signInAnonymously();
+  }
+
+  private openInternal(view: PaywallView, opts: InternalOpenOptions): void {
     if (opts.identity) this.billing.setIdentity(opts.identity);
     // Сбрасываем флаг success-вью — повторное открытие должно стартовать
     // с обычного layout, а не с прошлого "Payment received".
@@ -600,12 +631,11 @@ export class PaywallUI {
     const skipVisibility =
       opts.skipVisibility === true ||
       view === 'support' ||
-      view === 'auth' ||
-      view === 'anon';
+      view === 'auth';
     const renew = opts.renew === true;
 
     if (skipTrial && skipVisibility) {
-      this.mountAndShow(view, { renew });
+      this.mountAndShow(view, { renew, authMode: opts.authMode });
       return;
     }
 
@@ -784,11 +814,21 @@ export class PaywallUI {
     return this.trialStore;
   }
 
-  private mountAndShow(view: PaywallView, mountOpts: { renew?: boolean } = {}): void {
+  private mountAndShow(
+    view: PaywallView,
+    mountOpts: { renew?: boolean; authMode?: 'signin' | 'signup' } = {}
+  ): void {
     const renew = mountOpts.renew === true;
+    const initialAuthMode = mountOpts.authMode;
     if (this.handle) {
       this.isOpen = true;
-      this.handle.update({ open: true, initialView: view, purchased: false, renew });
+      this.handle.update({
+        open: true,
+        initialView: view,
+        initialAuthMode,
+        purchased: false,
+        renew
+      });
       this.emit('open');
       return;
     }
@@ -800,6 +840,7 @@ export class PaywallUI {
         client: this.billing,
         open: true,
         initialView: view,
+        initialAuthMode,
         purchased: false,
         renew,
         onClose: () => this.close(),

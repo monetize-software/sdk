@@ -12,6 +12,8 @@ const de = {
   'anon.try_again': 'Erneut versuchen',
   'auth.check_email_message': 'Sehen Sie in Ihren E-Mails nach einem Bestätigungscode.',
   'auth.check_email_title': 'Prüfen Sie Ihre E-Mails',
+  'auth.confirm_email_subtitle': 'Geben Sie den Code ein, den wir an Ihre E-Mail gesendet haben, um die Registrierung abzuschließen.',
+  'auth.confirm_email_title': 'Bestätigen Sie Ihre E-Mail',
   'auth.confirmation_code': 'Bestätigungscode',
   'auth.continue_with_apple': 'Weiter mit Apple',
   'auth.continue_with_facebook': 'Mit Facebook fortfahren',

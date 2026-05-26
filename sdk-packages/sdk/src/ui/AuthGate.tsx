@@ -24,6 +24,9 @@ export interface AuthGateProps {
    *  ради signin'а, ESC и крестик модалки уже её закрывают. */
   showBack?: boolean;
   intent?: AuthIntent;
+  /** Какой mode выставить в AuthPanel на старте. Host вызвал openSignup()
+   *  → 'signup', openSignin()/openAuth() → 'signin' (дефолт). */
+  initialMode?: 'signin' | 'signup';
 }
 
 // Полноэкранная обёртка над AuthPanel для AuthGate flow. AuthPanel сам не
@@ -36,7 +39,8 @@ export function AuthGate({
   authSession,
   onBack,
   showBack = true,
-  intent = 'preauth'
+  intent = 'preauth',
+  initialMode
 }: AuthGateProps) {
   const { t } = useI18n();
   const ctx: BlockContext = {
@@ -45,7 +49,8 @@ export function AuthGate({
     setSelectedPriceId: () => {},
     onAction: () => {},
     auth,
-    authSession
+    authSession,
+    initialAuthMode: initialMode
   };
 
   // intent override'ит heading/subheading layout-block'а:

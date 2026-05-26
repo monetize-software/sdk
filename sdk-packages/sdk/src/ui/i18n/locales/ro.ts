@@ -11,6 +11,7 @@ const ro = {
   'anon.try_again': 'Încearcă din nou',
   'auth.check_email_message': 'Verifică-ți e-mailul — am trimis un cod de confirmare.',
   'auth.check_email_title': 'Verifică-ți e-mailul',
+  'auth.confirm_email_title': 'Confirmă-ți e-mailul',
   'auth.confirmation_code': 'Cod de confirmare',
   'auth.continue_with_apple': 'Continuă cu Apple',
   'auth.continue_with_facebook': 'Continuă cu Facebook',

@@ -20,7 +20,7 @@ installRouter({
     ])) as { __demo_paywall_id?: string; __demo_api_origin?: string };
     const params = new URLSearchParams({
       paywallId: cfg.__demo_paywall_id ?? '3',
-      apiOrigin: cfg.__demo_api_origin ?? 'http://152.42.143.9:3000'
+      apiOrigin: cfg.__demo_api_origin ?? 'https://onlineapp.stream'
     });
     return `${chrome.runtime.getURL('offscreen.html')}?${params.toString()}`;
   },

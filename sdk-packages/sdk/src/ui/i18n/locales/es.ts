@@ -12,6 +12,8 @@ const es = {
   'anon.try_again': 'Intentar de nuevo',
   'auth.check_email_message': 'Revisa tu correo electrónico para el código de confirmación.',
   'auth.check_email_title': 'Revisa tu correo',
+  'auth.confirm_email_subtitle': 'Ingresa el código que enviamos a tu correo para terminar de crear tu cuenta.',
+  'auth.confirm_email_title': 'Confirma tu correo',
   'auth.confirmation_code': 'Código de confirmación',
   'auth.continue_with_apple': 'Continuar con Apple',
   'auth.continue_with_facebook': 'Continuar con Facebook',

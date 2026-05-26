@@ -44,7 +44,8 @@ export class FakePaywall {
   openCalls = 0;
   openSupportCalls = 0;
   openAuthCalls = 0;
-  openAnonCalls = 0;
+  openSigninCalls = 0;
+  openSignupCalls = 0;
   closeCalls = 0;
   getAccessCalls = 0;
   getPricesCalls = 0;
@@ -80,8 +81,16 @@ export class FakePaywall {
   openAuth = (): void => {
     this.openAuthCalls++;
   };
-  openAnonGate = (): void => {
-    this.openAnonCalls++;
+  openSignin = (): void => {
+    this.openSigninCalls++;
+  };
+  openSignup = (): void => {
+    this.openSignupCalls++;
+  };
+  signInAnonymouslyCalls = 0;
+  signInAnonymously = async (): Promise<never> => {
+    this.signInAnonymouslyCalls++;
+    return Promise.reject(new Error('fakePaywall: signInAnonymously not stubbed'));
   };
   close = (): void => {
     this.closeCalls++;

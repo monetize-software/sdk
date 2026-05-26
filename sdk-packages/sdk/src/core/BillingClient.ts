@@ -332,8 +332,9 @@ export class BillingClient {
     this.cachedUserAt = 0;
     this.inflightUser = null;
     // Балансы привязаны к Bearer-юзеру (см. /balances route — он использует
-    // Auth-юзера, не identity.email). При re-login обнуляем, listener'ы
-    // получат пустой массив до следующего getBalances.
+    // Auth-юзера, не identity.email). При re-login/signout обнуляем; ниже
+    // явно эмитим EMPTY shape'ы, иначе listener'ы не узнают о смене
+    // identity (applyUser/applyBalances — единственные точки эмита).
     this.cachedBalances = null;
     this.cachedBalancesAt = 0;
     this.inflightBalances = null;
@@ -347,17 +348,25 @@ export class BillingClient {
     void this.hydrateBalancesFromStorage();
     this.subscribeBalancesStorage();
     void this.hydrateUserFromStorage();
-    // Auto-refetch user'а в фоне для нового identity. Без этого UI'ам с
-    // подпиской на onUserChange (account-widget'ы, pop'ы статуса) пришлось
-    // бы вручную дёргать getUser после каждого signin'а — а они обычно
-    // не знают что signin произошёл. С refetch'ем onUserChange broadcast'ит
-    // свежий has_active_subscription автоматически. Promise проглатывает
-    // ошибки — getUser сам обновит cachedUser в EMPTY_USER при сетевом
-    // фейле, listener'ы получат rollback-snapshot.
     if (identity) {
+      // Auto-refetch user'а в фоне для нового identity. Без этого UI'ам с
+      // подпиской на onUserChange (account-widget'ы, pop'ы статуса) пришлось
+      // бы вручную дёргать getUser после каждого signin'а — а они обычно
+      // не знают что signin произошёл. С refetch'ем onUserChange broadcast'ит
+      // свежий has_active_subscription автоматически. Promise проглатывает
+      // ошибки — getUser сам обновит cachedUser в EMPTY_USER при сетевом
+      // фейле, listener'ы получат rollback-snapshot.
       void this.getUser({ force: true }).catch(() => {
         /* network failure — listener'ы получат EMPTY_USER через applyUser */
       });
+    } else {
+      // Signout: identity сброшен, сетевой /user-state без Bearer'а ничего
+      // полезного не вернёт (бэк ответит empty-state). Эмитим EMPTY shape'ы
+      // синхронно, чтобы listener'ы (account-widget'ы, usePaywallUser,
+      // RemoteBillingClient через broadcast) переключились в guest-state.
+      // Hydrate*FromStorage выше skip'нутся через truthy-guard на cached*.
+      this.applyUser(EMPTY_USER);
+      this.applyBalances([]);
     }
   }
 

@@ -12,6 +12,8 @@ const zh = {
   'anon.try_again': '重试',
   'auth.check_email_message': '请查看邮件以获取确认码。',
   'auth.check_email_title': '请查看邮件',
+  'auth.confirm_email_subtitle': '请输入我们发送到您邮箱的代码以完成注册。',
+  'auth.confirm_email_title': '确认您的邮箱',
   'auth.confirmation_code': '确认码',
   'auth.continue_with_apple': '使用 Apple 继续',
   'auth.continue_with_facebook': '使用 Facebook 继续',

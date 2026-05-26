@@ -11,6 +11,7 @@ const fi = {
   'anon.try_again': 'Yritä uudelleen',
   'auth.check_email_message': 'Tarkista sähköpostisi — lähetimme vahvistuskoodin.',
   'auth.check_email_title': 'Tarkista sähköpostisi',
+  'auth.confirm_email_title': 'Vahvista sähköpostisi',
   'auth.confirmation_code': 'Vahvistuskoodi',
   'auth.continue_with_apple': 'Jatka Applella',
   'auth.continue_with_facebook': 'Jatka Facebookilla',

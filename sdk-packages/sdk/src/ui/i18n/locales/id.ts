@@ -11,6 +11,7 @@ const id = {
   'anon.try_again': 'Coba lagi',
   'auth.check_email_message': 'Periksa email Anda untuk kode konfirmasi.',
   'auth.check_email_title': 'Periksa email Anda',
+  'auth.confirm_email_title': 'Konfirmasi email Anda',
   'auth.confirmation_code': 'Kode konfirmasi',
   'auth.continue_with_apple': 'Lanjutkan dengan Apple',
   'auth.continue_with_facebook': 'Lanjutkan dengan Facebook',

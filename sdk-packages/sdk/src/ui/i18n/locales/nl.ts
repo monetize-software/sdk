@@ -12,6 +12,8 @@ const nl = {
   'anon.try_again': 'Probeer opnieuw',
   'auth.check_email_message': 'Controleer je e-mail voor de bevestigingscode.',
   'auth.check_email_title': 'Controleer je e-mail',
+  'auth.confirm_email_subtitle': 'Voer de code in die we naar je e-mail hebben gestuurd om je account aan te maken.',
+  'auth.confirm_email_title': 'Bevestig je e-mail',
   'auth.confirmation_code': 'Bevestigingscode',
   'auth.continue_with_apple': 'Doorgaan met Apple',
   'auth.continue_with_facebook': 'Doorgaan met Facebook',

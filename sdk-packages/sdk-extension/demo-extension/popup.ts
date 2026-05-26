@@ -106,7 +106,7 @@ async function init(): Promise<void> {
   ])) as { __demo_paywall_id?: string; __demo_api_origin?: string };
 
   const paywallId = __demo_paywall_id ?? '3';
-  const apiOrigin = __demo_api_origin ?? 'http://152.42.143.9:3000';
+  const apiOrigin = __demo_api_origin ?? 'https://onlineapp.stream';
 
   const paywall = new PaywallUI({
     paywallId,
@@ -222,7 +222,7 @@ async function init(): Promise<void> {
   });
   // Persistent-флаг "юзер логинился реальной identity" — используется в
   // handleGatewayError для решения 401-recovery: показывать email-форму или
-  // тихо подняться через AnonGate.
+  // тихо подняться через signInAnonymously.
   trackRealAuth(paywall);
 
   paywall.on('purchase_completed', (p) => {
@@ -332,7 +332,7 @@ async function init(): Promise<void> {
       const reply = data.choices?.[0]?.message?.content?.trim() ?? '(empty response)';
       setState({ ask: { ...state.ask, busy: false, response: reply } });
     } catch (e) {
-      // handleGatewayError сам открывает paywall на quota и auth/anon-gate
+      // handleGatewayError сам открывает paywall на quota / auth-форму
       // на 401 — мы только показываем юзеру корректное сообщение в card'е.
       const r = await handleGatewayError(e, paywall);
       const error =

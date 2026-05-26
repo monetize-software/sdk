@@ -11,6 +11,7 @@ const hu = {
   'anon.try_again': 'Próbálja újra',
   'auth.check_email_message': 'Nézze meg az e-mailjeit — küldtünk egy megerősítő kódot.',
   'auth.check_email_title': 'Ellenőrizze az e-mailjét',
+  'auth.confirm_email_title': 'Erősítse meg e-mail-címét',
   'auth.confirmation_code': 'Megerősítő kód',
   'auth.continue_with_apple': 'Folytatás Apple-lel',
   'auth.continue_with_facebook': 'Folytatás Facebookkal',

@@ -11,6 +11,7 @@ const th = {
   'anon.try_again': 'ลองอีกครั้ง',
   'auth.check_email_message': 'ตรวจสอบอีเมลของคุณเพื่อรับรหัสยืนยัน',
   'auth.check_email_title': 'ตรวจสอบอีเมลของคุณ',
+  'auth.confirm_email_title': 'ยืนยันอีเมลของคุณ',
   'auth.confirmation_code': 'รหัสยืนยัน',
   'auth.continue_with_apple': 'ดำเนินการต่อด้วย Apple',
   'auth.continue_with_facebook': 'ดำเนินการต่อด้วย Facebook',

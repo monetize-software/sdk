@@ -11,6 +11,7 @@ const sv = {
   'anon.try_again': 'Försök igen',
   'auth.check_email_message': 'Kontrollera din e-post — vi har skickat en bekräftelsekod.',
   'auth.check_email_title': 'Kontrollera din e-post',
+  'auth.confirm_email_title': 'Bekräfta din e-post',
   'auth.confirmation_code': 'Bekräftelsekod',
   'auth.continue_with_apple': 'Fortsätt med Apple',
   'auth.continue_with_facebook': 'Fortsätt med Facebook',

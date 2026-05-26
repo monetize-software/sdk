@@ -12,6 +12,8 @@ const pt = {
   'anon.try_again': 'Tentar novamente',
   'auth.check_email_message': 'Verifique seu e-mail para o código de confirmação.',
   'auth.check_email_title': 'Verifique seu e-mail',
+  'auth.confirm_email_subtitle': 'Digite o código que enviamos para seu e-mail para concluir o cadastro.',
+  'auth.confirm_email_title': 'Confirme seu e-mail',
   'auth.confirmation_code': 'Código de confirmação',
   'auth.continue_with_apple': 'Continuar com Apple',
   'auth.continue_with_facebook': 'Continuar com Facebook',

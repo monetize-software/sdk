@@ -80,6 +80,8 @@ const en = {
   'auth.check_email_title': 'Check your email',
   'auth.reset_password_title': 'Reset password',
   'auth.reset_password_subtitle': 'Enter the code from your email and a new password.',
+  'auth.confirm_email_title': 'Confirm your email',
+  'auth.confirm_email_subtitle': 'Enter the code we sent to your email to finish creating your account.',
 
   // === auth / messages + errors ===
   'auth.passwords_mismatch': "Passwords don't match",

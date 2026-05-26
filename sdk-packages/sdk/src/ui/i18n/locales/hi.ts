@@ -11,6 +11,7 @@ const hi = {
   'anon.try_again': 'फिर से प्रयास करें',
   'auth.check_email_message': 'पुष्टि कोड के लिए अपना ईमेल देखें।',
   'auth.check_email_title': 'अपना ईमेल देखें',
+  'auth.confirm_email_title': 'अपना ईमेल पुष्टि करें',
   'auth.confirmation_code': 'पुष्टि कोड',
   'auth.continue_with_apple': 'Apple से जारी रखें',
   'auth.continue_with_facebook': 'Facebook के साथ जारी रखें',

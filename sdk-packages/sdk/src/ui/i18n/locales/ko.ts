@@ -12,6 +12,8 @@ const ko = {
   'anon.try_again': '다시 시도',
   'auth.check_email_message': '이메일에서 확인 코드를 확인하세요.',
   'auth.check_email_title': '이메일을 확인하세요',
+  'auth.confirm_email_subtitle': '이메일로 보낸 코드를 입력하여 가입을 완료하세요.',
+  'auth.confirm_email_title': '이메일 확인',
   'auth.confirmation_code': '확인 코드',
   'auth.continue_with_apple': 'Apple로 계속하기',
   'auth.continue_with_facebook': 'Facebook으로 계속',

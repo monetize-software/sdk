@@ -11,6 +11,7 @@ const pl = {
   'anon.try_again': 'Spróbuj ponownie',
   'auth.check_email_message': 'Sprawdź skrzynkę — wysłaliśmy kod potwierdzający.',
   'auth.check_email_title': 'Sprawdź pocztę',
+  'auth.confirm_email_title': 'Potwierdź e-mail',
   'auth.confirmation_code': 'Kod potwierdzający',
   'auth.continue_with_apple': 'Kontynuuj przez Apple',
   'auth.continue_with_facebook': 'Kontynuuj z Facebookiem',

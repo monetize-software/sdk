@@ -7,7 +7,7 @@ import { useI18n, type TFn } from '../../i18n';
 
 type AuthPanelBlock = Extract<LayoutBlock, { type: 'auth_panel' }>;
 
-type Mode = 'signin' | 'signup' | 'forgot' | 'reset_sent' | 'reset_verify';
+type Mode = 'signin' | 'signup' | 'signup_verify' | 'forgot' | 'reset_sent' | 'reset_verify';
 
 function providerLabel(provider: OAuthProvider, t: TFn): string {
   switch (provider) {
@@ -135,7 +135,12 @@ function AuthForm({ block, allowSignup, allowReset, ctx }: FormProps) {
   const auth = ctx.auth!;
   const providers = block.providers ?? [];
 
-  const [mode, setMode] = useState<Mode>('signin');
+  // initialAuthMode из ctx — host вызвал openSignup() / openSignin().
+  // Если admin отключил signup (allow_signup=false), 'signup' игнорируем
+  // и стартуем с 'signin' — соблюдаем admin-настройку.
+  const initial: Mode =
+    ctx.initialAuthMode === 'signup' && allowSignup ? 'signup' : 'signin';
+  const [mode, setMode] = useState<Mode>(initial);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -212,7 +217,11 @@ function AuthForm({ block, allowSignup, allowReset, ctx }: FormProps) {
       } else if (mode === 'signup') {
         const res = await auth.signUp({ email, password });
         if (res.kind === 'confirmation_required') {
-          setMode('reset_verify');
+          // Email-confirm flow ≠ password-reset: пароль уже задан, нужен
+          // только OTP. Чистим password, чтобы не утащить его в signup_verify
+          // submit и не получить ложную ветку type='recovery'.
+          setPassword('');
+          setMode('signup_verify');
           setInfo(t('auth.check_email_message', 'Check your email for a confirmation code.'));
         }
       } else if (mode === 'forgot') {
@@ -221,6 +230,8 @@ function AuthForm({ block, allowSignup, allowReset, ctx }: FormProps) {
         setInfo(
           t('auth.reset_sent_message', 'If that email exists, a reset code has been sent.')
         );
+      } else if (mode === 'signup_verify') {
+        await auth.verifyOtp({ email, token: otpCode, type: 'email' });
       } else if (mode === 'reset_verify') {
         await auth.verifyOtp({
           email,
@@ -233,7 +244,9 @@ function AuthForm({ block, allowSignup, allowReset, ctx }: FormProps) {
       }
     } catch (err) {
       const errMode =
-        mode === 'signup' ? 'signup' : mode === 'reset_verify' ? 'otp' : mode === 'forgot' ? 'reset' : 'signin';
+        mode === 'signup' ? 'signup'
+          : mode === 'signup_verify' || mode === 'reset_verify' ? 'otp'
+          : mode === 'forgot' ? 'reset' : 'signin';
       setError(authErrorMessage(err, errMode, t));
     } finally {
       setBusy(null);
@@ -325,27 +338,28 @@ function AuthForm({ block, allowSignup, allowReset, ctx }: FormProps) {
           />
         )}
 
+        {(mode === 'signup_verify' || mode === 'reset_verify') && (
+          <FilledField
+            type="text"
+            placeholder={t('auth.confirmation_code', 'Confirmation code')}
+            value={otpCode}
+            onInput={setOtpCode}
+            autocomplete="one-time-code"
+            inputMode="numeric"
+            required
+          />
+        )}
+
         {mode === 'reset_verify' && (
-          <>
-            <FilledField
-              type="text"
-              placeholder={t('auth.confirmation_code', 'Confirmation code')}
-              value={otpCode}
-              onInput={setOtpCode}
-              autocomplete="one-time-code"
-              inputMode="numeric"
-              required
-            />
-            <PasswordField
-              placeholder={t(
-                'auth.new_password_optional',
-                'New password (optional — only for password reset)'
-              )}
-              value={password}
-              onInput={setPassword}
-              autocomplete="new-password"
-            />
-          </>
+          <PasswordField
+            placeholder={t(
+              'auth.new_password_optional',
+              'New password (optional — only for password reset)'
+            )}
+            value={password}
+            onInput={setPassword}
+            autocomplete="new-password"
+          />
         )}
 
         {mode === 'reset_sent' && info && (
@@ -366,18 +380,10 @@ function AuthForm({ block, allowSignup, allowReset, ctx }: FormProps) {
         )}
 
         {mode !== 'reset_sent' && (
-          <div class="relative">
-            <PrimaryButton
-              busy={busy === 'email'}
-              label={submitLabel(mode, signupExpanded, block.submit_label ?? block.heading, t)}
-            />
-            {/* Email-бейдж рисуем только в signin: для signup/forgot он не имеет
-                смысла (юзер целенаправленно идёт в другой flow, "last used"
-                сбивал бы). */}
-            {mode === 'signin' && lastLogin?.method === 'email' ? (
-              <LastUsedBadge email={lastLogin.email} />
-            ) : null}
-          </div>
+          <PrimaryButton
+            busy={busy === 'email'}
+            label={submitLabel(mode, signupExpanded, block.submit_label ?? block.heading, t)}
+          />
         )}
       </form>
 
@@ -455,6 +461,14 @@ function defaultHeader(mode: Mode, t: TFn): { title: string; subtitle: string | 
           'Enter the code from your email and a new password.'
         )
       };
+    case 'signup_verify':
+      return {
+        title: t('auth.confirm_email_title', 'Confirm your email'),
+        subtitle: t(
+          'auth.confirm_email_subtitle',
+          'Enter the code we sent to your email to finish creating your account.'
+        )
+      };
   }
 }
 
@@ -477,6 +491,7 @@ function submitLabel(
         : t('auth.sign_up', 'Sign Up');
     case 'forgot':
       return t('auth.send_reset', 'Send Reset Email');
+    case 'signup_verify':
     case 'reset_verify':
       return t('auth.verify', 'Verify');
     default:
@@ -504,7 +519,7 @@ function FormFooter({
       </p>
     );
   }
-  if (mode === 'signup') {
+  if (mode === 'signup' || mode === 'signup_verify') {
     return (
       <p class="text-center text-sm text-gray-600">
         {t('auth.have_account', 'Already have an account?')}{' '}

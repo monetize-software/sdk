@@ -117,12 +117,17 @@ the render prop:
 )} />
 ```
 
-`mode` switches between `open()` / `openSupport()` / `openAuth()` / `openAnonGate()`:
+`mode` switches between `open()` / `openSupport()` / `openSignin()` / `openSignup()`:
 
 ```tsx
 <PaywallButton mode="support">Need help?</PaywallButton>
-<PaywallButton mode="auth">Sign in</PaywallButton>
+<PaywallButton mode="signin">Sign in</PaywallButton>
+<PaywallButton mode="signup">Create account</PaywallButton>
 ```
+
+`mode="auth"` оставлен как алиас для `signin` (back-compat).
+
+Для анонимного signin'а используй `usePaywall().signInAnonymously()` напрямую — он headless (без модалки), хост сам управляет loading-стейтом кнопки.
 
 ## SSR / Next.js
 

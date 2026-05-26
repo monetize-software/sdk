@@ -77,12 +77,16 @@ export function pickStaticLocaleKey(bootstrap: PaywallBootstrap): BundledLocale 
   return null;
 }
 
-/** Mode='when-configured' (как legacy): static применяется только если у
- *  owner'а есть хоть один локаль-оверрайд в `bootstrap.locales`. Это маркер
- *  «пейвол i18n-aware» — без него тянуть static нет смысла (host рисует
- *  английский UI вокруг, перевод модалки выглядит инородно). */
-export function hasOwnerTranslations(bootstrap: PaywallBootstrap): boolean {
-  return !!bootstrap.locales && Object.keys(bootstrap.locales).length > 0;
+/** Mode='when-configured': static применяется только если у owner'а есть
+ *  dynamic-override **именно для resolved-локали**. Без этого юзер видел бы
+ *  смесь — статический UI на nl + dynamic-content (heading/features/banner)
+ *  на canonical-EN, потому что админ перевёл только на ru. Юзеры в локалях
+ *  без override'ов получают чистый EN UI + EN content. */
+export function hasOwnerTranslationsFor(
+  bootstrap: PaywallBootstrap,
+  locale: string
+): boolean {
+  return !!bootstrap.locales && bootstrap.locales[locale] !== undefined;
 }
 
 /** Грузит словарь для указанного языка. Идемпотентно: повторные вызовы
@@ -151,8 +155,13 @@ export function I18nProvider({ bootstrap, forceLocale, children }: I18nProviderP
     const explicit = forceLocale && isBundledLocale(forceLocale) ? forceLocale : null;
     const key = explicit ?? (() => {
       if (!bootstrap) return null;
-      if (!hasOwnerTranslations(bootstrap)) return null;
-      return pickStaticLocaleKey(bootstrap);
+      const resolved = pickStaticLocaleKey(bootstrap);
+      if (!resolved) return null;
+      // Per-locale gate: грузим static только если для resolved-локали
+      // есть dynamic override. Иначе fallback на EN — без миксa NL static +
+      // EN dynamic content.
+      if (!hasOwnerTranslationsFor(bootstrap, resolved)) return null;
+      return resolved;
     })();
 
     // Нет резолва (или explicit=null в preview при возврате на EN-страну) —

@@ -11,6 +11,7 @@ const cs = {
   'anon.try_again': 'Zkusit znovu',
   'auth.check_email_message': 'Zkontrolujte e-mail — poslali jsme potvrzovací kód.',
   'auth.check_email_title': 'Zkontrolujte e-mail',
+  'auth.confirm_email_title': 'Potvrďte e-mail',
   'auth.confirmation_code': 'Potvrzovací kód',
   'auth.continue_with_apple': 'Pokračovat přes Apple',
   'auth.continue_with_facebook': 'Pokračovat s Facebookem',

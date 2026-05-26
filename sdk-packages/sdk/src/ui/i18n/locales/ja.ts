@@ -12,6 +12,8 @@ const ja = {
   'anon.try_again': '再試行',
   'auth.check_email_message': '確認コードのメールをご確認ください。',
   'auth.check_email_title': 'メールをご確認ください',
+  'auth.confirm_email_subtitle': 'メールに送信したコードを入力してアカウント作成を完了してください。',
+  'auth.confirm_email_title': 'メールアドレスを確認',
   'auth.confirmation_code': '確認コード',
   'auth.continue_with_apple': 'Appleで続行',
   'auth.continue_with_facebook': 'Facebookで続ける',

@@ -11,6 +11,7 @@ const el = {
   'anon.try_again': 'Δοκιμάστε ξανά',
   'auth.check_email_message': 'Ελέγξτε το email σας για τον κωδικό επιβεβαίωσης.',
   'auth.check_email_title': 'Ελέγξτε το email σας',
+  'auth.confirm_email_title': 'Επιβεβαιώστε το email σας',
   'auth.confirmation_code': 'Κωδικός επιβεβαίωσης',
   'auth.continue_with_apple': 'Συνέχεια με Apple',
   'auth.continue_with_facebook': 'Συνέχεια με Facebook',

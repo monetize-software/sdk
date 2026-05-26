@@ -11,6 +11,7 @@ const he = {
   'anon.try_again': 'נסה שוב',
   'auth.check_email_message': 'בדוק את הדואר שלך לקבלת קוד האישור.',
   'auth.check_email_title': 'בדוק את הדואר שלך',
+  'auth.confirm_email_title': 'אימות הדואר האלקטרוני',
   'auth.confirmation_code': 'קוד אישור',
   'auth.continue_with_apple': 'המשך עם Apple',
   'auth.continue_with_facebook': 'המשך עם Facebook',

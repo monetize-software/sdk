@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'preact/hooks';
+import { useRef, useState } from 'preact/hooks';
 import type { BillingClient } from '../core/BillingClient';
 import type { AuthSession } from '../core/auth';
 import { PaywallError } from '../core/types';
@@ -40,19 +40,6 @@ export function SupportGate({ client, authSession, origin, onBack }: SupportGate
     files?: string;
     submit?: string;
   }>({});
-
-  const isValid = useMemo(() => {
-    const e = (lockedEmail ?? email).trim().toLowerCase();
-    const s = subject.trim();
-    const m = message.trim();
-    return (
-      EMAIL_RE.test(e) &&
-      s.length >= SUBJECT_MIN &&
-      s.length <= SUBJECT_MAX &&
-      m.length >= 1 &&
-      m.length <= CONTENT_MAX
-    );
-  }, [lockedEmail, email, subject, message]);
 
   const validate = (): boolean => {
     const next: typeof errors = {};
@@ -248,7 +235,7 @@ export function SupportGate({ client, authSession, origin, onBack }: SupportGate
           </button>
           <button
             type="submit"
-            disabled={!isValid || submitting}
+            disabled={submitting}
             class="pw-cta-shimmer relative flex h-12 items-center justify-center overflow-hidden rounded-full px-8 text-base font-semibold text-white transition-transform duration-150 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--pw-accent)]"
             style={{
               background:

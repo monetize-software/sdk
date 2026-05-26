@@ -155,6 +155,8 @@ export const SDK_TRANSLATIONS = {
     he: 'השלם את התשלום בלשונית החדשה'
   },
   'payment.awaiting_subtitle': {
+    ru: 'Мы определим оплату автоматически — или нажмите кнопку, когда закончите.',
+    uk: 'Ми визначимо оплату автоматично — або натисніть кнопку, коли закінчите.',
     de: 'Wir erkennen Ihre Zahlung automatisch — oder klicken Sie unten, sobald Sie fertig sind.',
     es: 'Detectaremos tu pago automáticamente — o haz clic abajo cuando termines.',
     fr: 'Nous détecterons votre paiement automatiquement — ou cliquez ci-dessous une fois terminé.',
@@ -185,6 +187,8 @@ export const SDK_TRANSLATIONS = {
     he: 'שילמתי'
   },
   'payment.still_processing': {
+    ru: 'Платёж ещё обрабатывается. Попробуйте ещё раз через мгновение.',
+    uk: 'Платіж ще обробляється. Спробуйте ще раз за мить.',
     de: 'Die Zahlung wird noch verarbeitet. Bitte versuchen Sie es gleich erneut.',
     es: 'El pago todavía se está procesando. Inténtalo de nuevo en un momento.',
     fr: 'Le paiement est toujours en cours de traitement. Réessayez dans un instant.',
@@ -196,6 +200,8 @@ export const SDK_TRANSLATIONS = {
     zh: '付款仍在处理中。请稍后再试。'
   },
   'payment.popup_help_text': {
+    ru: 'Окно оплаты не открылось или заблокировано? Нажмите здесь, чтобы открыть снова.',
+    uk: 'Вікно оплати не відкрилося або заблоковане? Натисніть тут, щоб відкрити знову.',
     de: 'Hat sich das Checkout-Fenster nicht geöffnet oder wurde es blockiert? Klicken Sie hier, um es erneut zu öffnen.',
     es: '¿La ventana de pago no se abrió o fue bloqueada? Haz clic aquí para abrirla de nuevo.',
     fr: 'La fenêtre de paiement ne s\'est pas ouverte ou a été bloquée ? Cliquez ici pour la rouvrir.',
@@ -219,12 +225,15 @@ export const SDK_TRANSLATIONS = {
     th: 'เปิดการชำระเงินอีกครั้ง', vi: 'Mở lại thanh toán', he: 'פתח תשלום שוב'
   },
   'payment.tab_closed_retry': {
+    ru: 'Закрыли вкладку? Попробуйте снова', uk: 'Закрили вкладку? Спробуйте знову',
     de: 'Tab geschlossen? Erneut versuchen', es: '¿Pestaña cerrada? Inténtalo de nuevo',
     fr: 'Onglet fermé ? Réessayer', it: 'Scheda chiusa? Riprova',
     pt: 'Aba fechada? Tente novamente', nl: 'Tabblad gesloten? Probeer opnieuw',
     ja: 'タブを閉じた？もう一度試す', ko: '탭을 닫았나요? 다시 시도', zh: '关闭了标签页？重试'
   },
   'payment.popup_blocked_title': {
+    ru: 'Разрешите всплывающие окна, чтобы продолжить',
+    uk: 'Дозвольте спливаючі вікна, щоб продовжити',
     de: 'Pop-ups erlauben, um fortzufahren', es: 'Permite ventanas emergentes para continuar',
     fr: 'Autorisez les pop-ups pour continuer', it: 'Consenti i pop-up per continuare',
     pt: 'Permita pop-ups para continuar', nl: 'Sta pop-ups toe om door te gaan',
@@ -232,6 +241,8 @@ export const SDK_TRANSLATIONS = {
     zh: '允许弹出窗口以继续'
   },
   'payment.popup_blocked_message': {
+    ru: 'Браузер заблокировал вкладку с оплатой. Нажмите ниже, чтобы открыть её.',
+    uk: 'Браузер заблокував вкладку з оплатою. Натисніть нижче, щоб відкрити її.',
     de: 'Ihr Browser hat den Checkout-Tab blockiert. Klicken Sie unten, um ihn zu öffnen.',
     es: 'Tu navegador bloqueó la pestaña de pago. Haz clic abajo para abrirla.',
     fr: 'Votre navigateur a bloqué l\'onglet de paiement. Cliquez ci-dessous pour l\'ouvrir.',
@@ -386,6 +397,8 @@ export const SDK_TRANSLATIONS = {
     vi: 'Đặt lại mật khẩu', he: 'איפוס סיסמה'
   },
   'auth.reset_password_subtitle': {
+    ru: 'Введите код из письма и новый пароль.',
+    uk: 'Введіть код з листа і новий пароль.',
     de: 'Geben Sie den Code aus Ihrer E-Mail und ein neues Passwort ein.',
     es: 'Ingresa el código de tu correo y una nueva contraseña.',
     fr: 'Entrez le code de votre e-mail et un nouveau mot de passe.',
@@ -395,6 +408,37 @@ export const SDK_TRANSLATIONS = {
     ja: 'メールに記載されたコードと新しいパスワードを入力してください。',
     ko: '이메일의 코드와 새 비밀번호를 입력하세요.',
     zh: '请输入邮件中的代码和新密码。'
+  },
+  // Email-confirmation после signup'а (mode='signup_verify' в AuthPanel).
+  // Отдельно от reset_password_* — у юзера уже есть пароль, нужен только OTP.
+  'auth.confirm_email_title': {
+    ru: 'Подтвердите почту', uk: 'Підтвердіть пошту',
+    de: 'Bestätigen Sie Ihre E-Mail', es: 'Confirma tu correo',
+    fr: 'Confirmez votre e-mail', it: 'Conferma la tua email',
+    pt: 'Confirme seu e-mail', nl: 'Bevestig je e-mail',
+    pl: 'Potwierdź e-mail', cs: 'Potvrďte e-mail',
+    hu: 'Erősítse meg e-mail-címét', ro: 'Confirmă-ți e-mailul',
+    sv: 'Bekräfta din e-post', da: 'Bekræft din e-mail',
+    no: 'Bekreft e-posten din', fi: 'Vahvista sähköpostisi',
+    el: 'Επιβεβαιώστε το email σας', tr: 'E-postanı doğrula',
+    id: 'Konfirmasi email Anda', ar: 'تأكيد بريدك الإلكتروني',
+    ja: 'メールアドレスを確認', ko: '이메일 확인',
+    zh: '确认您的邮箱', hi: 'अपना ईमेल पुष्टि करें',
+    th: 'ยืนยันอีเมลของคุณ', vi: 'Xác nhận email của bạn',
+    he: 'אימות הדואר האלקטרוני'
+  },
+  'auth.confirm_email_subtitle': {
+    ru: 'Введите код, который мы отправили на вашу почту, чтобы завершить регистрацию.',
+    uk: 'Введіть код, який ми надіслали на вашу пошту, щоб завершити реєстрацію.',
+    de: 'Geben Sie den Code ein, den wir an Ihre E-Mail gesendet haben, um die Registrierung abzuschließen.',
+    es: 'Ingresa el código que enviamos a tu correo para terminar de crear tu cuenta.',
+    fr: 'Entrez le code que nous avons envoyé à votre e-mail pour finaliser votre compte.',
+    it: 'Inserisci il codice che abbiamo inviato alla tua email per completare la registrazione.',
+    pt: 'Digite o código que enviamos para seu e-mail para concluir o cadastro.',
+    nl: 'Voer de code in die we naar je e-mail hebben gestuurd om je account aan te maken.',
+    ja: 'メールに送信したコードを入力してアカウント作成を完了してください。',
+    ko: '이메일로 보낸 코드를 입력하여 가입을 완료하세요.',
+    zh: '请输入我们发送到您邮箱的代码以完成注册。'
   },
   'auth.reset_sent_message': {
     ru: 'Если такой email существует, код для сброса отправлен.',

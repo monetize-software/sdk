@@ -11,6 +11,7 @@ const ar = {
   'anon.try_again': 'حاول مرة أخرى',
   'auth.check_email_message': 'تحقق من بريدك الإلكتروني للحصول على رمز التأكيد.',
   'auth.check_email_title': 'تحقق من بريدك الإلكتروني',
+  'auth.confirm_email_title': 'تأكيد بريدك الإلكتروني',
   'auth.confirmation_code': 'رمز التأكيد',
   'auth.continue_with_apple': 'المتابعة مع Apple',
   'auth.continue_with_facebook': 'متابعة مع Facebook',

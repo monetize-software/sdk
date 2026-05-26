@@ -11,6 +11,7 @@ const tr = {
   'anon.try_again': 'Tekrar dene',
   'auth.check_email_message': 'Onay kodu için e-postanızı kontrol edin.',
   'auth.check_email_title': 'E-postanızı kontrol edin',
+  'auth.confirm_email_title': 'E-postanı doğrula',
   'auth.confirmation_code': 'Doğrulama kodu',
   'auth.continue_with_apple': 'Apple ile devam et',
   'auth.continue_with_facebook': 'Facebook ile devam et',

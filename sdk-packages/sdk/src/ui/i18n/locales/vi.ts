@@ -11,6 +11,7 @@ const vi = {
   'anon.try_again': 'Thử lại',
   'auth.check_email_message': 'Kiểm tra email của bạn để xem mã xác nhận.',
   'auth.check_email_title': 'Kiểm tra email của bạn',
+  'auth.confirm_email_title': 'Xác nhận email của bạn',
   'auth.confirmation_code': 'Mã xác nhận',
   'auth.continue_with_apple': 'Tiếp tục với Apple',
   'auth.continue_with_facebook': 'Tiếp tục với Facebook',

@@ -15,8 +15,11 @@ import { usePaywall } from '../hooks/usePaywall';
 type OpenProps = OpenOptions;
 
 interface CommonProps extends OpenProps {
-  /** Что открывать: layout (default), support, auth-gate, anon-gate. */
-  mode?: 'paywall' | 'support' | 'auth' | 'anon';
+  /** Что открывать: layout (default), support, auth-gate (signin),
+   *  signup-форма. 'auth' эквивалентен 'signin' (исторически — openAuth
+   *  дефолтит в signin-mode). Для анонимного signin используй
+   *  `usePaywall().signInAnonymously()` напрямую — headless без модалки. */
+  mode?: 'paywall' | 'support' | 'auth' | 'signin' | 'signup';
   /** Render-prop для полного контроля над элементом-триггером. Когда задан,
    *  все обычные `<button>`-пропсы (children, type, и т.д.) игнорируются. */
   render?: (args: PaywallButtonRenderArgs) => ReactElement;
@@ -95,10 +98,11 @@ export const PaywallButton = forwardRef<HTMLButtonElement, PaywallButtonProps>(
           paywall.openSupport(openOpts);
           return;
         case 'auth':
-          paywall.openAuth(openOpts);
+        case 'signin':
+          paywall.openSignin(openOpts);
           return;
-        case 'anon':
-          paywall.openAnonGate(openOpts);
+        case 'signup':
+          paywall.openSignup(openOpts);
           return;
         default:
           paywall.open(openOpts);

@@ -12,6 +12,8 @@ const fr = {
   'anon.try_again': 'Réessayer',
   'auth.check_email_message': 'Vérifiez votre e-mail pour le code de confirmation.',
   'auth.check_email_title': 'Vérifiez votre e-mail',
+  'auth.confirm_email_subtitle': 'Entrez le code que nous avons envoyé à votre e-mail pour finaliser votre compte.',
+  'auth.confirm_email_title': 'Confirmez votre e-mail',
   'auth.confirmation_code': 'Code de confirmation',
   'auth.continue_with_apple': 'Continuer avec Apple',
   'auth.continue_with_facebook': 'Continuer avec Facebook',

@@ -12,6 +12,8 @@ const it = {
   'anon.try_again': 'Riprova',
   'auth.check_email_message': 'Controlla la tua email per il codice di conferma.',
   'auth.check_email_title': 'Controlla la tua email',
+  'auth.confirm_email_subtitle': 'Inserisci il codice che abbiamo inviato alla tua email per completare la registrazione.',
+  'auth.confirm_email_title': 'Conferma la tua email',
   'auth.confirmation_code': 'Codice di conferma',
   'auth.continue_with_apple': 'Continua con Apple',
   'auth.continue_with_facebook': 'Continua con Facebook',
