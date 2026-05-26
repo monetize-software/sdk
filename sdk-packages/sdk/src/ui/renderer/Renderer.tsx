@@ -10,9 +10,13 @@ export interface RendererProps {
   onAction: (action: string, payload?: unknown) => void;
   auth?: AuthClient;
   authSession: AuthSession | null;
+  /** True если над dialog'ом рендерится OfferTopBanner (он берёт на себя
+   *  visual top-bleed под X-крестиком). Без banner'а уменьшаем top-padding
+   *  scrollable-зоны — иначе под X остаётся 32px пустоты. */
+  hasTopBanner?: boolean;
 }
 
-export function Renderer({ layout, bootstrap, onAction, auth, authSession }: RendererProps) {
+export function Renderer({ layout, bootstrap, onAction, auth, authSession, hasTopBanner }: RendererProps) {
   // По умолчанию selected = popular_price_id (если он указан в каком-то
   // price_grid block'е и действительно существует в bootstrap.prices). Это
   // повторяет UX легаси-пейвола: highlighted-карточка сразу подсвечена и

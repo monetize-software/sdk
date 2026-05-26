@@ -26,9 +26,11 @@ export function TokenizationGate({ block, ctx }: BlockProps<TokenizationGateBloc
   return (
     <div class="flex flex-col gap-2">
       <div class="text-sm font-semibold text-gray-800">
-        {t('pricing.included_per', 'Included per {interval}:', {
-          interval: intervalNoun(interval, t)
-        })}
+        {!interval || interval === 'lifetime'
+          ? t('pricing.included_total', 'Included for lifetime:')
+          : t('pricing.included_per', 'Included per {interval}:', {
+              interval: intervalNoun(interval, t)
+            })}
       </div>
       <ul class="flex flex-col gap-2" role="list">
         {block.queries.map((q) => {

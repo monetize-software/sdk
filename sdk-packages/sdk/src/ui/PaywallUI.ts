@@ -176,6 +176,19 @@ export interface PaywallUIOptions extends Omit<BillingClientOptions, 'auth'> {
    * сольётся с host'овым layout'ом вместо fullscreen-overlay'я.
    */
   inline?: boolean;
+  /**
+   * Explicit-override языка для I18nProvider. Используется live-preview
+   * редактором админки («Preview as user from <country>») — там browser-locale
+   * всегда EN, а нужно показать как для юзера из выбранной страны. Принимает
+   * BCP-47 base-tag из `BUNDLED_LOCALES` (ru/de/fr/…); EN, null, undefined —
+   * fallback на обычную резолв-логику (navigator.language → locale_default).
+   *
+   * Live-обновление — через {@link PaywallUI.setLocale}.
+   *
+   * @internal Admin-only: для конечных интеграторов нет смысла форсить язык —
+   * SDK сам подстраивается под browser-locale.
+   */
+  locale?: string | null;
 }
 
 /**
@@ -281,6 +294,8 @@ export class PaywallUI {
   private mountThenLoad: boolean;
   /** Inline-режим (live-preview редактора). См. PaywallUIOptions.inline. */
   private inline: boolean;
+  /** Force-locale для I18nProvider. См. PaywallUIOptions.locale. */
+  private forceLocale: string | null;
   /** Текущий snapshot UI state-machine. Обновляется PaywallRoot'ом через
    *  `onState` prop; при close сбрасывается обратно в CLOSED_STATE. */
   private currentState: PaywallStateSnapshot = CLOSED_STATE;
@@ -302,6 +317,7 @@ export class PaywallUI {
     this.shadowMode = opts.shadowMode ?? 'closed';
     this.mountThenLoad = opts.mountThenLoad ?? true;
     this.inline = opts.inline === true;
+    this.forceLocale = opts.locale ?? null;
 
     // Форвардим user-change события из BillingClient на public-API PaywallUI.
     // Один источник правды (BillingClient cache) — два consumer'а (host через
@@ -439,6 +455,25 @@ export class PaywallUI {
    */
   setBootstrap(partial: Partial<PaywallBootstrap>): void {
     this.billing.setBootstrap(partial);
+  }
+
+  /**
+   * Сменить force-locale на лету — для live-preview редактора админки, когда
+   * юзер переключает «Preview as user from <country>». Грузит соответствующий
+   * static-чанк и форсит re-render через handle.update. См. PaywallUIOptions.locale.
+   *
+   * Передай `null`/`undefined`, чтобы вернуть автоматическую резолв-логику
+   * (navigator.language → locale_default).
+   */
+  setLocale(locale: string | null | undefined): void {
+    const next = locale ?? null;
+    if (next === this.forceLocale) return;
+    this.forceLocale = next;
+    // handle есть, только если модалка открыта; иначе locale подхватится на
+    // следующем mountAndShow() из сохранённого this.forceLocale.
+    if (this.handle) {
+      this.handle.update({ locale: next });
+    }
   }
 
   on<E extends PaywallEvent>(event: E, handler: PaywallEventHandler<E>): () => void {
@@ -775,7 +810,8 @@ export class PaywallUI {
           if (event === 'checkout_started') this.startUserWatcher();
         },
         onState: (snapshot) => this.applyState(snapshot),
-        inline: this.inline
+        inline: this.inline,
+        locale: this.forceLocale
       },
       { host: this.host, shadowMode: this.shadowMode, inline: this.inline }
     );

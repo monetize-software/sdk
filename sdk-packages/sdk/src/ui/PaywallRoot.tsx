@@ -67,6 +67,10 @@ export interface PaywallRootProps {
    *  overlay был absolute-внутри-host'а вместо fixed-viewport'а, и не лочил
    *  body-scroll. По умолчанию false. */
   inline?: boolean;
+  /** Explicit-override языка для I18nProvider. Используется live-preview
+   *  редактором админки — там browser-locale всегда EN, а нужно показать как
+   *  для юзера из выбранной страны. См. I18nProviderProps.forceLocale. */
+  locale?: string | null;
 }
 
 type LoadState =
@@ -172,7 +176,8 @@ export function PaywallRoot({
   purchased,
   renew,
   onState,
-  inline
+  inline,
+  locale
 }: PaywallRootProps) {
   const [state, setState] = useState<LoadState>({ status: 'idle' });
   // session держим в state, чтобы блоки (auth_panel) ре-рендерились на login/logout.
@@ -535,7 +540,7 @@ export function PaywallRoot({
   const bootstrapForI18n = state.status === 'ready' ? state.data : null;
 
   return (
-    <I18nProvider bootstrap={bootstrapForI18n}>
+    <I18nProvider bootstrap={bootstrapForI18n} forceLocale={locale}>
     <Modal
       open={open}
       onClose={onClose}

@@ -22,6 +22,53 @@ function providerLabel(provider: OAuthProvider, t: TFn): string {
   }
 }
 
+// `err.message` из ApiClient на ошибках бэка без `message`-поля = HTTP statusText
+// ("Unauthorized", "Bad Request") — англоязычный и сырой. Маппим стабильные
+// `err.code` на i18n-ключи; для всего непонятного — generic fallback вместо
+// statusText. `code` приходит из тела ответа (`payload.code`) либо
+// `http_<status>`, либо `network_error` (см. api.ts).
+function authErrorMessage(
+  err: unknown,
+  mode: 'signin' | 'signup' | 'otp' | 'reset',
+  t: TFn
+): string {
+  const fallback =
+    mode === 'signup'
+      ? t('auth.signup_failed', 'Sign-up failed')
+      : t('auth.signin_failed', 'Sign-in failed');
+  if (!(err instanceof PaywallError)) return fallback;
+  switch (err.code) {
+    case 'invalid_credentials':
+      return t('auth.invalid_credentials', 'Invalid email or password');
+    case 'email_not_confirmed':
+      return t('auth.email_not_confirmed', 'Please confirm your email before signing in.');
+    case 'email_exists':
+    case 'user_already_exists':
+      return t('auth.email_exists', 'An account with this email already exists.');
+    case 'weak_password':
+      return t('auth.weak_password', 'Password is too weak.');
+    case 'invalid_otp':
+    case 'otp_expired':
+    case 'token_expired':
+      return t('auth.invalid_otp', 'The code is invalid or has expired.');
+    case 'over_email_send_rate_limit':
+    case 'over_request_rate_limit':
+    case 'rate_limited':
+    case 'http_429':
+      return t('auth.rate_limited', 'Too many requests. Please try again in a moment.');
+    case 'network_error':
+      return t('auth.network_error', 'Network error. Please check your connection and try again.');
+    case 'upstream':
+    case 'upstream_error':
+    case 'http_502':
+    case 'http_503':
+    case 'http_504':
+      return t('auth.service_unavailable', 'Service is temporarily unavailable. Please try again.');
+    default:
+      return fallback;
+  }
+}
+
 export function AuthPanel({ block, ctx }: BlockProps<AuthPanelBlock>) {
   const auth = ctx.auth;
   const session = ctx.authSession;
@@ -185,8 +232,9 @@ function AuthForm({ block, allowSignup, allowReset, ctx }: FormProps) {
         }
       }
     } catch (err) {
-      const msg = err instanceof PaywallError ? err.message : t('auth.generic_error', 'Something went wrong');
-      setError(msg);
+      const errMode =
+        mode === 'signup' ? 'signup' : mode === 'reset_verify' ? 'otp' : mode === 'forgot' ? 'reset' : 'signin';
+      setError(authErrorMessage(err, errMode, t));
     } finally {
       setBusy(null);
     }
@@ -203,12 +251,10 @@ function AuthForm({ block, allowSignup, allowReset, ctx }: FormProps) {
         onPopupOpened: () => setBusy(null)
       });
     } catch (err) {
-      if (err instanceof PaywallError) {
-        if (err.code === 'oauth_cancelled' || err.code === 'oauth_timeout') return;
-        setError(err.message);
-      } else {
-        setError(t('auth.signin_failed', 'Sign-in failed'));
+      if (err instanceof PaywallError && (err.code === 'oauth_cancelled' || err.code === 'oauth_timeout')) {
+        return;
       }
+      setError(authErrorMessage(err, 'signin', t));
     } finally {
       setBusy(null);
     }

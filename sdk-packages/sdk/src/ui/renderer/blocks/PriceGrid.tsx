@@ -139,15 +139,17 @@ export function PriceGrid({ block, ctx }: BlockProps<PriceGridBlock>) {
 
   const popularLabel = block.popular_label ?? t('pricing.most_popular', 'Most popular');
 
-  // Compact-режим — telegram-style список: НЕТ внешнего wrapper border'а,
-  // строки разделены `border-b` (кроме последней). Зеркало legacy
-  // `TelegramPricingRadio` — там тоже нет внешней рамки, разделители
-  // живут на внутреннем label-wrapper'е каждой строки. v2 storage-ключ —
-  // `view: 'telegram'`, bootstrap нормализует в 'compact'.
+  // Compact-режим — telegram-style список: тонкая подложка-карточка вокруг
+  // всех строк (rounded-xl + light bg + 1px border). Разделители между
+  // строками — `border-b` на внутреннем label-wrapper'е CompactRow (кроме
+  // последней). Зеркало legacy PaywallPricing wrapper'а: для не-default view
+  // он рисует `rounded-xl border-1 border-default-200 bg-default-50` —
+  // отделяет блок цен от остального layout'а.
+  // v2 storage-ключ — `view: 'telegram'`, bootstrap нормализует в 'compact'.
   if (block.view === 'compact') {
     return (
       <div
-        class="flex w-full flex-col"
+        class="flex w-full flex-col rounded-xl border border-gray-200 bg-gray-50"
         role="radiogroup"
         aria-label={t('pricing.plans_aria', 'Plans')}
       >
@@ -178,6 +180,13 @@ export function PriceGrid({ block, ctx }: BlockProps<PriceGridBlock>) {
   // потому inline gridTemplateColumns.
   if (block.view === 'horizontal') {
     const cols = Math.min(prices.length, 3);
+    // Если хоть у одной цены в гриде есть discount — резервируем strike-row
+    // фиксированной высотой у ВСЕХ карточек (иначе main amount без скидки
+    // прыгает выше соседних со скидкой). Если оффера нет совсем — strike-row
+    // схлопывается в 0 у всех, и не висит 22px пустоты под label'ом.
+    const anyHasDiscount = prices.some(
+      (p) => (applicableOffer(ctx.bootstrap.offers, p.id)?.discount_percent ?? 0) > 0
+    );
     return (
       <div
         class="grid items-stretch gap-2"
@@ -192,6 +201,7 @@ export function PriceGrid({ block, ctx }: BlockProps<PriceGridBlock>) {
             isPopular={block.popular_price_id === price.id}
             popularLabel={popularLabel}
             offer={applicableOffer(ctx.bootstrap.offers, price.id)}
+            reserveStrikeRow={anyHasDiscount}
             selected={ctx.selectedPriceId === price.id}
             onSelect={() => {
               ctx.setSelectedPriceId(price.id);
@@ -227,7 +237,7 @@ export function PriceGrid({ block, ctx }: BlockProps<PriceGridBlock>) {
               ctx.onAction('price_selected', { priceId: price.id, price });
             }}
             class={[
-              'group relative inline-flex w-full mx-auto items-center justify-between flex-row-reverse gap-4 rounded-2xl border-2 p-4 text-left transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--pw-accent)]',
+              'group relative inline-flex w-full mx-auto items-center justify-between flex-row-reverse gap-4 rounded-2xl border-2 px-4 py-3.5 text-left transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--pw-accent)]',
               // Везде border 2px — selection выражается только цветом, layout
               // не прыгает (равная толщина у selected/unselected). Цветовая
               // разница accent vs gray достаточно сильная для visual hierarchy.
@@ -298,7 +308,7 @@ export function PriceGrid({ block, ctx }: BlockProps<PriceGridBlock>) {
               </div>
               <div class="flex items-baseline gap-2 flex-wrap">
                 <span class="text-[26px] leading-tight whitespace-nowrap text-gray-800 font-medium">
-                  <span class="opacity-90">{currency}</span> {amount}
+                  <span class="opacity-90">{currency}</span>{amount}
                   <span class="text-sm font-normal text-gray-500">
                     {' '}/ {intervalSuffix(price, t)}
                   </span>
@@ -306,11 +316,6 @@ export function PriceGrid({ block, ctx }: BlockProps<PriceGridBlock>) {
               </div>
               {price.description ? (
                 <span class="mt-1 text-xs leading-relaxed text-gray-500">{price.description}</span>
-              ) : null}
-              {price.trial_days ? (
-                <span class="mt-1 text-xs font-medium text-[var(--pw-accent)]">
-                  {t('pricing.free_trial_days', '{days}-day free trial', { days: price.trial_days })}
-                </span>
               ) : null}
             </div>
             {isPopular ? (
@@ -474,6 +479,7 @@ function RowCard({
   isPopular,
   popularLabel,
   offer,
+  reserveStrikeRow,
   selected,
   onSelect,
   t
@@ -482,6 +488,12 @@ function RowCard({
   isPopular: boolean;
   popularLabel: string;
   offer: PaywallOffer | null;
+  /** Резервировать высоту под strike-row (originalAmount + discount-pill) даже
+   *  у этой карточки без скидки. true когда в гриде есть хотя бы одна цена со
+   *  скидкой — иначе main amount без скидки прыгает выше соседних со скидкой.
+   *  false когда оффера нет ни у одной цены в гриде — strike-row коллапсится
+   *  в 0 у всех, не висит 22px пустоты под label'ом. */
+  reserveStrikeRow: boolean;
   selected: boolean;
   onSelect: () => void;
   t: TFn;
@@ -508,36 +520,34 @@ function RowCard({
     >
       {/* Label с фиксированной min-height на 2 строки — длинные ("YEARLY PLAN")
           и короткие ("LIFETIME") не сдвигают цену между карточками. */}
-      <span class="flex min-h-[2.4em] items-center text-[11px] font-normal uppercase leading-tight text-gray-800/70">
+      <span class="flex min-h-[2.4em] items-center text-[10px] font-normal uppercase leading-tight text-gray-800/70">
         {planLabel(price, t)}
       </span>
       {/* Strike-row сверху ПЕРЕД main amount: сначала "была $10" + "-20%",
-          потом крупно "$8". Reserve фиксированной высоты у всех карточек
-          (даже без discount) — иначе main amount без скидки прыгает выше
-          соседей со скидкой. h-[22px] ≈ высота pill'а с line-height. */}
-      <div class="flex h-[22px] items-center justify-center gap-1.5">
-        {originalAmount ? (
-          <span class="text-[12px] text-gray-400 line-through decoration-gray-400 decoration-[1.5px]">
-            {originalAmount}
-          </span>
-        ) : null}
-        {discountPercent ? (
-          <span class="rounded-md bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold leading-none text-emerald-700">
-            -{discountPercent}%
-          </span>
-        ) : null}
-      </div>
+          потом крупно "$8". Высота резервируется (h-[22px]) только если в
+          гриде есть хоть одна цена со скидкой — это держит alignment между
+          карточками со скидкой и без. Если оффера нет совсем — row не
+          рендерим, не остаётся 22px пустоты под label'ом во всех карточках. */}
+      {reserveStrikeRow ? (
+        <div class="flex h-[22px] items-center justify-center gap-1.5">
+          {originalAmount ? (
+            <span class="text-[12px] text-gray-400 line-through decoration-gray-400 decoration-[1.5px]">
+              {originalAmount}
+            </span>
+          ) : null}
+          {discountPercent ? (
+            <span class="rounded-md bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold leading-none text-emerald-700">
+              -{discountPercent}%
+            </span>
+          ) : null}
+        </div>
+      ) : null}
       <span class="text-[26px] leading-none whitespace-nowrap text-gray-800 font-medium">
         <span class="opacity-90">{currency}</span>{amount}
       </span>
       <span class="text-xs font-normal text-gray-500">
         / {intervalSuffix(price, t)}
       </span>
-      {price.trial_days ? (
-        <span class="mt-1 text-[11px] font-medium text-[var(--pw-accent)]">
-          {t('pricing.free_trial_days', '{days}-day free trial', { days: price.trial_days })}
-        </span>
-      ) : null}
       {isPopular ? (
         <span
           // Solid accent + white text + white border-ring — отстраивает badge

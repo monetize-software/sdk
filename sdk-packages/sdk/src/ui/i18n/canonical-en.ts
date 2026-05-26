@@ -86,7 +86,16 @@ const en = {
   'auth.check_email_message': 'Check your email for a confirmation code.',
   'auth.reset_sent_message': 'If that email exists, a reset code has been sent.',
   'auth.signin_failed': 'Sign-in failed',
+  'auth.signup_failed': 'Sign-up failed',
   'auth.generic_error': 'Something went wrong',
+  'auth.invalid_credentials': 'Invalid email or password',
+  'auth.email_not_confirmed': 'Please confirm your email before signing in.',
+  'auth.email_exists': 'An account with this email already exists.',
+  'auth.weak_password': 'Password is too weak.',
+  'auth.invalid_otp': 'The code is invalid or has expired.',
+  'auth.rate_limited': 'Too many requests. Please try again in a moment.',
+  'auth.network_error': 'Network error. Please check your connection and try again.',
+  'auth.service_unavailable': 'Service is temporarily unavailable. Please try again.',
 
   // === auth gate (intent-specific) ===
   'auth.restore_purchases_heading': 'Restore Purchases',
@@ -143,6 +152,7 @@ const en = {
   'pricing.interval.year': 'year',
   'pricing.interval.period': 'period',
   'pricing.included_per': 'Included per {interval}:',
+  'pricing.included_total': 'Included for lifetime:',
 
   // === offer banner ===
   'offer.limited_time': 'Limited-time offer',

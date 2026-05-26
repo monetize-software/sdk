@@ -121,6 +121,13 @@ interface I18nProviderProps {
   /** PaywallBootstrap, по которому резолвится язык. null/undefined — провайдер
    *  работает в чистом EN-fallback режиме, чанк не грузится. */
   bootstrap: PaywallBootstrap | null | undefined;
+  /** Explicit-override: форсит выбор языка минуя navigator.language и
+   *  owner-translations check. Используется live-preview редактором админки
+   *  («Preview as user from <country>») — там browser-locale всегда EN, а
+   *  bootstrap.locales может быть пустым (форма ещё не сохранена). Передавай
+   *  только bundled-ключи из `BUNDLED_LOCALES` — иначе fallback на обычный
+   *  путь резолвинга. */
+  forceLocale?: string | null;
   children: ComponentChildren;
 }
 
@@ -134,15 +141,31 @@ interface I18nProviderProps {
  * (revalidate подтянул другие locales/locale_default) — useEffect разрулит:
  * если resolved key изменился, грузим новый чанк, иначе остаёмся на текущем.
  */
-export function I18nProvider({ bootstrap, children }: I18nProviderProps) {
+export function I18nProvider({ bootstrap, forceLocale, children }: I18nProviderProps) {
   const [locale, setLocale] = useState<string>('en');
   const [dict, setDict] = useState<TranslationDict | null>(null);
 
   useEffect(() => {
-    if (!bootstrap) return;
-    if (!hasOwnerTranslations(bootstrap)) return;
-    const key = pickStaticLocaleKey(bootstrap);
-    if (!key) return;
+    // Explicit-override: preview-режим админки. Грузим напрямую — owner-check
+    // и navigator.language игнорируем (browser-locale в админке всегда EN).
+    const explicit = forceLocale && isBundledLocale(forceLocale) ? forceLocale : null;
+    const key = explicit ?? (() => {
+      if (!bootstrap) return null;
+      if (!hasOwnerTranslations(bootstrap)) return null;
+      return pickStaticLocaleKey(bootstrap);
+    })();
+
+    // Нет резолва (или explicit=null в preview при возврате на EN-страну) —
+    // откатываемся на canonical-EN fallback из inline t()-вызовов. Без сброса
+    // старый dict остаётся в state и UI остаётся переведённым на предыдущий
+    // язык — это и был баг live-preview при переключении со RU обратно на US.
+    if (!key) {
+      if (dict !== null || locale !== 'en') {
+        setLocale('en');
+        setDict(null);
+      }
+      return;
+    }
     if (key === locale && dict) return;
 
     let cancelled = false;
@@ -154,7 +177,7 @@ export function I18nProvider({ bootstrap, children }: I18nProviderProps) {
     return () => {
       cancelled = true;
     };
-  }, [bootstrap]);
+  }, [bootstrap, forceLocale]);
 
   const value: I18nContextValue = {
     locale,
