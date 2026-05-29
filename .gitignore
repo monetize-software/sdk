@@ -41,6 +41,7 @@ sdk-packages/*/node_modules/
 platform/
 online/
 docs/
+sdk-examples/
 
 # Internal-документация и dev-артефакты — остаются у разработчика на диске,
 # но не публикуются в monorepo. Pattern *.internal.md покрывает любые
