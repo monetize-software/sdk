@@ -19,7 +19,19 @@ export default defineConfig(({ command }) => ({
         // rollupTypes отключён: api-extractor спотыкается о sibling-package
         // ../sdk при попытке найти project root. Per-file .d.ts работает
         // нормально, при публикации можно вернуться к bundling позже.
-        tsconfigPath: './tsconfig.json'
+        tsconfigPath: './tsconfig.json',
+        // Tsconfig paths alias `@sdk → ../sdk/src` запекается vite-plugin-dts
+        // в emitted .d.ts как относительный путь типа `from '../../../sdk/src/core/...'`.
+        // В монорепо это работает, в опубликованном npm-пакете папки sdk/src
+        // нет — TS молча резолвит типы в any, потребители видят сломанные
+        // сигнатуры PaywallUI/BillingClient. Зеркало фикса в sdk-react/vite.config.ts.
+        beforeWriteFile(filePath, content) {
+          const rewritten = content.replace(
+            /from\s+(['"])(?:\.\.\/){2,}sdk\/src(?:\/[^'"]+)?\1/g,
+            "from '@monetize.software/sdk'"
+          );
+          return { filePath, content: rewritten };
+        }
       })
   ].filter(Boolean),
 

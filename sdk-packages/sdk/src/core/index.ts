@@ -46,6 +46,7 @@ export {
   type PaywallOffer,
   type PaywallPrice,
   type PaywallSettings,
+  type PaywallPurchaseDetailed,
   type PaywallUser,
   type PaywallUserPurchase,
   type UserLanguageInfo

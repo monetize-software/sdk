@@ -1,5 +1,14 @@
 # @monetize.software/sdk
 
+## 3.0.0-alpha.11
+
+### Patch Changes
+
+- Export `PaywallPurchaseDetailed` from the package root — the rich purchase
+  shape returned by `BillingClient.listPurchases()` (used to render customer-
+  portal subscription lists). Was already implemented and documented, just
+  missing from the public re-export barrel.
+
 ## 3.0.0-alpha.10
 
 ### Minor Changes
