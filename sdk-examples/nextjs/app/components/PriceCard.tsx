@@ -1,7 +1,7 @@
 'use client';
 
 import type { PaywallPrice } from '@monetize.software/sdk-react';
-import { PaywallButton } from '@monetize.software/sdk-react';
+import { PaywallButton, usePaywallOffer } from '@monetize.software/sdk-react';
 
 interface Props {
   price: PaywallPrice;
@@ -9,10 +9,14 @@ interface Props {
 }
 
 /**
- * Reusable price card. Shows price/interval and opens the paywall
- * via PaywallButton — the modal handles checkout from there.
+ * Reusable price card. Reads the live offer via `usePaywallOffer(priceId)` —
+ * strike-through original, discounted amount, and a 1Hz countdown all stay
+ * in sync with what the modal shows.
  */
 export function PriceCard({ price, highlighted }: Props) {
+  const offer = usePaywallOffer(price.id);
+  const display = formatPrice(price, offer?.discountPercent ?? 0);
+
   return (
     <div
       className={
@@ -30,10 +34,28 @@ export function PriceCard({ price, highlighted }: Props) {
       <div className="text-sm uppercase tracking-wide text-stone-500">
         {price.label ?? planName(price)}
       </div>
-      <div className="mt-2 flex items-baseline gap-1">
-        <span className="text-4xl font-bold">{formatAmount(price)}</span>
-        <span className="text-sm text-stone-500">/ {intervalLabel(price)}</span>
+
+      {display.original && (
+        <div className="mt-2 flex items-center gap-2 text-sm">
+          <s className="text-stone-400">{display.original}</s>
+          <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[11px] font-semibold text-emerald-800">
+            -{offer?.discountPercent}%
+          </span>
+        </div>
+      )}
+
+      <div className="mt-1 flex items-baseline gap-1">
+        <span className="text-4xl font-bold">{display.amount}</span>
+        <span className="text-sm text-stone-500">/ {display.suffix}</span>
       </div>
+
+      {offer && offer.remainingMs !== null && (
+        <div className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+          <span className="inline-block h-1.5 w-1.5 rounded-full bg-amber-500 motion-safe:animate-pulse" />
+          Offer ends in {formatCountdown(offer.remainingMs)}
+        </div>
+      )}
+
       {price.description && (
         <p className="mt-2 text-sm text-stone-600 dark:text-stone-400">
           {price.description}
@@ -60,53 +82,50 @@ export function PriceCard({ price, highlighted }: Props) {
   );
 }
 
-export function formatAmount(price: PaywallPrice): string {
+/**
+ * Convenience formatter — same logic the SDK renderer applies to the modal.
+ * Yearly plans show the per-month equivalent in the main amount; the
+ * strike-through original is kept in the same currency for a clear "was X, now Y".
+ */
+function formatPrice(price: PaywallPrice, discountPercent: number) {
   const source = price.local ?? { amount: price.amount, currency: price.currency };
-  // Yearly plans show the per-month equivalent — same UX as the paywall modal
-  // (a $60/yr plan reads as $5/month, with the "Yearly" label carrying the
-  // billing cadence). See sdk/src/ui/renderer/blocks/PriceGrid.tsx::displayedAmount.
   const months = price.interval === 'year' ? (price.interval_count ?? 1) * 12 : 1;
-  const value = source.amount / months;
+  const base = source.amount / months;
+  const discounted = discountPercent > 0 ? base * (1 - discountPercent / 100) : base;
+  return {
+    amount: formatCurrency(discounted, source.currency),
+    original: discountPercent > 0 ? formatCurrency(base, source.currency) : null,
+    suffix: priceSuffix(price)
+  };
+}
+
+function priceSuffix(price: PaywallPrice): string {
+  if (price.interval === 'lifetime' || price.interval == null) return 'one-time';
+  if (price.interval === 'year') return 'month';
+  const n = price.interval_count ?? 1;
+  return n === 1 ? price.interval : `${n} ${price.interval}s`;
+}
+
+function formatCurrency(value: number, currency: string): string {
   const minFrac = value % 1 !== 0 ? 2 : 0;
   return new Intl.NumberFormat(undefined, {
     style: 'currency',
-    currency: source.currency,
+    currency,
     currencyDisplay: 'narrowSymbol',
     maximumFractionDigits: minFrac,
     minimumFractionDigits: minFrac
   }).format(value);
 }
 
-export function intervalLabel(price: PaywallPrice): string {
-  if (price.interval === 'lifetime' || price.interval == null) return 'one-time';
-  // Yearly plans display per-month price (see formatAmount); the suffix
-  // matches.
-  if (price.interval === 'year') return 'month';
-  const n = price.interval_count ?? 1;
-  if (n === 1) return price.interval;
-  return `${n} ${price.interval}s`;
-}
-
-/** Total billed amount in source currency, without the per-month split.
- *  Used in comparison tables where the real cadence matters. */
-export function formatFullAmount(price: PaywallPrice): string {
-  const source = price.local ?? { amount: price.amount, currency: price.currency };
-  const minFrac = source.amount % 1 !== 0 ? 2 : 0;
-  return new Intl.NumberFormat(undefined, {
-    style: 'currency',
-    currency: source.currency,
-    currencyDisplay: 'narrowSymbol',
-    maximumFractionDigits: minFrac,
-    minimumFractionDigits: minFrac
-  }).format(source.amount);
-}
-
-/** Real interval text — for tables/lists where the per-month split isn't applied. */
-export function realIntervalLabel(price: PaywallPrice): string {
-  if (price.interval === 'lifetime' || price.interval == null) return 'one-time';
-  const n = price.interval_count ?? 1;
-  if (n === 1) return price.interval;
-  return `${n} ${price.interval}s`;
+function formatCountdown(ms: number): string {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  if (h > 0) {
+    return `${h}h ${m}m ${s.toString().padStart(2, '0')}s`;
+  }
+  return `${m}m ${s.toString().padStart(2, '0')}s`;
 }
 
 function planName(price: PaywallPrice): string {
@@ -122,4 +141,18 @@ function planName(price: PaywallPrice): string {
     default:
       return 'Plan';
   }
+}
+
+/** Total billed amount (no per-month split) — used by the comparison table. */
+export function formatFullAmount(price: PaywallPrice): string {
+  const source = price.local ?? { amount: price.amount, currency: price.currency };
+  return formatCurrency(source.amount, source.currency);
+}
+
+/** Real interval — for tables/lists where the per-month split isn't applied. */
+export function realIntervalLabel(price: PaywallPrice): string {
+  if (price.interval === 'lifetime' || price.interval == null) return 'one-time';
+  const n = price.interval_count ?? 1;
+  if (n === 1) return price.interval;
+  return `${n} ${price.interval}s`;
 }

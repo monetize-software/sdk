@@ -63,6 +63,7 @@ These are read once in
 | `usePaywallEvent`       | [EventToaster](app/components/EventToaster.tsx)                                    |
 | `usePaywallAccess`      | [/app](app/app/page.tsx), [/app/stats](app/app/stats/page.tsx), [/app/layout](app/app/layout.tsx) |
 | `usePaywallPrices`      | [/](app/page.tsx), [/pricing](app/pricing/page.tsx)                                |
+| `usePaywallOffer`       | [PriceCard](app/components/PriceCard.tsx) — strike-through + 1Hz countdown          |
 | `usePaywallTrial`       | [TrialBanner](app/components/TrialBanner.tsx), [/account](app/account/page.tsx)    |
 | `usePaywallVisibility`  | [VisibilityBadge](app/components/VisibilityBadge.tsx), [/account](app/account/page.tsx) |
 
@@ -99,8 +100,8 @@ Reached through `usePaywall()`:
 
 ## Pinning vs. tracking alpha
 
-This example pins `@monetize.software/sdk@3.0.0-alpha.9` and
-`@monetize.software/sdk-react@3.0.0-alpha.9`. If you'd rather track the
+This example pins `@monetize.software/sdk@3.0.0-alpha.10` and
+`@monetize.software/sdk-react@3.0.0-alpha.10`. If you'd rather track the
 alpha channel, change both to the `alpha` tag:
 
 ```json
