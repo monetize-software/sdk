@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import {
   usePaywallUser,
   usePaywall,
@@ -8,6 +9,7 @@ import {
   PaywallButton,
   PaywallSupportButton
 } from '@monetize.software/sdk-react';
+import type { LastLogin } from '@monetize.software/sdk';
 
 /**
  * Demonstrates:
@@ -67,6 +69,10 @@ export default function AccountPage() {
   }
 
   const user = account.user;
+  const session = account.session;
+  const authUser = session?.user;
+  const isAnonymous = authUser?.is_anonymous === true;
+  const displayEmail = authUser?.email ?? null;
   const lang = paywall?.getUserLanguage();
   const activePurchase = user.purchases.find(
     (p) => p.status === 'active' || p.status === 'trialing'
@@ -78,7 +84,7 @@ export default function AccountPage() {
         <div>
           <h1 className="text-3xl font-bold">Your account</h1>
           <p className="mt-1 text-stone-600 dark:text-stone-400">
-            Signed in via paywall managed auth.
+            Manage your subscription, identity and billing.
           </p>
         </div>
         <button
@@ -89,6 +95,14 @@ export default function AccountPage() {
           Sign out
         </button>
       </header>
+
+      <ProfileCard
+        email={displayEmail}
+        userId={authUser?.id ?? null}
+        isAnonymous={isAnonymous}
+        country={authUser?.country ?? null}
+        paywall={paywall}
+      />
 
       <section className="mt-8 rounded-2xl border border-stone-200 bg-white p-6 dark:border-stone-800 dark:bg-stone-900">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-stone-500">
@@ -197,5 +211,116 @@ function DT({ label, value }: { label: string; value: string }) {
       <dt className="text-xs uppercase tracking-wide text-stone-500">{label}</dt>
       <dd className="mt-0.5 font-mono">{value}</dd>
     </div>
+  );
+}
+
+interface ProfileCardProps {
+  email: string | null;
+  userId: string | null;
+  isAnonymous: boolean;
+  country: string | null;
+  paywall: ReturnType<typeof usePaywall>;
+}
+
+function ProfileCard({
+  email,
+  userId,
+  isAnonymous,
+  country,
+  paywall
+}: ProfileCardProps) {
+  const [lastLogin, setLastLogin] = useState<LastLogin | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    paywall?.auth?.getLastLogin().then((result) => {
+      if (!cancelled) setLastLogin(result);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [paywall]);
+
+  const initial = (email ?? '?').trim().charAt(0).toUpperCase();
+  const displayName = email ?? (isAnonymous ? 'Anonymous account' : 'Unknown');
+
+  const copyUserId = async () => {
+    if (!userId) return;
+    try {
+      await navigator.clipboard.writeText(userId);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // clipboard rejected (sandbox, no user gesture) — silently no-op
+    }
+  };
+
+  return (
+    <section className="mt-8 rounded-2xl border border-stone-200 bg-white p-6 dark:border-stone-800 dark:bg-stone-900">
+      <div className="flex items-start gap-4">
+        <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-full bg-brand-500 text-xl font-semibold text-white">
+          {initial}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="truncate text-lg font-semibold">{displayName}</h2>
+            {isAnonymous && (
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
+                Anonymous
+              </span>
+            )}
+            {!isAnonymous && lastLogin?.method && (
+              <span className="rounded-full bg-stone-100 px-2 py-0.5 text-xs font-medium capitalize text-stone-600 dark:bg-stone-800 dark:text-stone-300">
+                {lastLogin.method}
+              </span>
+            )}
+          </div>
+          {userId && (
+            <button
+              type="button"
+              onClick={copyUserId}
+              className="mt-1 flex items-center gap-1 font-mono text-xs text-stone-500 hover:text-brand-600"
+              title="Copy user ID"
+            >
+              <span className="truncate">{userId}</span>
+              <span aria-hidden>{copied ? '✓' : '⎘'}</span>
+            </button>
+          )}
+          <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
+            {country && (
+              <div>
+                <dt className="text-xs uppercase tracking-wide text-stone-500">
+                  Country
+                </dt>
+                <dd className="mt-0.5">{country}</dd>
+              </div>
+            )}
+            {!isAnonymous && lastLogin?.email && lastLogin.email !== email && (
+              <div>
+                <dt className="text-xs uppercase tracking-wide text-stone-500">
+                  Last login email
+                </dt>
+                <dd className="mt-0.5 truncate">{lastLogin.email}</dd>
+              </div>
+            )}
+          </dl>
+          {isAnonymous && (
+            <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm dark:border-amber-900 dark:bg-amber-950/40">
+              <p className="text-amber-900 dark:text-amber-100">
+                You're signed in anonymously. Add an email to keep your purchases
+                if you switch devices.
+              </p>
+              <PaywallButton
+                mode="signup"
+                className="mt-2 rounded-md bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-700"
+              >
+                Upgrade account
+              </PaywallButton>
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
   );
 }
