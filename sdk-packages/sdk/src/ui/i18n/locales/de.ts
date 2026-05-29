@@ -44,7 +44,7 @@ const de = {
   'auth.or': 'oder',
   'auth.password': 'Passwort',
   'auth.passwords_mismatch': 'Passwörter stimmen nicht überein',
-  'auth.rate_limited': 'Zu viele Anfragen. Bitte versuchen Sie es gleich erneut.',
+  'auth.rate_limited': 'Zu viele Anfragen. Bitte versuchen Sie es später erneut.',
   'auth.repeat_password': 'Passwort wiederholen',
   'auth.reset_password_subtitle': 'Geben Sie den Code aus Ihrer E-Mail und ein neues Passwort ein.',
   'auth.reset_password_title': 'Passwort zurücksetzen',

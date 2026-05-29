@@ -95,7 +95,7 @@ const en = {
   'auth.email_exists': 'An account with this email already exists.',
   'auth.weak_password': 'Password is too weak.',
   'auth.invalid_otp': 'The code is invalid or has expired.',
-  'auth.rate_limited': 'Too many requests. Please try again in a moment.',
+  'auth.rate_limited': 'Too many requests. Please try again later.',
   'auth.network_error': 'Network error. Please check your connection and try again.',
   'auth.service_unavailable': 'Service is temporarily unavailable. Please try again.',
 

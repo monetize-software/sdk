@@ -40,7 +40,7 @@ const th = {
   'auth.or': 'หรือ',
   'auth.password': 'รหัสผ่าน',
   'auth.passwords_mismatch': 'รหัสผ่านไม่ตรงกัน',
-  'auth.rate_limited': 'มีคำขอมากเกินไป โปรดลองอีกครั้งในไม่ช้า',
+  'auth.rate_limited': 'มีคำขอมากเกินไป โปรดลองอีกครั้งภายหลัง',
   'auth.repeat_password': 'ยืนยันรหัสผ่าน',
   'auth.reset_password_title': 'รีเซ็ตรหัสผ่าน',
   'auth.reset_sent_message': 'หากอีเมลนี้มีอยู่ ระบบได้ส่งรหัสรีเซ็ตแล้ว',

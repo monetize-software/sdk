@@ -40,7 +40,7 @@ const vi = {
   'auth.or': 'hoặc',
   'auth.password': 'Mật khẩu',
   'auth.passwords_mismatch': 'Mật khẩu không khớp',
-  'auth.rate_limited': 'Quá nhiều yêu cầu. Vui lòng thử lại sau giây lát.',
+  'auth.rate_limited': 'Quá nhiều yêu cầu. Vui lòng thử lại sau.',
   'auth.repeat_password': 'Nhập lại mật khẩu',
   'auth.reset_password_title': 'Đặt lại mật khẩu',
   'auth.reset_sent_message': 'Nếu email đó tồn tại, mã đặt lại đã được gửi.',

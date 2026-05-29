@@ -40,7 +40,7 @@ const el = {
   'auth.or': 'ή',
   'auth.password': 'Κωδικός',
   'auth.passwords_mismatch': 'Οι κωδικοί δεν ταιριάζουν',
-  'auth.rate_limited': 'Πολλά αιτήματα. Δοκιμάστε ξανά σε λίγο.',
+  'auth.rate_limited': 'Πολλά αιτήματα. Δοκιμάστε ξανά αργότερα.',
   'auth.repeat_password': 'Επανάληψη κωδικού',
   'auth.reset_password_title': 'Επαναφορά κωδικού',
   'auth.reset_sent_message': 'Αν αυτό το email υπάρχει, εστάλη κωδικός επαναφοράς.',

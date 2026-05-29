@@ -40,7 +40,7 @@ const fi = {
   'auth.or': 'tai',
   'auth.password': 'Salasana',
   'auth.passwords_mismatch': 'Salasanat eivät täsmää',
-  'auth.rate_limited': 'Liian monta pyyntöä. Yritä hetken kuluttua uudelleen.',
+  'auth.rate_limited': 'Liian monta pyyntöä. Yritä myöhemmin uudelleen.',
   'auth.repeat_password': 'Toista salasana',
   'auth.reset_password_title': 'Nollaa salasana',
   'auth.reset_sent_message': 'Jos sähköposti on olemassa, lähetimme palautuskoodin.',

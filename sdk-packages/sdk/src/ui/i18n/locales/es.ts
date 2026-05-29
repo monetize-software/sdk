@@ -44,7 +44,7 @@ const es = {
   'auth.or': 'o',
   'auth.password': 'Contraseña',
   'auth.passwords_mismatch': 'Las contraseñas no coinciden',
-  'auth.rate_limited': 'Demasiadas solicitudes. Inténtalo en un momento.',
+  'auth.rate_limited': 'Demasiadas solicitudes. Inténtalo más tarde.',
   'auth.repeat_password': 'Repetir contraseña',
   'auth.reset_password_subtitle': 'Ingresa el código de tu correo y una nueva contraseña.',
   'auth.reset_password_title': 'Restablecer contraseña',

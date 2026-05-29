@@ -40,7 +40,7 @@ const no = {
   'auth.or': 'eller',
   'auth.password': 'Passord',
   'auth.passwords_mismatch': 'Passordene samsvarer ikke',
-  'auth.rate_limited': 'For mange forespørsler. Prøv igjen om litt.',
+  'auth.rate_limited': 'For mange forespørsler. Prøv igjen senere.',
   'auth.repeat_password': 'Gjenta passord',
   'auth.reset_password_title': 'Tilbakestill passord',
   'auth.reset_sent_message': 'Hvis e-posten finnes, er det sendt en tilbakestillingskode.',

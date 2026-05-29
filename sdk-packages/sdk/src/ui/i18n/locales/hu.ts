@@ -40,7 +40,7 @@ const hu = {
   'auth.or': 'vagy',
   'auth.password': 'Jelszó',
   'auth.passwords_mismatch': 'A jelszavak nem egyeznek',
-  'auth.rate_limited': 'Túl sok kérés. Próbálja meg hamarosan újra.',
+  'auth.rate_limited': 'Túl sok kérés. Próbálja meg később.',
   'auth.repeat_password': 'Jelszó megerősítése',
   'auth.reset_password_title': 'Jelszó visszaállítása',
   'auth.reset_sent_message': 'Ha ez az e-mail létezik, elküldtük a visszaállító kódot.',

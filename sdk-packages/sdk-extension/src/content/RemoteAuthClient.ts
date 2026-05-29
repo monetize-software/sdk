@@ -183,16 +183,16 @@ export class RemoteAuthClient {
   /** Анонимный sign-in (Supabase user без email). Логика (idempotent-check +
    *  resume через сохранённый refresh_token + fresh signin) живёт в
    *  offscreen-AuthClient'е — content только проксирует. captchaToken и
-   *  forceCaptcha — pass-through для forward-compat / switch-account flow. */
+   *  forceNewAnon — pass-through для forward-compat / switch-account flow. */
   async signInAnonymously(input: {
     captchaToken?: string;
     userMeta?: Record<string, string>;
-    forceCaptcha?: boolean;
+    forceNewAnon?: boolean;
   } = {}): Promise<AuthSession> {
     const session = await this.transport.request('auth.signInAnonymously', {
       captchaToken: input.captchaToken,
       userMeta: input.userMeta,
-      forceCaptcha: input.forceCaptcha
+      forceNewAnon: input.forceNewAnon
     });
     this.applySession('SIGNED_IN', session);
     return session;

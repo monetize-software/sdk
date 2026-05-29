@@ -44,7 +44,7 @@ const fr = {
   'auth.or': 'ou',
   'auth.password': 'Mot de passe',
   'auth.passwords_mismatch': 'Les mots de passe ne correspondent pas',
-  'auth.rate_limited': 'Trop de requêtes. Réessayez dans un instant.',
+  'auth.rate_limited': 'Trop de requêtes. Réessayez plus tard.',
   'auth.repeat_password': 'Répéter le mot de passe',
   'auth.reset_password_subtitle': 'Entrez le code de votre e-mail et un nouveau mot de passe.',
   'auth.reset_password_title': 'Réinitialiser le mot de passe',

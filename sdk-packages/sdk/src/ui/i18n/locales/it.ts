@@ -44,7 +44,7 @@ const it = {
   'auth.or': 'oppure',
   'auth.password': 'Password',
   'auth.passwords_mismatch': 'Le password non corrispondono',
-  'auth.rate_limited': 'Troppe richieste. Riprova tra un momento.',
+  'auth.rate_limited': 'Troppe richieste. Riprova più tardi.',
   'auth.repeat_password': 'Ripeti password',
   'auth.reset_password_subtitle': 'Inserisci il codice dall\'email e una nuova password.',
   'auth.reset_password_title': 'Reimposta password',

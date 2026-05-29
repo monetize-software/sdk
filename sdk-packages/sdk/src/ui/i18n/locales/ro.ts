@@ -40,7 +40,7 @@ const ro = {
   'auth.or': 'sau',
   'auth.password': 'Parolă',
   'auth.passwords_mismatch': 'Parolele nu se potrivesc',
-  'auth.rate_limited': 'Prea multe cereri. Încearcă din nou în câteva momente.',
+  'auth.rate_limited': 'Prea multe cereri. Încearcă din nou mai târziu.',
   'auth.repeat_password': 'Repetă parola',
   'auth.reset_password_title': 'Resetare parolă',
   'auth.reset_sent_message': 'Dacă acel e-mail există, a fost trimis un cod de resetare.',

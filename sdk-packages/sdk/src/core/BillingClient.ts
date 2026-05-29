@@ -1339,36 +1339,65 @@ export class BillingClient {
    * `/api/v1/paywall/[id]/user` без unstable_cache, потому что list для UI
    * должен быть свежим после cancel-а.
    *
-   * Auth: Bearer обязателен (через AuthClient). Без Bearer — 401 от бэка,
-   * пробрасываем как PaywallError('http_401'). Гость → пустой список.
+   * Auth (два пути):
+   *  - Bearer (через AuthClient) — user.id резолвится из сессии, identity
+   *    в query игнорируется.
+   *  - `apiKey` + `identity.email`/`identity.userId` — server-SDK путь для
+   *    интеграций со своей авторизацией. Бэк проверяет, что identity линкована
+   *    к этому пейволу (защита от cross-paywall lookup).
+   * Без auth и без apiKey+identity — `identity_required`.
    */
   async listPurchases(
     opts: { signal?: AbortSignal } = {}
   ): Promise<PaywallPurchaseDetailed[]> {
-    if (!this.auth) {
+    const hasIdentity = !!(this.identity?.email || this.identity?.userId);
+    if (!this.auth && !(this.apiKey && hasIdentity)) {
       throw new PaywallError(
-        'auth_required',
-        'listPurchases requires AuthClient (Bearer auth)'
+        'identity_required',
+        'listPurchases requires AuthClient (Bearer) or apiKey + identity.email/userId'
       );
     }
+    const headers: Record<string, string> = {};
+    if (this.apiKey) headers['X-Api-Key'] = this.apiKey;
+
+    // identity в query — только в apiKey-пути, где бэк ожидает её. С Bearer
+    // identity берётся из сессии и в query не нужна.
+    const search = new URLSearchParams();
+    if (this.apiKey && this.identity?.email) {
+      search.set('email', this.identity.email);
+    }
+    if (this.apiKey && this.identity?.userId) {
+      search.set('user_id', this.identity.userId);
+    }
+    const qs = search.toString();
+    const path = qs
+      ? `/api/v1/paywall/${this.paywallId}/user?${qs}`
+      : `/api/v1/paywall/${this.paywallId}/user`;
+
     const resp = await this.api.request<{
       purchases: PaywallPurchaseDetailed[];
-    }>(`/api/v1/paywall/${this.paywallId}/user`, {
+    }>(path, {
       method: 'GET',
+      headers,
       signal: opts.signal
     });
     return resp.purchases ?? [];
   }
 
   /**
-   * Отменить подписку. Бэк проверит что subscription принадлежит auth-юзеру
-   * и сделает cancel у acquiring'а (Stripe/Paddle/Chargebee). По умолчанию
-   * cancel в конце текущего периода — юзер сохраняет access до renewal date'ы.
+   * Отменить подписку. Бэк проверит, что subscription принадлежит юзеру
+   * (Bearer-путь — из сессии; apiKey-путь — из identity), и сделает cancel у
+   * acquiring'а (Stripe/Paddle/Chargebee/Overpay). По умолчанию cancel в
+   * конце текущего периода — юзер сохраняет access до renewal date'ы.
    *
-   * `reason` обязательна (валидация на бэке). Удобно собрать через select
-   * причин в host-UI, как в legacy customer portal'е.
+   * `reason` обязательна (валидация на бэке).
    *
-   * Auth: Bearer обязателен.
+   * Auth (два пути):
+   *  - Bearer (через AuthClient) — стандартный путь для UI customer-portal'a.
+   *  - `apiKey` + `identity.email`/`identity.userId` — для self-service UI на
+   *    бэке клиента со своей авторизацией. Бэк дополнительно фильтрует
+   *    subscription по paywall_id, чтобы owner пейвола A не отменил подписку
+   *    пейвола B.
    */
   async cancelSubscription(params: {
     subscriptionId: string;
@@ -1382,12 +1411,24 @@ export class BillingClient {
       cancel_at_period_end: boolean | null;
     };
   }> {
-    if (!this.auth) {
+    const hasIdentity = !!(this.identity?.email || this.identity?.userId);
+    if (!this.auth && !(this.apiKey && hasIdentity)) {
       throw new PaywallError(
-        'auth_required',
-        'cancelSubscription requires AuthClient (Bearer auth)'
+        'identity_required',
+        'cancelSubscription requires AuthClient (Bearer) or apiKey + identity.email/userId'
       );
     }
+    const headers: Record<string, string> = {};
+    if (this.apiKey) headers['X-Api-Key'] = this.apiKey;
+
+    const body: Record<string, unknown> = {
+      subscriptionId: params.subscriptionId,
+      paywallId: this.paywallId,
+      cancellationReason: params.reason
+    };
+    if (this.apiKey && this.identity?.email) body.email = this.identity.email;
+    if (this.apiKey && this.identity?.userId) body.userId = this.identity.userId;
+
     return this.api.request<{
       subscription: {
         status: string | null;
@@ -1397,11 +1438,8 @@ export class BillingClient {
       };
     }>(`/api/paywall/cancel-subscription`, {
       method: 'POST',
-      body: JSON.stringify({
-        subscriptionId: params.subscriptionId,
-        paywallId: this.paywallId,
-        cancellationReason: params.reason
-      }),
+      headers,
+      body: JSON.stringify(body),
       signal: params.signal
     });
   }

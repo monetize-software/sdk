@@ -524,10 +524,8 @@ export class AuthClient {
    * когда сервер начнёт возвращать challenge_required в риск-сценариях,
    * SDK сможет передать proof-of-something обратно без breaking change.
    *
-   * `forceCaptcha: true` пропускает шаги 1-2 и сразу делает /signin (создаёт
-   * нового anon-юзера). Используется в switch-account flow. Имя поля исторически
-   * остаётся `forceCaptcha`, хотя капчи там больше нет — менять имя ломает
-   * host-сигнатуру; смысл «принудительно новая anon-сессия» сохранён.
+   * `forceNewAnon: true` пропускает шаги 1-2 и сразу делает /signin (создаёт
+   * нового anon-юзера). Используется в switch-account flow.
    *
    * Параллельные вызовы дедуплицируются через `inflightAnonSignin` — два
    * click'а на «Войти как гость» не создадут двух anon-юзеров (два /signup =
@@ -536,7 +534,7 @@ export class AuthClient {
   async signInAnonymously(input: {
     captchaToken?: string;
     userMeta?: Record<string, string>;
-    forceCaptcha?: boolean;
+    forceNewAnon?: boolean;
   } = {}): Promise<AuthSession> {
     if (this.inflightAnonSignin) return this.inflightAnonSignin;
 
@@ -545,14 +543,14 @@ export class AuthClient {
 
       // 1. Уже анон — не дёргаем сеть.
       if (
-        !input.forceCaptcha &&
+        !input.forceNewAnon &&
         this.session?.user.is_anonymous === true
       ) {
         return this.session;
       }
 
       // 2. Resume через сохранённый refresh_token.
-      if (!input.forceCaptcha) {
+      if (!input.forceNewAnon) {
         const resumed = await this.resumeAnonymous();
         if (resumed) return resumed;
       }
@@ -618,9 +616,8 @@ export class AuthClient {
           : { id: '', email: null, is_anonymous: true };
       const session = this.toSession(resp, fallbackUser);
       // resumeAnonymous вызывается только из signInAnonymously, где до этого
-      // session=null (либо явно forceCaptcha=true). Для listener'а это вход
-      // нового анон-юзера — SIGNED_IN. Если был тот же анон до hydrate'а —
-      // sameSession отфильтрует emit.
+      // session=null. Для listener'а это вход нового анон-юзера — SIGNED_IN.
+      // Если был тот же анон до hydrate'а — sameSession отфильтрует emit.
       this.setSession(session, { event: 'SIGNED_IN' });
       // Rotation: GoTrue выдаёт новый refresh_token, обновляем persisted.
       await this.writeAnonRefreshToken(session.refresh_token);

@@ -40,7 +40,7 @@ const ar = {
   'auth.or': 'أو',
   'auth.password': 'كلمة المرور',
   'auth.passwords_mismatch': 'كلمتا المرور غير متطابقتين',
-  'auth.rate_limited': 'طلبات كثيرة جدًا. حاول مرة أخرى بعد قليل.',
+  'auth.rate_limited': 'طلبات كثيرة جدًا. حاول مرة أخرى لاحقًا.',
   'auth.repeat_password': 'كرّر كلمة المرور',
   'auth.reset_password_title': 'إعادة تعيين كلمة المرور',
   'auth.reset_sent_message': 'إذا كان هذا البريد موجودًا، فقد تم إرسال رمز إعادة التعيين.',

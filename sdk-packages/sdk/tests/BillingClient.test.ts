@@ -394,4 +394,101 @@ describe('BillingClient', () => {
     expect(r).toEqual({ url: 'https://pay/ok', acquiring: 'stripe' });
     expect(checkoutFetch.mock.calls.length).toBe(2);
   });
+
+  // SDK 3.0: listPurchases и cancelSubscription поддерживают два пути —
+  // Bearer (через AuthClient) или apiKey + identity. Без обоих — identity_required.
+  it('listPurchases throws identity_required without auth and without apiKey+identity', async () => {
+    const client = new BillingClient({ apiOrigin: TEST_API_ORIGIN, paywallId: 'pw_1' });
+
+    await expect(client.listPurchases()).rejects.toMatchObject({
+      code: 'identity_required'
+    });
+  });
+
+  it('listPurchases throws identity_required with apiKey but no identity', async () => {
+    const client = new BillingClient({
+      apiOrigin: TEST_API_ORIGIN,
+      paywallId: 'pw_1',
+      apiKey: 'ak_test'
+    });
+
+    await expect(client.listPurchases()).rejects.toMatchObject({
+      code: 'identity_required'
+    });
+  });
+
+  it('listPurchases sends X-Api-Key + ?email= for apiKey + identity.email', async () => {
+    const listFetch = vi.fn<typeof fetch>(async () => json({ purchases: [] }));
+    const client = new BillingClient({
+      apiOrigin: TEST_API_ORIGIN,
+      paywallId: 'pw_1',
+      apiKey: 'ak_test',
+      identity: { email: 'a@b.c' },
+      fetch: listFetch
+    });
+
+    await client.listPurchases();
+
+    const [url, init] = listFetch.mock.calls[0];
+    expect(String(url)).toContain('/api/v1/paywall/pw_1/user');
+    expect(String(url)).toContain('email=a%40b.c');
+    expect((init?.headers as Headers).get('X-Api-Key')).toBe('ak_test');
+  });
+
+  it('listPurchases sends ?user_id= when identity.userId set', async () => {
+    const listFetch = vi.fn<typeof fetch>(async () => json({ purchases: [] }));
+    const client = new BillingClient({
+      apiOrigin: TEST_API_ORIGIN,
+      paywallId: 'pw_1',
+      apiKey: 'ak_test',
+      identity: { userId: 'u_42' },
+      fetch: listFetch
+    });
+
+    await client.listPurchases();
+
+    const [url] = listFetch.mock.calls[0];
+    expect(String(url)).toContain('user_id=u_42');
+  });
+
+  it('cancelSubscription throws identity_required without auth and without apiKey+identity', async () => {
+    const client = new BillingClient({ apiOrigin: TEST_API_ORIGIN, paywallId: 'pw_1' });
+
+    await expect(
+      client.cancelSubscription({ subscriptionId: 'sub_1', reason: 'test' })
+    ).rejects.toMatchObject({ code: 'identity_required' });
+  });
+
+  it('cancelSubscription sends X-Api-Key + body.email for apiKey + identity.email', async () => {
+    const cancelFetch = vi.fn<typeof fetch>(async () =>
+      json({
+        subscription: {
+          status: 'active',
+          canceled_at: null,
+          cancel_at: '2030-01-01T00:00:00Z',
+          cancel_at_period_end: true
+        }
+      })
+    );
+    const client = new BillingClient({
+      apiOrigin: TEST_API_ORIGIN,
+      paywallId: 'pw_1',
+      apiKey: 'ak_test',
+      identity: { email: 'a@b.c', userId: 'u_42' },
+      fetch: cancelFetch
+    });
+
+    await client.cancelSubscription({ subscriptionId: 'sub_1', reason: 'too expensive' });
+
+    const [url, init] = cancelFetch.mock.calls[0];
+    expect(String(url)).toContain('/api/paywall/cancel-subscription');
+    expect((init?.headers as Headers).get('X-Api-Key')).toBe('ak_test');
+    expect(JSON.parse(init?.body as string)).toEqual({
+      subscriptionId: 'sub_1',
+      paywallId: 'pw_1',
+      cancellationReason: 'too expensive',
+      email: 'a@b.c',
+      userId: 'u_42'
+    });
+  });
 });

@@ -40,7 +40,7 @@ const pl = {
   'auth.or': 'lub',
   'auth.password': 'Hasło',
   'auth.passwords_mismatch': 'Hasła nie pasują do siebie',
-  'auth.rate_limited': 'Zbyt wiele żądań. Spróbuj za chwilę.',
+  'auth.rate_limited': 'Zbyt wiele żądań. Spróbuj ponownie później.',
   'auth.repeat_password': 'Powtórz hasło',
   'auth.reset_password_title': 'Zresetuj hasło',
   'auth.reset_sent_message': 'Jeśli ten adres istnieje, wysłaliśmy kod resetujący.',

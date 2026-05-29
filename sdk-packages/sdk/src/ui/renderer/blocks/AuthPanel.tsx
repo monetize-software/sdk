@@ -55,7 +55,7 @@ function authErrorMessage(
     case 'over_request_rate_limit':
     case 'rate_limited':
     case 'http_429':
-      return t('auth.rate_limited', 'Too many requests. Please try again in a moment.');
+      return t('auth.rate_limited', 'Too many requests. Please try again later.');
     case 'network_error':
       return t('auth.network_error', 'Network error. Please check your connection and try again.');
     case 'upstream':
@@ -146,6 +146,11 @@ function AuthForm({ block, allowSignup, allowReset, ctx }: FormProps) {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [otpCode, setOtpCode] = useState('');
   const [busy, setBusy] = useState<null | OAuthProvider | 'email' | 'reset'>(null);
+  // Синхронный guard для double-submit: setBusy — асинхронный setState,
+  // и два form-submit события в одном tick'е (Enter+click, двойной mount
+  // в demo-ext, transport race) оба проходили `if (busy) return`, дёргая
+  // requestPasswordReset/signIn дважды. useRef обновляется синхронно.
+  const submittingRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   // Sign up — progressive disclosure: первый клик «Sign Up» только раскрывает
@@ -192,69 +197,75 @@ function AuthForm({ block, allowSignup, allowReset, ctx }: FormProps) {
 
   const onSubmit = async (e: Event): Promise<void> => {
     e.preventDefault();
-    if (busy) return;
-    setError(null);
-    setInfo(null);
-
-    // Sign up shortcut: первый сабмит просто раскрывает password-поля,
-    // без сетевого запроса. Email обязателен на этом шаге, иначе HTML5
-    // validation сама пометит поле required.
-    if (mode === 'signup' && !signupExpanded) {
-      if (!email.trim()) return;
-      setSignupExpanded(true);
-      return;
-    }
-
-    if (mode === 'signup' && password !== confirmPassword) {
-      setError(t('auth.passwords_mismatch', "Passwords don't match"));
-      return;
-    }
-
-    setBusy('email');
+    if (submittingRef.current || busy) return;
+    submittingRef.current = true;
     try {
-      if (mode === 'signin') {
-        await auth.signInWithEmail({ email, password });
-      } else if (mode === 'signup') {
-        const res = await auth.signUp({ email, password });
-        if (res.kind === 'confirmation_required') {
-          // Email-confirm flow ≠ password-reset: пароль уже задан, нужен
-          // только OTP. Чистим password, чтобы не утащить его в signup_verify
-          // submit и не получить ложную ветку type='recovery'.
-          setPassword('');
-          setMode('signup_verify');
-          setInfo(t('auth.check_email_message', 'Check your email for a confirmation code.'));
-        }
-      } else if (mode === 'forgot') {
-        await auth.requestPasswordReset({ email });
-        setMode('reset_sent');
-        setInfo(
-          t('auth.reset_sent_message', 'If that email exists, a reset code has been sent.')
-        );
-      } else if (mode === 'signup_verify') {
-        await auth.verifyOtp({ email, token: otpCode, type: 'email' });
-      } else if (mode === 'reset_verify') {
-        await auth.verifyOtp({
-          email,
-          token: otpCode,
-          type: password ? 'recovery' : 'email'
-        });
-        if (password) {
-          await auth.updatePassword({ password });
-        }
+      setError(null);
+      setInfo(null);
+
+      // Sign up shortcut: первый сабмит просто раскрывает password-поля,
+      // без сетевого запроса. Email обязателен на этом шаге, иначе HTML5
+      // validation сама пометит поле required.
+      if (mode === 'signup' && !signupExpanded) {
+        if (!email.trim()) return;
+        setSignupExpanded(true);
+        return;
       }
-    } catch (err) {
-      const errMode =
-        mode === 'signup' ? 'signup'
-          : mode === 'signup_verify' || mode === 'reset_verify' ? 'otp'
-          : mode === 'forgot' ? 'reset' : 'signin';
-      setError(authErrorMessage(err, errMode, t));
+
+      if (mode === 'signup' && password !== confirmPassword) {
+        setError(t('auth.passwords_mismatch', "Passwords don't match"));
+        return;
+      }
+
+      setBusy('email');
+      try {
+        if (mode === 'signin') {
+          await auth.signInWithEmail({ email, password });
+        } else if (mode === 'signup') {
+          const res = await auth.signUp({ email, password });
+          if (res.kind === 'confirmation_required') {
+            // Email-confirm flow ≠ password-reset: пароль уже задан, нужен
+            // только OTP. Чистим password, чтобы не утащить его в signup_verify
+            // submit и не получить ложную ветку type='recovery'.
+            setPassword('');
+            setMode('signup_verify');
+            setInfo(t('auth.check_email_message', 'Check your email for a confirmation code.'));
+          }
+        } else if (mode === 'forgot') {
+          await auth.requestPasswordReset({ email });
+          setMode('reset_sent');
+          setInfo(
+            t('auth.reset_sent_message', 'If that email exists, a reset code has been sent.')
+          );
+        } else if (mode === 'signup_verify') {
+          await auth.verifyOtp({ email, token: otpCode, type: 'email' });
+        } else if (mode === 'reset_verify') {
+          await auth.verifyOtp({
+            email,
+            token: otpCode,
+            type: password ? 'recovery' : 'email'
+          });
+          if (password) {
+            await auth.updatePassword({ password });
+          }
+        }
+      } catch (err) {
+        const errMode =
+          mode === 'signup' ? 'signup'
+            : mode === 'signup_verify' || mode === 'reset_verify' ? 'otp'
+            : mode === 'forgot' ? 'reset' : 'signin';
+        setError(authErrorMessage(err, errMode, t));
+      } finally {
+        setBusy(null);
+      }
     } finally {
-      setBusy(null);
+      submittingRef.current = false;
     }
   };
 
   const onOAuth = async (provider: OAuthProvider): Promise<void> => {
-    if (busy) return;
+    if (submittingRef.current || busy) return;
+    submittingRef.current = true;
     setBusy(provider);
     setError(null);
     setInfo(null);
@@ -269,6 +280,7 @@ function AuthForm({ block, allowSignup, allowReset, ctx }: FormProps) {
       }
       setError(authErrorMessage(err, 'signin', t));
     } finally {
+      submittingRef.current = false;
       setBusy(null);
     }
   };

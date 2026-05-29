@@ -257,8 +257,10 @@ describe('OAuth — full split-API flow', () => {
       const signinPromise = tab1.signInWithOAuth({ provider: 'google' });
 
       // Дать popup открыться, RPC отстреляться, name переписаться, и
-      // waitForOAuthCode подписаться на 'message'.
-      await new Promise((r) => setTimeout(r, 5));
+      // waitForOAuthCode подписаться на 'message'. 50мс вместо 5мс —
+      // под параллельной нагрузкой (`pnpm test` запускает sdk-extension и
+      // sdk-react vitest concurrently) 5мс не хватало, тест flaked.
+      await new Promise((r) => setTimeout(r, 50));
 
       // Извлекаем state из popup.name (RemoteAuthClient выставил pw-oauth-<state>).
       expect(popupRef).not.toBeNull();

@@ -225,7 +225,7 @@ describe('AuthClient.signInAnonymously', () => {
     expect(signinCalls).toHaveLength(1);
   });
 
-  it('forceCaptcha bypasses resume and creates a new anon', async () => {
+  it('forceNewAnon bypasses resume and creates a new anon', async () => {
     const storage = freshStorage({
       [STORAGE_KEYS.anonRefreshToken(PAYWALL_ID)]: 'ar_existing'
     });
@@ -251,7 +251,7 @@ describe('AuthClient.signInAnonymously', () => {
 
     const session = await auth.signInAnonymously({
       captchaToken: 'fresh_tok',
-      forceCaptcha: true
+      forceNewAnon: true
     });
 
     expect(session.user.id).toBe('anon_uid_2');

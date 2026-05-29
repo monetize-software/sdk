@@ -6,7 +6,7 @@
 
 import type { RouterOptions } from './types';
 import { ensureOffscreen } from './ensure-offscreen';
-import { PORT_NAME } from '../shared/port-name';
+import { PORT_NAME, RELAY_PORT_NAME } from '../shared/port-name';
 
 const DEFAULT_REASONS: chrome.offscreen.Reason[] = [chrome.offscreen.Reason.LOCAL_STORAGE];
 const DEFAULT_JUSTIFICATION =
@@ -61,7 +61,12 @@ async function connectAndPipe(
 
   let offscreenPort: chrome.runtime.Port;
   try {
-    offscreenPort = chrome.runtime.connect({ name: PORT_NAME });
+    // Используем отдельное имя relay-порта (не PORT_NAME), чтобы offscreen
+    // принимал только SW-relay подключения и игнорировал direct connect'ы
+    // от popup/content (которые тоже триггерят onConnect в offscreen — в MV3
+    // chrome.runtime.connect доставляется во ВСЕ extension contexts с
+    // onConnect listener'ом, не только в SW).
+    offscreenPort = chrome.runtime.connect({ name: RELAY_PORT_NAME });
   } catch (e) {
     console.error('[sdk-extension/sw] connect to offscreen failed', e);
     contentPort.disconnect();

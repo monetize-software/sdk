@@ -40,7 +40,7 @@ const tr = {
   'auth.or': 'veya',
   'auth.password': 'Şifre',
   'auth.passwords_mismatch': 'Şifreler eşleşmiyor',
-  'auth.rate_limited': 'Çok fazla istek. Lütfen biraz sonra tekrar deneyin.',
+  'auth.rate_limited': 'Çok fazla istek. Lütfen daha sonra tekrar deneyin.',
   'auth.repeat_password': 'Şifreyi tekrarla',
   'auth.reset_password_title': 'Şifreyi sıfırla',
   'auth.reset_sent_message': 'Bu e-posta varsa, sıfırlama kodu gönderildi.',

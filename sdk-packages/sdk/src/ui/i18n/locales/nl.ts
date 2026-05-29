@@ -44,7 +44,7 @@ const nl = {
   'auth.or': 'of',
   'auth.password': 'Wachtwoord',
   'auth.passwords_mismatch': 'Wachtwoorden komen niet overeen',
-  'auth.rate_limited': 'Te veel verzoeken. Probeer het zo opnieuw.',
+  'auth.rate_limited': 'Te veel verzoeken. Probeer het later opnieuw.',
   'auth.repeat_password': 'Herhaal wachtwoord',
   'auth.reset_password_subtitle': 'Voer de code uit je e-mail en een nieuw wachtwoord in.',
   'auth.reset_password_title': 'Wachtwoord opnieuw instellen',

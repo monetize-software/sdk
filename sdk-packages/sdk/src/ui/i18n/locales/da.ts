@@ -40,7 +40,7 @@ const da = {
   'auth.or': 'eller',
   'auth.password': 'Adgangskode',
   'auth.passwords_mismatch': 'Adgangskoder matcher ikke',
-  'auth.rate_limited': 'For mange anmodninger. Prøv igen om lidt.',
+  'auth.rate_limited': 'For mange anmodninger. Prøv igen senere.',
   'auth.repeat_password': 'Gentag adgangskode',
   'auth.reset_password_title': 'Nulstil adgangskode',
   'auth.reset_sent_message': 'Hvis den e-mail findes, er der sendt en nulstillingskode.',

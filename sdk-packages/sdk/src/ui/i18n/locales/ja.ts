@@ -44,7 +44,7 @@ const ja = {
   'auth.or': 'または',
   'auth.password': 'パスワード',
   'auth.passwords_mismatch': 'パスワードが一致しません',
-  'auth.rate_limited': 'リクエストが多すぎます。少し時間をおいて再試行してください。',
+  'auth.rate_limited': 'リクエストが多すぎます。後でもう一度お試しください。',
   'auth.repeat_password': 'パスワードを再入力',
   'auth.reset_password_subtitle': 'メールに記載されたコードと新しいパスワードを入力してください。',
   'auth.reset_password_title': 'パスワードをリセット',

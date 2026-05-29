@@ -103,13 +103,13 @@ declare module './protocol' {
     /** Анонимный sign-in через offscreen AuthClient. `captchaToken`
      *  опциональный — bootloaded на будущее (когда сервер вернёт
      *  challenge_required и потребует proof-of-something). Сейчас сервер
-     *  его не проверяет, поле резерв на forward-compat. `forceCaptcha`
+     *  его не проверяет, поле резерв на forward-compat. `forceNewAnon`
      *  обходит idempotent + resume шаги и сразу делает /signin (создаёт
      *  нового anon-user'а — нужно при switch-account flow'е). */
     'auth.signInAnonymously': {
       captchaToken?: string;
       userMeta?: Record<string, string>;
-      forceCaptcha?: boolean;
+      forceNewAnon?: boolean;
     };
     /** Last-used auth method + email per-paywall — для UI бейджа «Last used»
      *  в AuthPanel. Storage живёт в offscreen'е, читаем через transport. */

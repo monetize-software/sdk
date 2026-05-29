@@ -44,7 +44,7 @@ const pt = {
   'auth.or': 'ou',
   'auth.password': 'Senha',
   'auth.passwords_mismatch': 'As senhas não correspondem',
-  'auth.rate_limited': 'Muitas solicitações. Tente novamente em um momento.',
+  'auth.rate_limited': 'Muitas solicitações. Tente novamente mais tarde.',
   'auth.repeat_password': 'Repetir senha',
   'auth.reset_password_subtitle': 'Digite o código do seu e-mail e uma nova senha.',
   'auth.reset_password_title': 'Redefinir senha',

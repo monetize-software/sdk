@@ -21,7 +21,7 @@ import type { TrialConfig } from '@sdk/core/types';
 import type { OffscreenServerOptions } from './index';
 import { TransportServer } from '../shared/transport-server';
 import { portToChannel } from '../shared/chrome-port';
-import { PORT_NAME } from '../shared/port-name';
+import { RELAY_PORT_NAME } from '../shared/port-name';
 
 export class OffscreenServer {
   readonly billing: BillingClient;
@@ -185,7 +185,7 @@ export class OffscreenServer {
       auth.signInAnonymously({
         captchaToken: params.captchaToken,
         userMeta: params.userMeta,
-        forceCaptcha: params.forceCaptcha
+        forceNewAnon: params.forceNewAnon
       })
     );
   }
@@ -215,8 +215,16 @@ export class OffscreenServer {
   /** Старт listener'а на chrome.runtime.onConnect. */
   start(): void {
     if (this.connectListener) return;
+    // Принимаем только SW relay-port (RELAY_PORT_NAME). chrome.runtime.connect
+    // от popup/content/side-panel доставляется во ВСЕ extension contexts с
+    // onConnect listener'ом — включая offscreen напрямую, минуя SW. Если бы
+    // мы принимали PORT_NAME, на одно popup.connect() в offscreen прилетало
+    // бы ДВА port'а (SW relay + direct popup), и один send из popup
+    // дублировался: SW relay постит msg → handler #1, direct popup port
+    // получает тот же msg → handler #2. SW же использует отдельное имя
+    // RELAY_PORT_NAME для своего connect к offscreen.
     this.connectListener = (port) => {
-      if (port.name !== PORT_NAME) return;
+      if (port.name !== RELAY_PORT_NAME) return;
       this.transport.accept(portToChannel(port));
     };
     chrome.runtime.onConnect.addListener(this.connectListener);

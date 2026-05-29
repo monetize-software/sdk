@@ -40,7 +40,7 @@ const id = {
   'auth.or': 'atau',
   'auth.password': 'Kata sandi',
   'auth.passwords_mismatch': 'Kata sandi tidak cocok',
-  'auth.rate_limited': 'Terlalu banyak permintaan. Coba lagi sebentar lagi.',
+  'auth.rate_limited': 'Terlalu banyak permintaan. Coba lagi nanti.',
   'auth.repeat_password': 'Ulangi kata sandi',
   'auth.reset_password_title': 'Atur ulang kata sandi',
   'auth.reset_sent_message': 'Jika email tersebut ada, kode reset telah dikirim.',

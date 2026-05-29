@@ -40,7 +40,7 @@ const cs = {
   'auth.or': 'nebo',
   'auth.password': 'Heslo',
   'auth.passwords_mismatch': 'Hesla se neshodují',
-  'auth.rate_limited': 'Příliš mnoho požadavků. Zkuste to za chvíli.',
+  'auth.rate_limited': 'Příliš mnoho požadavků. Zkuste to později.',
   'auth.repeat_password': 'Zopakujte heslo',
   'auth.reset_password_title': 'Resetovat heslo',
   'auth.reset_sent_message': 'Pokud tento e-mail existuje, byl odeslán kód pro reset.',

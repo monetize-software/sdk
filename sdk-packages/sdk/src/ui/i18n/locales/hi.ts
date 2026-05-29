@@ -40,7 +40,7 @@ const hi = {
   'auth.or': 'या',
   'auth.password': 'पासवर्ड',
   'auth.passwords_mismatch': 'पासवर्ड मेल नहीं खाते',
-  'auth.rate_limited': 'बहुत अधिक अनुरोध। कुछ देर बाद पुनः प्रयास करें।',
+  'auth.rate_limited': 'बहुत अधिक अनुरोध। बाद में पुनः प्रयास करें।',
   'auth.repeat_password': 'पासवर्ड दोहराएँ',
   'auth.reset_password_title': 'पासवर्ड रीसेट करें',
   'auth.reset_sent_message': 'यदि वह ईमेल मौजूद है, तो रीसेट कोड भेज दिया गया है।',

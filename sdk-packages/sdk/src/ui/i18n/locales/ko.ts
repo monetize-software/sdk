@@ -44,7 +44,7 @@ const ko = {
   'auth.or': '또는',
   'auth.password': '비밀번호',
   'auth.passwords_mismatch': '비밀번호가 일치하지 않습니다',
-  'auth.rate_limited': '요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.',
+  'auth.rate_limited': '요청이 너무 많습니다. 나중에 다시 시도해 주세요.',
   'auth.repeat_password': '비밀번호 재입력',
   'auth.reset_password_subtitle': '이메일의 코드와 새 비밀번호를 입력하세요.',
   'auth.reset_password_title': '비밀번호 재설정',

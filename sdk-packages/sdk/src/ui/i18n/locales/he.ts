@@ -40,7 +40,7 @@ const he = {
   'auth.or': 'או',
   'auth.password': 'סיסמה',
   'auth.passwords_mismatch': 'הסיסמאות אינן תואמות',
-  'auth.rate_limited': 'יותר מדי בקשות. נסה שוב בעוד רגע.',
+  'auth.rate_limited': 'יותר מדי בקשות. נסה שוב מאוחר יותר.',
   'auth.repeat_password': 'חזור על הסיסמה',
   'auth.reset_password_title': 'איפוס סיסמה',
   'auth.reset_sent_message': 'אם הדואר קיים, נשלח קוד איפוס.',

@@ -43,7 +43,7 @@ const ru = {
   'auth.or': 'или',
   'auth.password': 'Пароль',
   'auth.passwords_mismatch': 'Пароли не совпадают',
-  'auth.rate_limited': 'Слишком много запросов. Попробуйте через минуту.',
+  'auth.rate_limited': 'Слишком много запросов. Попробуйте позже.',
   'auth.repeat_password': 'Повторите пароль',
   'auth.reset_password_subtitle': 'Введите код из письма и новый пароль.',
   'auth.reset_password_title': 'Сброс пароля',

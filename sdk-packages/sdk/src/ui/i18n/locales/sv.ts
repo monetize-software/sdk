@@ -40,7 +40,7 @@ const sv = {
   'auth.or': 'eller',
   'auth.password': 'Lösenord',
   'auth.passwords_mismatch': 'Lösenorden matchar inte',
-  'auth.rate_limited': 'För många förfrågningar. Försök igen om en stund.',
+  'auth.rate_limited': 'För många förfrågningar. Försök igen senare.',
   'auth.repeat_password': 'Upprepa lösenord',
   'auth.reset_password_title': 'Återställ lösenord',
   'auth.reset_sent_message': 'Om e-postadressen finns har en återställningskod skickats.',

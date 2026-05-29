@@ -43,7 +43,7 @@ const uk = {
   'auth.or': 'або',
   'auth.password': 'Пароль',
   'auth.passwords_mismatch': 'Паролі не збігаються',
-  'auth.rate_limited': 'Забагато запитів. Спробуйте за хвилину.',
+  'auth.rate_limited': 'Забагато запитів. Спробуйте пізніше.',
   'auth.repeat_password': 'Повторіть пароль',
   'auth.reset_password_subtitle': 'Введіть код з листа і новий пароль.',
   'auth.reset_password_title': 'Скидання пароля',
