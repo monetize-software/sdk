@@ -21,7 +21,25 @@ export default defineConfig(({ command, mode }) => ({
         include: ['src/**/*.ts', 'src/**/*.tsx'],
         // rollupTypes off for the same reason as sdk-extension: api-extractor
         // chokes on sibling-package ../sdk when looking for project root.
-        tsconfigPath: './tsconfig.json'
+        tsconfigPath: './tsconfig.json',
+        // Without this rewrite, vite-plugin-dts inlines the tsconfig `paths`
+        // alias for `@monetize.software/sdk` into the emitted .d.ts as the
+        // physical relative path `../../sdk/src` (or `../../../sdk/src` from
+        // subfolders). That works in our monorepo but breaks in the published
+        // npm package, where the consumer doesn't have sibling sdk/src and TS
+        // silently resolves the imported types to `any` — wiping out all
+        // `Omit<…, keyof OpenOptions>`-style intersections and turning
+        // `<PaywallButton className="…" renew>` into a type error.
+        //
+        // We restore the bare specifier so downstream tsc picks up the
+        // published `@monetize.software/sdk` types via node_modules.
+        beforeWriteFile(filePath, content) {
+          const rewritten = content.replace(
+            /from\s+(['"])(?:\.\.\/){2,}sdk\/src\1/g,
+            "from '@monetize.software/sdk'"
+          );
+          return { filePath, content: rewritten };
+        }
       })
   ].filter(Boolean),
 

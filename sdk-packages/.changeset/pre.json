@@ -15,6 +15,7 @@
     "sdk-extension-cws-warning",
     "sdk-locale-override-auth-errors",
     "sdk-popup-bugfixes-alpha5",
+    "sdk-react-dts-paths-fix",
     "sdk-react-initial-release"
   ]
 }
