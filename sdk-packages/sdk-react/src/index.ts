@@ -16,7 +16,10 @@
 export { PaywallProvider, type PaywallProviderProps } from './PaywallProvider';
 export { usePaywall } from './hooks/usePaywall';
 export { usePaywallState } from './hooks/usePaywallState';
-export { usePaywallUser } from './hooks/usePaywallUser';
+export {
+  usePaywallUser,
+  type PaywallUserState
+} from './hooks/usePaywallUser';
 export { usePaywallEvent } from './hooks/usePaywallEvent';
 export {
   usePaywallAccess,
@@ -63,5 +66,6 @@ export type {
   PaywallBootstrap,
   PaywallSettings,
   PaywallOffer,
-  Identity
+  Identity,
+  AuthSession
 } from '@monetize.software/sdk';

@@ -16,6 +16,7 @@
     "sdk-locale-override-auth-errors",
     "sdk-popup-bugfixes-alpha5",
     "sdk-react-dts-paths-fix",
-    "sdk-react-initial-release"
+    "sdk-react-initial-release",
+    "use-paywall-user-discriminated-union"
   ]
 }

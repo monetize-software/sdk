@@ -80,6 +80,13 @@ type _AssertBillingGetCachedUser = PaywallUI['billing']['getCachedUser'] extends
   ? true
   : false;
 
+// usePaywallUser также читает `paywall.auth?.getCachedSession()` чтобы
+// различить guest vs loading-after-signin. `auth` опционален (hybrid mode
+// не создаёт AuthClient), поэтому проверяем через NonNullable.
+type _AssertAuthGetCachedSession = NonNullable<PaywallUI['auth']>['getCachedSession'] extends () => unknown | null
+  ? true
+  : false;
+
 // -----------------------------------------------------------------------------
 // 2. Сигнатуры открытия и опций
 // -----------------------------------------------------------------------------
@@ -158,6 +165,7 @@ type RequiredEvents =
   | 'purchase_completed'
   | 'purchase_failed'
   | 'userChange'
+  | 'authChange'
   | 'trial_blocked'
   | 'trial_expired'
   | 'visibility_blocked';
@@ -203,6 +211,7 @@ type _ContractChecks = [
   Assert<_AssertConstructor>,
   Assert<_AssertMethods>,
   Assert<_AssertBillingGetCachedUser>,
+  Assert<_AssertAuthGetCachedSession>,
   Assert<_AssertOpenSignature>,
   Assert<_AssertOpenSupportSignature>,
   Assert<_AssertStateShape>,

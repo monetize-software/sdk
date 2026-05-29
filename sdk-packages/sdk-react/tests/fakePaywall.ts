@@ -1,4 +1,5 @@
 import type {
+  AuthSession,
   PaywallAccessResult,
   PaywallEvent,
   PaywallEventHandler,
@@ -27,6 +28,12 @@ export interface FakePaywallOptions {
   initialPrices?: PaywallPrice[] | null;
   initialTrial?: ReturnType<PaywallUI['getTrialStatus']>;
   initialVisibility?: ReturnType<PaywallUI['getVisibility']>;
+  /** Опциональный managed-auth стаб. Без него `paywall.auth` остаётся
+   *  undefined — для тестов hybrid-режима. С `initialSession` или вызовом
+   *  `setSession(...)` FakePaywall эмулирует AuthClient API, который трогает
+   *  usePaywallUser (`getCachedSession()` + authChange-эмиты). */
+  withAuth?: boolean;
+  initialSession?: AuthSession | null;
 }
 
 export class FakePaywall {
@@ -39,6 +46,7 @@ export class FakePaywall {
   private prices: PaywallPrice[] | null;
   private trial: ReturnType<PaywallUI['getTrialStatus']>;
   private visibility: ReturnType<PaywallUI['getVisibility']>;
+  private session: AuthSession | null = null;
 
   // Spy-счётчики для assert'ов в тестах.
   openCalls = 0;
@@ -65,12 +73,23 @@ export class FakePaywall {
     this.prices = opts.initialPrices ?? null;
     this.trial = opts.initialTrial ?? null;
     this.visibility = opts.initialVisibility ?? null;
+    this.session = opts.initialSession ?? null;
+    if (opts.withAuth || opts.initialSession !== undefined) {
+      this.auth = {
+        getCachedSession: (): AuthSession | null => this.session
+      };
+    }
   }
 
   // billing.getCachedUser — usePaywallUser ходит через эту цепочку.
   billing = {
     getCachedUser: (): PaywallUser | null => this.user
   };
+
+  /** Опциональный managed-auth стаб. Заполняется в конструкторе по
+   *  `withAuth: true` или явному `initialSession`. usePaywallUser проверяет
+   *  его, чтобы различить guest vs signed-in. */
+  auth?: { getCachedSession: () => AuthSession | null };
 
   open = (): void => {
     this.openCalls++;
@@ -139,6 +158,14 @@ export class FakePaywall {
   setUser(user: PaywallUser | null): void {
     this.user = user;
     if (user) this.emit('userChange', user as never);
+  }
+
+  setSession(session: AuthSession | null): void {
+    this.session = session;
+    this.emit('authChange', {
+      event: session ? 'SIGNED_IN' : 'SIGNED_OUT',
+      session
+    } as never);
   }
 
   setAccess(access: PaywallAccessResult): void {

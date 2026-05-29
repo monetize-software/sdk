@@ -46,8 +46,10 @@ function App() {
 }
 
 function UpgradeCTA() {
-  const user = usePaywallUser();
-  return <p>Hi, {user?.email ?? 'guest'}! Unlock full access.</p>;
+  const account = usePaywallUser();
+  if (account.status === 'loading') return <p>…</p>;
+  if (account.status === 'guest') return <p>Hi guest! Unlock full access.</p>;
+  return <p>Hi, {account.user?.email ?? 'there'}! Unlock full access.</p>;
 }
 ```
 
@@ -79,7 +81,7 @@ intentionally not performed.
 |---|---|---|
 | `usePaywall()` | `PaywallUI \| null` | instance change (rare) |
 | `usePaywallState()` | `{ open, view, error }` | any state-machine change |
-| `usePaywallUser()` | `PaywallUser \| null` | `userChange` event |
+| `usePaywallUser()` | `PaywallUserState` (`loading` \| `guest` \| `signed_in`) | `userChange` / `authChange` |
 | `usePaywallAccess(opts?)` | `{ status, result }` | `userChange` / `purchase_completed` |
 | `usePaywallPrices()` | `{ prices, loading, error }` | bootstrap refresh |
 | `usePaywallTrial()` | `TrialStatus \| null` | `trial_blocked` / `trial_expired` |
