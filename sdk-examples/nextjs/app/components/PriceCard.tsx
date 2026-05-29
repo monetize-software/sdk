@@ -61,16 +61,48 @@ export function PriceCard({ price, highlighted }: Props) {
 }
 
 export function formatAmount(price: PaywallPrice): string {
-  const amount = price.local?.amount ?? price.amount;
-  const currency = price.local?.currency ?? price.currency;
+  const source = price.local ?? { amount: price.amount, currency: price.currency };
+  // Yearly plans show the per-month equivalent — same UX as the paywall modal
+  // (a $60/yr plan reads as $5/month, with the "Yearly" label carrying the
+  // billing cadence). See sdk/src/ui/renderer/blocks/PriceGrid.tsx::displayedAmount.
+  const months = price.interval === 'year' ? (price.interval_count ?? 1) * 12 : 1;
+  const value = source.amount / months;
+  const minFrac = value % 1 !== 0 ? 2 : 0;
   return new Intl.NumberFormat(undefined, {
     style: 'currency',
-    currency,
-    maximumFractionDigits: amount % 100 === 0 ? 0 : 2
-  }).format(amount / 100);
+    currency: source.currency,
+    currencyDisplay: 'narrowSymbol',
+    maximumFractionDigits: minFrac,
+    minimumFractionDigits: minFrac
+  }).format(value);
 }
 
 export function intervalLabel(price: PaywallPrice): string {
+  if (price.interval === 'lifetime' || price.interval == null) return 'one-time';
+  // Yearly plans display per-month price (see formatAmount); the suffix
+  // matches.
+  if (price.interval === 'year') return 'month';
+  const n = price.interval_count ?? 1;
+  if (n === 1) return price.interval;
+  return `${n} ${price.interval}s`;
+}
+
+/** Total billed amount in source currency, without the per-month split.
+ *  Used in comparison tables where the real cadence matters. */
+export function formatFullAmount(price: PaywallPrice): string {
+  const source = price.local ?? { amount: price.amount, currency: price.currency };
+  const minFrac = source.amount % 1 !== 0 ? 2 : 0;
+  return new Intl.NumberFormat(undefined, {
+    style: 'currency',
+    currency: source.currency,
+    currencyDisplay: 'narrowSymbol',
+    maximumFractionDigits: minFrac,
+    minimumFractionDigits: minFrac
+  }).format(source.amount);
+}
+
+/** Real interval text — for tables/lists where the per-month split isn't applied. */
+export function realIntervalLabel(price: PaywallPrice): string {
   if (price.interval === 'lifetime' || price.interval == null) return 'one-time';
   const n = price.interval_count ?? 1;
   if (n === 1) return price.interval;

@@ -9,14 +9,18 @@ import {
 
 /**
  * Demonstrates:
- *  - usePaywallUser()  — current PaywallUser snapshot (live).
- *  - usePaywall()      — direct handle for `signOut` via paywall.auth.
+ *  - usePaywallUser()  — discriminated union: loading | guest | signed_in.
+ *  - usePaywall()      — direct handle for `auth.signOut()`.
  *  - PaywallButton     — declarative trigger with `mode="signin"`.
  */
 export function Navbar() {
-  const user = usePaywallUser();
+  const account = usePaywallUser();
   const paywall = usePaywall();
-  const isPro = user?.has_active_subscription === true;
+
+  const isPro =
+    account.status === 'signed_in' &&
+    account.user?.has_active_subscription === true;
+  const signedIn = account.status === 'signed_in';
 
   return (
     <header className="border-b border-stone-200 bg-white/70 backdrop-blur dark:border-stone-800 dark:bg-stone-950/70">
@@ -45,7 +49,7 @@ export function Navbar() {
             </span>
           )}
 
-          {user ? (
+          {signedIn ? (
             <button
               type="button"
               onClick={() => paywall?.auth?.signOut()}

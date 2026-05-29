@@ -17,12 +17,21 @@ import {
  *  - usePaywallTrial      — surface trial state.
  */
 export default function AccountPage() {
-  const user = usePaywallUser();
+  const account = usePaywallUser();
   const paywall = usePaywall();
   const visibility = usePaywallVisibility();
   const trial = usePaywallTrial();
 
-  if (!user) {
+  if (account.status === 'loading') {
+    return (
+      <div className="mx-auto max-w-3xl px-6 py-12">
+        <div className="h-8 w-48 animate-pulse rounded bg-stone-200 dark:bg-stone-800" />
+        <div className="mt-6 h-40 animate-pulse rounded-2xl bg-stone-200 dark:bg-stone-800" />
+      </div>
+    );
+  }
+
+  if (account.status === 'guest') {
     return (
       <div className="mx-auto max-w-2xl px-6 py-16">
         <h1 className="text-3xl font-bold">Your account</h1>
@@ -47,6 +56,17 @@ export default function AccountPage() {
     );
   }
 
+  // status === 'signed_in' but the /me snapshot may still be in flight.
+  if (!account.user) {
+    return (
+      <div className="mx-auto max-w-3xl px-6 py-12">
+        <div className="h-8 w-48 animate-pulse rounded bg-stone-200 dark:bg-stone-800" />
+        <div className="mt-6 h-40 animate-pulse rounded-2xl bg-stone-200 dark:bg-stone-800" />
+      </div>
+    );
+  }
+
+  const user = account.user;
   const lang = paywall?.getUserLanguage();
   const activePurchase = user.purchases.find(
     (p) => p.status === 'active' || p.status === 'trialing'

@@ -16,7 +16,11 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    // PaywallUI sets `data-paywall-loaded` / `data-paywall-ready` on <html>
+    // when it mounts. Those attributes don't exist in server HTML, so React
+    // would flag a hydration mismatch on every page. The mismatch is benign
+    // (third-party root-element marker), so we silence it here.
+    <html lang="en" suppressHydrationWarning>
       <body className="min-h-screen font-sans antialiased">
         <Providers>
           <div className="flex min-h-screen flex-col">

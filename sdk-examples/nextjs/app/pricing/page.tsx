@@ -6,7 +6,11 @@ import {
   PaywallButton,
   PaywallSupportButton
 } from '@monetize.software/sdk-react';
-import { PriceCard, formatAmount, intervalLabel } from '../components/PriceCard';
+import {
+  PriceCard,
+  formatFullAmount,
+  realIntervalLabel
+} from '../components/PriceCard';
 
 /**
  * Demonstrates:
@@ -16,8 +20,10 @@ import { PriceCard, formatAmount, intervalLabel } from '../components/PriceCard'
  */
 export default function PricingPage() {
   const { prices, loading, error } = usePaywallPrices();
-  const user = usePaywallUser();
-  const isPro = user?.has_active_subscription === true;
+  const account = usePaywallUser();
+  const isPro =
+    account.status === 'signed_in' &&
+    account.user?.has_active_subscription === true;
 
   return (
     <div className="mx-auto max-w-6xl px-6 py-16">
@@ -97,8 +103,8 @@ export default function PricingPage() {
                     className="border-b border-stone-100 last:border-0 dark:border-stone-800"
                   >
                     <td className="px-4 py-3 font-medium">{p.label ?? p.id}</td>
-                    <td className="px-4 py-3">{formatAmount(p)}</td>
-                    <td className="px-4 py-3 capitalize">{intervalLabel(p)}</td>
+                    <td className="px-4 py-3">{formatFullAmount(p)}</td>
+                    <td className="px-4 py-3 capitalize">{realIntervalLabel(p)}</td>
                     <td className="px-4 py-3">
                       {p.trial_days ? `${p.trial_days} days` : '—'}
                     </td>

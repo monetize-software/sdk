@@ -17,10 +17,11 @@ import {
  * `usePaywallUser()` lets us reflect the current state immediately.
  */
 export default function LoginPage() {
-  const user = usePaywallUser();
+  const account = usePaywallUser();
   const paywall = usePaywall();
   const [anonBusy, setAnonBusy] = useState(false);
   const [anonError, setAnonError] = useState<string | null>(null);
+  const signedIn = account.status === 'signed_in';
 
   const handleAnon = async () => {
     if (!paywall) return;
@@ -43,7 +44,7 @@ export default function LoginPage() {
       </p>
 
       <div className="mt-8 rounded-2xl border border-stone-200 bg-white p-6 dark:border-stone-800 dark:bg-stone-900">
-        {user ? (
+        {signedIn ? (
           <div className="space-y-3">
             <div className="text-sm">You're signed in.</div>
             <button
