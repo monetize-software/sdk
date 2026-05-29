@@ -8,10 +8,17 @@ import { BillingClient, type BillingClientOptions } from '../core/BillingClient'
 import { EventTracker } from '../core/EventTracker';
 import { createTrialStore, type TrialStore } from '../core/trial';
 import {
+  findApplicableOffer,
+  readBrowserOfferStart,
+  resolveOffer,
+  type ResolvedOffer
+} from '../core/offer';
+import {
   PaywallError,
   type Acquiring,
   type Identity,
   type PaywallBootstrap,
+  type PaywallOffer,
   type PaywallPrice,
   type PaywallUser,
   type TrialConfig,
@@ -947,6 +954,39 @@ export class PaywallUI {
   /** Sync-снимок цен. null — bootstrap ещё не загружали. */
   getCachedPrices(): PaywallPrice[] | null {
     return this.billing.getCachedPrices();
+  }
+
+  /** Sync-снимок офферов. null = bootstrap не загружали, [] = пейвол без офферов.
+   *  Бэк уже применил серверный targeting (страны/email/режим) — наружу
+   *  выезжает только то, что применимо к текущему юзеру. */
+  getCachedOffers(): PaywallOffer[] | null {
+    return this.billing.getCachedOffers();
+  }
+
+  /**
+   * Резолвит активный offer для конкретной цены: price_id-таргетинг +
+   * countdown (`expires_at` ИЛИ `duration_minutes` от первого открытия
+   * пейвола, см. clientStorage `pw-offer-{id}-start`).
+   *
+   * Read-only — НЕ записывает start для `duration_minutes`-офферов. Запись
+   * стартует только когда модалка реально открыта (renderer'ом). До этого
+   * `getOfferForPrice` вернёт `null` для duration-only офферов, чтобы
+   * страницы-хосты вне модалки (pricing, landing) не активировали countdown
+   * раньше времени.
+   *
+   * Хост-странице нужен countdown, который тикает каждую секунду — для
+   * этого использовать React-хук `usePaywallOffer(priceId)` из sdk-react
+   * либо обёртку поверх `setInterval(1000)` + повторный вызов этого метода.
+   */
+  getOfferForPrice(priceId: string): ResolvedOffer | null {
+    const offers = this.billing.getCachedOffers();
+    if (!offers) return null;
+    const offer = findApplicableOffer(offers, priceId);
+    if (!offer) return null;
+    return resolveOffer(offer, {
+      now: Date.now(),
+      readStart: readBrowserOfferStart
+    });
   }
 
   /** Снимок текущего «языка юзера» — proxy над `billing.getUserLanguage()`.

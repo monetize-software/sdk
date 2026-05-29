@@ -10,6 +10,7 @@
     "auth-flows-and-i18n-fixes",
     "auth-mv3-i18n-fixes",
     "billing-apikey-list-cancel",
+    "offer-resolver-api",
     "readme-cleanup-alpha7",
     "sdk-api-origin-required",
     "sdk-extension-cws-warning",

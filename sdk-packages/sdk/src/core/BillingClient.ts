@@ -19,6 +19,7 @@ import {
   type Layout,
   type LocaleOverrides,
   type PaywallBootstrap,
+  type PaywallOffer,
   type PaywallPrice,
   type PaywallPurchaseDetailed,
   type PaywallSettings,
@@ -737,6 +738,16 @@ export class BillingClient {
   /** Sync-снимок цен из последнего bootstrap'а. null = ещё не загружали. */
   getCachedPrices(): PaywallPrice[] | null {
     return this.cachedBootstrap?.prices ?? null;
+  }
+
+  /** Sync-снимок офферов из последнего bootstrap'а. null = bootstrap ещё не
+   *  загружали, пустой массив = бэк отдал пейвол без офферов. Бэк уже
+   *  применил серверный таргетинг (target_countries / target_emails /
+   *  targeting_mode из offer_settings) — наружу выезжает только то, что
+   *  применимо к текущему юзеру. Клиентская сторона остаётся ответственной
+   *  за price_id-matching и countdown (см. core/offer.ts → resolveOffer). */
+  getCachedOffers(): PaywallOffer[] | null {
+    return this.cachedBootstrap?.offers ?? null;
   }
 
   /**

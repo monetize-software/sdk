@@ -84,6 +84,8 @@ intentionally not performed.
 | `usePaywallUser()` | `PaywallUserState` (`loading` \| `guest` \| `signed_in`) | `userChange` / `authChange` |
 | `usePaywallAccess(opts?)` | `{ status, result }` | `userChange` / `purchase_completed` |
 | `usePaywallPrices()` | `{ prices, loading, error }` | bootstrap refresh |
+| `usePaywallOffer(priceId)` | `ResolvedOffer \| null` | `ready` + 1Hz tick while countdown is live |
+| `usePaywallOffers()` | `PaywallOffer[] \| null` | `ready` (bootstrap refresh) |
 | `usePaywallTrial()` | `TrialStatus \| null` | `trial_blocked` / `trial_expired` |
 | `usePaywallVisibility()` | `VisibilityStatus \| null` | `ready` / `visibility_blocked` |
 | `usePaywallEvent(event, handler)` | — | subscribes with a stable handler ref |

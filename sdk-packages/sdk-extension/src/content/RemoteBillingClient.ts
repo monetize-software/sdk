@@ -10,6 +10,7 @@ import type {
   CheckoutResult,
   Identity,
   PaywallBootstrap,
+  PaywallOffer,
   PaywallPrice,
   PaywallPurchaseDetailed,
   PaywallUser,
@@ -147,6 +148,13 @@ export class RemoteBillingClient {
   /** Sync-снимок цен из локального mirror'а bootstrap'а. null = ещё не грузили. */
   getCachedPrices(): PaywallPrice[] | null {
     return this.cachedBootstrap?.prices ?? null;
+  }
+
+  /** Sync-снимок офферов. null = bootstrap не загружали, [] = пейвол без офферов.
+   *  Серверный таргетинг (страны/email/режим) уже применён бэком — наружу
+   *  выезжает только то, что применимо к текущему юзеру. */
+  getCachedOffers(): PaywallOffer[] | null {
+    return this.cachedBootstrap?.offers ?? null;
   }
 
   // === Visitor ===

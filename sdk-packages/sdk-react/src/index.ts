@@ -29,6 +29,8 @@ export {
   usePaywallPrices,
   type PaywallPricesState
 } from './hooks/usePaywallPrices';
+export { usePaywallOffer } from './hooks/usePaywallOffer';
+export { usePaywallOffers } from './hooks/usePaywallOffers';
 export { usePaywallTrial } from './hooks/usePaywallTrial';
 export { usePaywallVisibility } from './hooks/usePaywallVisibility';
 
@@ -67,5 +69,6 @@ export type {
   PaywallSettings,
   PaywallOffer,
   Identity,
-  AuthSession
+  AuthSession,
+  ResolvedOffer
 } from '@monetize.software/sdk';

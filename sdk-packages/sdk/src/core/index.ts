@@ -26,6 +26,14 @@ export {
   type StorageAdapter
 } from './storage';
 export {
+  findApplicableOffer,
+  offerStartStorageKey,
+  readBrowserOfferStart,
+  resolveOffer,
+  type ResolveOfferOptions,
+  type ResolvedOffer
+} from './offer';
+export {
   PaywallError,
   QuotaExceededError,
   type Balance,

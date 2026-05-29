@@ -1,4 +1,5 @@
 import type { LayoutBlock, PaywallOffer, PaywallPrice } from '../../../core/types';
+import { findApplicableOffer } from '../../../core/offer';
 import type { BlockProps } from '../types';
 import { useI18n, type TFn } from '../../i18n';
 
@@ -81,23 +82,8 @@ function formatPriceParts(price: PaywallPrice, discountPercent: number | null): 
   };
 }
 
-// Подбирает offer для конкретной цены. Targeted offer (price_id === priceId)
-// имеет приоритет над глобальным (price_id === null — применяется ко всем
-// ценам пейвола). Возвращает null, если discount_percent отсутствует/0.
-function applicableOffer(
-  offers: PaywallOffer[] | undefined,
-  priceId: string
-): PaywallOffer | null {
-  if (!offers || offers.length === 0) return null;
-  const targeted = offers.find(
-    (o) => o.price_id === priceId && o.discount_percent && o.discount_percent > 0
-  );
-  if (targeted) return targeted;
-  const global = offers.find(
-    (o) => o.price_id == null && o.discount_percent && o.discount_percent > 0
-  );
-  return global ?? null;
-}
+// Подбор активного offer'а вынесен в `core/offer.ts:findApplicableOffer` —
+// единая точка для renderer'а и host-side API (`PaywallUI.getOfferForPrice`).
 
 function planLabel(price: PaywallPrice, t: TFn): string {
   if (price.label) return price.label.toUpperCase();
@@ -160,7 +146,7 @@ export function PriceGrid({ block, ctx }: BlockProps<PriceGridBlock>) {
             isLast={idx === prices.length - 1}
             isPopular={block.popular_price_id === price.id}
             popularLabel={popularLabel}
-            offer={applicableOffer(ctx.bootstrap.offers, price.id)}
+            offer={findApplicableOffer(ctx.bootstrap.offers, price.id)}
             selected={ctx.selectedPriceId === price.id}
             onSelect={() => {
               ctx.setSelectedPriceId(price.id);
@@ -185,7 +171,7 @@ export function PriceGrid({ block, ctx }: BlockProps<PriceGridBlock>) {
     // прыгает выше соседних со скидкой). Если оффера нет совсем — strike-row
     // схлопывается в 0 у всех, и не висит 22px пустоты под label'ом.
     const anyHasDiscount = prices.some(
-      (p) => (applicableOffer(ctx.bootstrap.offers, p.id)?.discount_percent ?? 0) > 0
+      (p) => (findApplicableOffer(ctx.bootstrap.offers, p.id)?.discount_percent ?? 0) > 0
     );
     return (
       <div
@@ -200,7 +186,7 @@ export function PriceGrid({ block, ctx }: BlockProps<PriceGridBlock>) {
             price={price}
             isPopular={block.popular_price_id === price.id}
             popularLabel={popularLabel}
-            offer={applicableOffer(ctx.bootstrap.offers, price.id)}
+            offer={findApplicableOffer(ctx.bootstrap.offers, price.id)}
             reserveStrikeRow={anyHasDiscount}
             selected={ctx.selectedPriceId === price.id}
             onSelect={() => {
@@ -223,7 +209,7 @@ export function PriceGrid({ block, ctx }: BlockProps<PriceGridBlock>) {
       {prices.map((price) => {
         const selected = ctx.selectedPriceId === price.id;
         const isPopular = block.popular_price_id === price.id;
-        const offer = applicableOffer(ctx.bootstrap.offers, price.id);
+        const offer = findApplicableOffer(ctx.bootstrap.offers, price.id);
         const discountPercent = offer?.discount_percent ?? null;
         const { currency, amount, originalAmount } = formatPriceParts(price, discountPercent);
         return (

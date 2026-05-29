@@ -65,6 +65,8 @@ type RequiredMethods =
   | 'getAccess'
   | 'getPrices'
   | 'getCachedPrices'
+  | 'getCachedOffers'
+  | 'getOfferForPrice'
   | 'getTrialStatus'
   | 'getVisibility'
   | 'destroy'
@@ -192,6 +194,13 @@ type _AssertGetPrices = ReturnType<PaywallUI['getPrices']> extends Promise<Paywa
 type _AssertGetCachedPrices = ReturnType<PaywallUI['getCachedPrices']> extends PaywallPrice[] | null
   ? true
   : false;
+// usePaywallOffers / usePaywallOffer строятся на этих двух геттерах.
+type _AssertGetCachedOffers = ReturnType<PaywallUI['getCachedOffers']> extends unknown[] | null
+  ? true
+  : false;
+type _AssertGetOfferForPrice = Parameters<PaywallUI['getOfferForPrice']> extends [string]
+  ? true
+  : false;
 
 // getTrialStatus / getVisibility возвращают T|null — наши хуки читают именно эту форму.
 type _AssertTrialNullable = null extends ReturnType<PaywallUI['getTrialStatus']> ? true : false;
@@ -226,6 +235,8 @@ type _ContractChecks = [
   Assert<_AssertUserChangePayload>,
   Assert<_AssertGetPrices>,
   Assert<_AssertGetCachedPrices>,
+  Assert<_AssertGetCachedOffers>,
+  Assert<_AssertGetOfferForPrice>,
   Assert<_AssertTrialNullable>,
   Assert<_AssertVisibilityNullable>
 ];

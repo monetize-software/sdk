@@ -3,10 +3,12 @@ import type {
   PaywallAccessResult,
   PaywallEvent,
   PaywallEventHandler,
+  PaywallOffer,
   PaywallStateSnapshot,
   PaywallUI,
   PaywallUser,
-  PaywallPrice
+  PaywallPrice,
+  ResolvedOffer
 } from '../src';
 
 // Drop-in совместимый PaywallUI для тестов. Имитирует те части public API,
@@ -44,6 +46,8 @@ export class FakePaywall {
   private user: PaywallUser | null;
   private access: PaywallAccessResult;
   private prices: PaywallPrice[] | null;
+  private offers: PaywallOffer[] | null;
+  private offerForPrice: Map<string, ResolvedOffer | null> = new Map();
   private trial: ReturnType<PaywallUI['getTrialStatus']>;
   private visibility: ReturnType<PaywallUI['getVisibility']>;
   private session: AuthSession | null = null;
@@ -71,6 +75,7 @@ export class FakePaywall {
         user: null
       };
     this.prices = opts.initialPrices ?? null;
+    this.offers = null;
     this.trial = opts.initialTrial ?? null;
     this.visibility = opts.initialVisibility ?? null;
     this.session = opts.initialSession ?? null;
@@ -145,6 +150,10 @@ export class FakePaywall {
   };
   getCachedPrices = (): PaywallPrice[] | null => this.prices;
 
+  getCachedOffers = (): PaywallOffer[] | null => this.offers;
+  getOfferForPrice = (priceId: string): ResolvedOffer | null =>
+    this.offerForPrice.get(priceId) ?? null;
+
   getTrialStatus = (): ReturnType<PaywallUI['getTrialStatus']> => this.trial;
   getVisibility = (): ReturnType<PaywallUI['getVisibility']> => this.visibility;
 
@@ -170,6 +179,14 @@ export class FakePaywall {
 
   setAccess(access: PaywallAccessResult): void {
     this.access = access;
+  }
+
+  setOffers(offers: PaywallOffer[] | null): void {
+    this.offers = offers;
+  }
+
+  setOfferForPrice(priceId: string, resolved: ResolvedOffer | null): void {
+    this.offerForPrice.set(priceId, resolved);
   }
 
   setTrial(trial: ReturnType<PaywallUI['getTrialStatus']>): void {
