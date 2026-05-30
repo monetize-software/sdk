@@ -234,9 +234,6 @@ function AuthForm({ block, allowSignup, allowReset, ctx }: FormProps) {
         } else if (mode === 'forgot') {
           await auth.requestPasswordReset({ email });
           setMode('reset_sent');
-          setInfo(
-            t('auth.reset_sent_message', 'If that email exists, a reset code has been sent.')
-          );
         } else if (mode === 'signup_verify') {
           await auth.verifyOtp({ email, token: otpCode, type: 'email' });
         } else if (mode === 'reset_verify') {
@@ -289,6 +286,10 @@ function AuthForm({ block, allowSignup, allowReset, ctx }: FormProps) {
   const showEmailField = mode === 'signin' || mode === 'signup' || mode === 'forgot';
   const showPasswordField =
     mode === 'signin' || (mode === 'signup' && signupExpanded);
+
+  if (mode === 'reset_sent') {
+    return <ResetSentView email={email} onBack={() => switchTo('signin')} t={t} />;
+  }
 
   return (
     <div class="flex flex-col gap-5">
@@ -374,10 +375,6 @@ function AuthForm({ block, allowSignup, allowReset, ctx }: FormProps) {
           />
         )}
 
-        {mode === 'reset_sent' && info && (
-          <p class="rounded-2xl bg-gray-100 px-4 py-3 text-sm text-gray-600">{info}</p>
-        )}
-
         {mode === 'signin' && allowReset && (
           <div class="flex justify-end text-sm">
             <AccentLink onClick={() => switchTo('forgot')}>
@@ -387,16 +384,12 @@ function AuthForm({ block, allowSignup, allowReset, ctx }: FormProps) {
         )}
 
         {error && <p class="text-sm text-red-600">{error}</p>}
-        {info && mode !== 'reset_sent' && (
-          <p class="text-sm text-gray-500">{info}</p>
-        )}
+        {info && <p class="text-sm text-gray-500">{info}</p>}
 
-        {mode !== 'reset_sent' && (
-          <PrimaryButton
-            busy={busy === 'email'}
-            label={submitLabel(mode, signupExpanded, block.submit_label ?? block.heading, t)}
-          />
-        )}
+        <PrimaryButton
+          busy={busy === 'email'}
+          label={submitLabel(mode, signupExpanded, block.submit_label ?? block.heading, t)}
+        />
       </form>
 
       <FormFooter
@@ -769,5 +762,75 @@ function ProviderIcon({ provider }: { provider: OAuthProvider }) {
     <svg width="18" height="20" viewBox="0 0 14 16" fill="currentColor" aria-hidden="true">
       <path d="M14 2.7C14 1.2 12.8 0 11.3 0H2.7C1.2 0 0 1.2 0 2.7v10.6C0 14.8 1.2 16 2.7 16h4V9.8H4.7v-2H6.7V6.4c0-2 1.2-3.1 3-3.1.9 0 1.7.1 2 .2V5h-1.4c-.8 0-1 .4-1 1v1.5h2.4l-.3 2H9.3V16h2c1.5 0 2.7-1.2 2.7-2.7V2.7Z" />
     </svg>
+  );
+}
+
+function ResetSentView({
+  email,
+  onBack,
+  t
+}: {
+  email: string;
+  onBack: () => void;
+  t: TFn;
+}) {
+  return (
+    <div class="flex flex-col items-center gap-4 py-2 text-center">
+      <div
+        class="flex h-14 w-14 items-center justify-center rounded-full"
+        style={{
+          background: 'linear-gradient(135deg, #4ade80, #16a34a)',
+          color: '#fff',
+          boxShadow:
+            '0 0 0 8px rgba(74,222,128,0.12), 0 8px 20px -6px rgba(22,163,74,0.45)'
+        }}
+        aria-hidden="true"
+      >
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+          <path
+            d="M5 13l4 4L19 7"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+      </div>
+
+      <h2 class="mt-1 text-3xl font-bold tracking-tight text-gray-900">
+        {t('auth.check_email_title', 'Check your email')}
+      </h2>
+
+      <p class="text-base leading-relaxed text-gray-600">
+        {t(
+          'auth.reset_sent_subtitle',
+          'We sent a password reset link. Follow the instructions in the email to reset your password.'
+        )}
+      </p>
+
+      {email ? (
+        <p class="break-all text-base font-semibold text-gray-900">{email}</p>
+      ) : null}
+
+      <p class="text-sm text-gray-500">
+        {t('auth.reset_link_valid', 'The link is valid for 1 hour.')}
+      </p>
+
+      <button
+        type="button"
+        onClick={onBack}
+        class="pw-cta-shimmer relative mt-2 flex min-h-12 w-full items-center justify-center overflow-hidden rounded-3xl px-5 py-2 text-center text-base font-semibold leading-tight text-white transition-transform duration-150 active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--pw-accent)]"
+        style={{
+          background:
+            'linear-gradient(135deg, color-mix(in srgb, var(--pw-accent) 55%, white) 0%, var(--pw-accent) 55%, color-mix(in srgb, var(--pw-accent) 90%, black) 100%)',
+          boxShadow:
+            '0 0 20px 0 color-mix(in srgb, var(--pw-accent) 25%, transparent), inset 0 0 8px 0 color-mix(in srgb, white 25%, transparent)'
+        }}
+      >
+        <span class="relative z-10">
+          {t('auth.back_to_login', 'Back to Login')}
+        </span>
+      </button>
+    </div>
   );
 }

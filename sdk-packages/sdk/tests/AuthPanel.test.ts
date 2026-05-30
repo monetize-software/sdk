@@ -328,6 +328,8 @@ describe('AuthPanel render', () => {
     });
 
     expect(reset).toHaveBeenCalledWith({ email: 'me@b.c' });
-    expect(container.textContent).toMatch(/reset code has been sent/i);
+    expect(container.textContent).toContain('Check your email');
+    expect(container.textContent).toContain('me@b.c');
+    expect(container.textContent).toMatch(/back to login/i);
   });
 });
