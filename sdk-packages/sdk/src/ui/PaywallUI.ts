@@ -237,10 +237,15 @@ export interface GetAccessOptions {
   signal?: AbortSignal;
 }
 
-/** Internal-only расширение `OpenOptions` — `authMode` мы не светим в публичный
- *  API (есть dedicated `openSignin`/`openSignup`), но через private-методы
- *  плюс mountAndShow прокидываем именно тут. */
-type InternalOpenOptions = OpenOptions & { authMode?: 'signin' | 'signup' };
+/** Internal-only расширение `OpenOptions` — `authMode` и `checkoutPriceId` мы
+ *  не светим в публичный API (`authMode` имеет dedicated `openSignin`/`openSignup`;
+ *  `checkoutPriceId` приходит из `checkout(priceId)`-публичного метода первым
+ *  позиционным аргументом), но через private-методы плюс mountAndShow
+ *  прокидываем именно тут. */
+type InternalOpenOptions = OpenOptions & {
+  authMode?: 'signin' | 'signup';
+  checkoutPriceId?: string;
+};
 
 export interface OpenOptions {
   identity?: Identity;
@@ -601,6 +606,59 @@ export class PaywallUI {
   }
 
   /**
+   * Direct-checkout: открыть модалку и сразу перейти к /start-checkout по
+   * конкретной цене, минуя layout с тарифами. Полезно когда host-приложение
+   * рендерит pricing-карточки/таблицу собственным UI и хочет, чтобы клик по
+   * «Buy / Get this plan» вёл прямо в платёжного провайдера, без второго
+   * выбора плана в модалке SDK.
+   *
+   * Что переиспользуется из обычного `open()`-flow:
+   *  - `checkout_mode='preauth'` + managed-auth → auth-gate (форма signin'а),
+   *    после успеха auto-resume в createCheckout;
+   *  - popup_blocked / awaiting_payment / purchase_success views;
+   *  - UserWatcher polling после `checkout_started`;
+   *  - аналитика `checkout_started`/`purchase_completed`/`purchase_failed`.
+   *
+   * Что отличается от `open()`:
+   *  - layout с тарифами не показывается ни на один кадр (включая откат после
+   *    ошибки — модалка закрывается, эмитится `error`);
+   *  - already-paid сценарий (cached user, fresh bootstrap, preauth-resume,
+   *    409 hasActivePurchase от бэка) — НЕ показывает restored success-view,
+   *    эмитит `purchase_completed{restored:true}` и закрывает/не открывает
+   *    модалку. Host сам решает как сообщить юзеру.
+   *
+   * Требования:
+   *  - `identity.email` должен быть выставлен (через `opts.identity`, либо
+   *    managed-auth, либо ранний `setIdentity`/`paywall.open({identity})`).
+   *    Без email бэк `/start-checkout` 400'нёт; SDK эмитнет `error`.
+   *  - В `checkout_mode='preauth'` без managed-auth — backend требует
+   *    email-юзера; убедись что `identity.email` явно задан.
+   *
+   * Без модалки/полностью headless (когда host рендерит свой checkout-UI и
+   * хочет только URL) — используй `paywall.billing.createCheckout({priceId})`
+   * напрямую, но тогда auth-gate / popup_blocked / awaiting_payment придётся
+   * рисовать самостоятельно.
+   */
+  checkout(priceId: string, opts: OpenOptions = {}): void {
+    // Cached user → already-paid: не монтируем модалку вовсе. Свежий bootstrap
+    // в PaywallRoot перепроверит (cached user мог устареть после signOut на
+    // другом табе), и если расхождение — emit + onClose уже изнутри модалки.
+    // renew пропускает все pre-check'и — host явно делает upgrade.
+    if (opts.renew !== true) {
+      const cachedUser = this.billing.getCachedUser();
+      if (cachedUser?.has_active_subscription) {
+        this.emit('purchase_completed', {
+          priceId,
+          sessionId: null,
+          restored: true
+        });
+        return;
+      }
+    }
+    this.openInternal('checkout', { ...opts, checkoutPriceId: priceId });
+  }
+
+  /**
    * Headless anonymous signin без открытия модалки. Внутри:
    * idempotent (если уже анон — instant return) → resume через сохранённый
    * refresh_token → fresh /auth/anonymous/signin. Дедуплицирует
@@ -640,9 +698,10 @@ export class PaywallUI {
       view === 'support' ||
       view === 'auth';
     const renew = opts.renew === true;
+    const checkoutPriceId = opts.checkoutPriceId;
 
     if (skipTrial && skipVisibility) {
-      this.mountAndShow(view, { renew, authMode: opts.authMode });
+      this.mountAndShow(view, { renew, authMode: opts.authMode, checkoutPriceId });
       return;
     }
 
@@ -651,7 +710,7 @@ export class PaywallUI {
     // или нет, без флеша.
     const cached = this.billing.getCachedBootstrap();
     if (cached) {
-      this.runOpenGates(view, cached, { skipTrial, skipVisibility, renew });
+      this.runOpenGates(view, cached, { skipTrial, skipVisibility, renew, checkoutPriceId });
       return;
     }
 
@@ -668,7 +727,7 @@ export class PaywallUI {
     //   отсутствия флеша на блоке, но кнопка кажется «мёртвой» 200-500мс
     //   на холодном кеше.
     if (this.mountThenLoad) {
-      this.mountAndShow(view, { renew });
+      this.mountAndShow(view, { renew, checkoutPriceId });
       this.billing
         .bootstrap()
         .then((b) => this.runDelayedGates(b, { skipTrial, skipVisibility }))
@@ -680,10 +739,12 @@ export class PaywallUI {
 
     this.billing
       .bootstrap()
-      .then((b) => this.runOpenGates(view, b, { skipTrial, skipVisibility, renew }))
+      .then((b) =>
+        this.runOpenGates(view, b, { skipTrial, skipVisibility, renew, checkoutPriceId })
+      )
       .catch(() => {
         // Bootstrap упал — открываем без gates; PaywallRoot покажет error.
-        this.mountAndShow(view, { renew });
+        this.mountAndShow(view, { renew, checkoutPriceId });
       });
   }
 
@@ -744,7 +805,12 @@ export class PaywallUI {
   private runOpenGates(
     view: PaywallView,
     bootstrap: PaywallBootstrap,
-    flags: { skipTrial: boolean; skipVisibility: boolean; renew: boolean }
+    flags: {
+      skipTrial: boolean;
+      skipVisibility: boolean;
+      renew: boolean;
+      checkoutPriceId?: string;
+    }
   ): void {
     if (!flags.skipVisibility) {
       const v = bootstrap.settings.visibility;
@@ -758,16 +824,21 @@ export class PaywallUI {
     }
 
     if (flags.skipTrial) {
-      this.mountAndShow(view, { renew: flags.renew });
+      this.mountAndShow(view, { renew: flags.renew, checkoutPriceId: flags.checkoutPriceId });
       return;
     }
-    this.gateThroughTrial(view, bootstrap, flags.renew);
+    this.gateThroughTrial(view, bootstrap, flags.renew, flags.checkoutPriceId);
   }
 
-  private gateThroughTrial(view: PaywallView, bootstrap: PaywallBootstrap, renew: boolean): void {
+  private gateThroughTrial(
+    view: PaywallView,
+    bootstrap: PaywallBootstrap,
+    renew: boolean,
+    checkoutPriceId?: string
+  ): void {
     const trialCfg = bootstrap.settings.trial;
     if (!trialCfg) {
-      this.mountAndShow(view, { renew });
+      this.mountAndShow(view, { renew, checkoutPriceId });
       return;
     }
     const store = this.ensureTrialStore(trialCfg);
@@ -776,7 +847,7 @@ export class PaywallUI {
       .then(async (status) => {
         this.lastTrialStatus = status;
         if (status.mode === 'none') {
-          this.mountAndShow(view, { renew });
+          this.mountAndShow(view, { renew, checkoutPriceId });
           return;
         }
         if (status.blocked) {
@@ -794,13 +865,13 @@ export class PaywallUI {
           this.trialExpiredFired = true;
           this.emit('trial_expired');
         }
-        this.mountAndShow(view, { renew });
+        this.mountAndShow(view, { renew, checkoutPriceId });
       })
       .catch((e) => {
         // Storage недоступен (privacy mode, quota) — не блокируем юзера,
         // открываем модалку и не теряем продажу.
         if (typeof console !== 'undefined') console.warn('[paywall] trial check failed', e);
-        this.mountAndShow(view, { renew });
+        this.mountAndShow(view, { renew, checkoutPriceId });
       });
   }
 
@@ -823,16 +894,26 @@ export class PaywallUI {
 
   private mountAndShow(
     view: PaywallView,
-    mountOpts: { renew?: boolean; authMode?: 'signin' | 'signup' } = {}
+    mountOpts: {
+      renew?: boolean;
+      authMode?: 'signin' | 'signup';
+      checkoutPriceId?: string;
+    } = {}
   ): void {
     const renew = mountOpts.renew === true;
     const initialAuthMode = mountOpts.authMode;
+    // priceId имеет смысл только при view='checkout'. На всякий случай
+    // нормализуем в null для остальных view, чтобы handle.update не
+    // переносил stale priceId с предыдущей direct-checkout сессии.
+    const initialCheckoutPriceId =
+      view === 'checkout' ? mountOpts.checkoutPriceId ?? null : null;
     if (this.handle) {
       this.isOpen = true;
       this.handle.update({
         open: true,
         initialView: view,
         initialAuthMode,
+        initialCheckoutPriceId,
         purchased: false,
         renew
       });
@@ -848,6 +929,7 @@ export class PaywallUI {
         open: true,
         initialView: view,
         initialAuthMode,
+        initialCheckoutPriceId,
         purchased: false,
         renew,
         onClose: () => this.close(),

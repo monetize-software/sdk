@@ -20,6 +20,13 @@ interface CommonProps extends OpenProps {
    *  дефолтит в signin-mode). Для анонимного signin используй
    *  `usePaywall().signInAnonymously()` напрямую — headless без модалки. */
   mode?: 'paywall' | 'support' | 'auth' | 'signin' | 'signup';
+  /** Direct-checkout: при заданном `priceId` клик вызывает
+   *  `paywall.checkout(priceId, opts)` минуя layout с тарифами. `mode`
+   *  при этом игнорируется. Layout-flow (`mode='paywall'`, дефолт) и
+   *  direct-checkout — взаимоисключающие: либо юзер выбирает план в
+   *  модалке, либо хост уже выбрал и ведёт в checkout. См.
+   *  `PaywallUI.checkout()` про preauth/already-paid поведение. */
+  priceId?: string;
   /** Render-prop для полного контроля над элементом-триггером. Когда задан,
    *  все обычные `<button>`-пропсы (children, type, и т.д.) игнорируются. */
   render?: (args: PaywallButtonRenderArgs) => ReactElement;
@@ -66,6 +73,12 @@ export type PaywallButtonProps = CommonProps & ButtonRenderProps;
  *
  * // саппорт-форма вместо тарифов
  * <PaywallButton mode="support">Need help?</PaywallButton>
+ *
+ * // direct-checkout: хост уже выбрал план в своём UI (pricing-карточки),
+ * // клик ведёт прямо в провайдера, минуя layout с тарифами.
+ * <PaywallButton priceId={price.id} className="btn-primary">
+ *   Get this plan
+ * </PaywallButton>
  * ```
  *
  * До mount-а Provider'а или на SSR кнопка рендерится с `disabled=true`
@@ -77,6 +90,7 @@ export const PaywallButton = forwardRef<HTMLButtonElement, PaywallButtonProps>(
     const paywall = usePaywall();
     const {
       mode = 'paywall',
+      priceId,
       identity,
       renew,
       skipTrial,
@@ -93,6 +107,13 @@ export const PaywallButton = forwardRef<HTMLButtonElement, PaywallButtonProps>(
 
     const open = (): void => {
       if (!paywall) return;
+      // priceId побеждает mode: direct-checkout — отдельная семантика
+      // (host уже выбрал план в своём UI), `mode` не имеет смысла комбинировать
+      // с конкретной ценой.
+      if (priceId) {
+        paywall.checkout(priceId, openOpts);
+        return;
+      }
       switch (mode) {
         case 'support':
           paywall.openSupport(openOpts);

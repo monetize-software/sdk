@@ -56,6 +56,7 @@ type RequiredMethods =
   | 'openAuth'
   | 'openSignin'
   | 'openSignup'
+  | 'checkout'
   | 'signInAnonymously'
   | 'close'
   | 'on'
@@ -101,6 +102,13 @@ type _AssertOpenSignature = Parameters<PaywallUI['open']> extends [(OpenOptions 
 // openSupport/openAuth/openSignin/openSignup имеют ту же сигнатуру — компонент
 // PaywallButton переключается между ними через `mode` prop.
 type _AssertOpenSupportSignature = Parameters<PaywallUI['openSupport']> extends [(OpenOptions | undefined)?]
+  ? true
+  : false;
+
+// checkout(priceId, opts?) — `<PaywallButton priceId>` пробрасывает в
+// `paywall.checkout(priceId, openOpts)`. Сигнатура отличается от open*-методов
+// первым позиционным priceId-аргументом, поэтому отдельный assertion.
+type _AssertCheckoutSignature = Parameters<PaywallUI['checkout']> extends [string, (OpenOptions | undefined)?]
   ? true
   : false;
 
@@ -223,6 +231,7 @@ type _ContractChecks = [
   Assert<_AssertAuthGetCachedSession>,
   Assert<_AssertOpenSignature>,
   Assert<_AssertOpenSupportSignature>,
+  Assert<_AssertCheckoutSignature>,
   Assert<_AssertStateShape>,
   Assert<_AssertGetState>,
   Assert<_AssertOnStateChange>,

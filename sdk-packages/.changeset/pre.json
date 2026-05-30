@@ -11,6 +11,7 @@
     "auth-mv3-i18n-fixes",
     "billing-apikey-list-cancel",
     "offer-resolver-api",
+    "paywall-direct-checkout",
     "readme-cleanup-alpha7",
     "sdk-api-origin-required",
     "sdk-export-purchase-detailed",

@@ -10,7 +10,7 @@ import { SupportGate } from './SupportGate';
 import { Renderer } from './renderer/Renderer';
 import { I18nProvider, useI18n } from './i18n';
 
-export type PaywallView = 'layout' | 'support' | 'auth';
+export type PaywallView = 'layout' | 'support' | 'auth' | 'checkout';
 
 /**
  * Публичный snapshot состояния PaywallUI для host'а. Производится из internal
@@ -41,11 +41,19 @@ export interface PaywallRootProps {
   onClose: () => void;
   onEvent: (event: string, payload?: unknown) => void;
   /** Какой view показать при open=true. 'support' стартует сразу с саппорт-формой,
-   *  Back/Done закрывают модалку (origin='standalone'). По умолчанию 'layout'. */
+   *  Back/Done закрывают модалку (origin='standalone'). 'checkout' стартует
+   *  direct-checkout по `initialCheckoutPriceId` минуя layout (paywall.checkout()).
+   *  По умолчанию 'layout'. */
   initialView?: PaywallView;
   /** Mode для AuthPanel когда `initialView='auth'` — 'signin' (дефолт) или
    *  'signup'. Выставляется PaywallUI'ем из openSignup()/openSignin(). */
   initialAuthMode?: 'signin' | 'signup';
+  /** Целевая цена для direct-checkout. Используется когда `initialView='checkout'`
+   *  (`paywall.checkout(priceId)`): после bootstrap'а сразу триггерим
+   *  /start-checkout по этой цене, минуя layout с тарифами. preauth-gate,
+   *  popup_blocked и awaiting_payment views переиспользуются как в обычном flow.
+   *  Игнорируется при остальных `initialView`. */
+  initialCheckoutPriceId?: string | null;
   /** Server-confirmed покупка — показать success-вью с кнопкой Continue.
    *  Управляется снаружи (PaywallUI выставляет true из watcher.onActive),
    *  сбрасывается на open()/close(). Перебивает любые другие view. */
@@ -77,15 +85,25 @@ type LoadState =
 
 type GateState =
   | { kind: 'layout' }
+  // Direct-checkout (paywall.checkout(priceId)): модалка смонтирована, ждём
+  // bootstrap, чтобы триггернуть preauth-gate / createCheckout. На один кадр
+  // показывается LoadingView — host явно попросил «сразу в checkout», тарифы
+  // не нужны. После bootstrap'а либо closes (already-paid / error), либо
+  // переходит в auth_gate.pendingCheckout, либо стартует createCheckout
+  // → awaiting_payment / popup_blocked.
+  | { kind: 'direct_checkout_pending'; priceId: string }
   // pendingCheckout=undefined, origin='layout' — gate открыт через "Restore purchases"
   // (без последующего checkout-а), после signIn схлопываемся в layout. С
   // pendingCheckout — gate открыт по preauth-flow от cta_button и после signIn
   // auto-resume createCheckout. origin='standalone' — paywall.openAuth(): модалка
   // открыта только для логина, после signIn / Back закрываем модалку, layout
-  // вообще не показываем.
+  // вообще не показываем. direct=true — pendingCheckout пришёл из
+  // paywall.checkout(priceId): на ошибке/already-paid закрываем модалку
+  // вместо setGate('layout'), потому что layout с тарифами в этом flow
+  // никогда не должен светиться.
   | {
       kind: 'auth_gate';
-      pendingCheckout?: { priceId: string };
+      pendingCheckout?: { priceId: string; direct?: boolean };
       origin?: 'layout' | 'standalone';
       /** Контекст открытия — управляет заголовком gate'а
        *  ("Restore Purchases" vs "Welcome back!"). Дефолт — 'preauth'. */
@@ -144,7 +162,7 @@ function computePaywallSnapshot(
   if (gate.kind === 'purchase_success') {
     return { open: true, view: 'purchased', error: null };
   }
-  if (gate.kind === 'verifying') {
+  if (gate.kind === 'verifying' || gate.kind === 'direct_checkout_pending') {
     return { open: true, view: 'loading', error: null };
   }
   return { open: true, view: 'layout', error: null };
@@ -161,6 +179,7 @@ export function PaywallRoot({
   onEvent,
   initialView,
   initialAuthMode,
+  initialCheckoutPriceId,
   purchased,
   renew,
   onState,
@@ -177,8 +196,15 @@ export function PaywallRoot({
   const [gate, setGate] = useState<GateState>(() => {
     if (initialView === 'support') return { kind: 'support', origin: 'standalone' };
     if (initialView === 'auth') return { kind: 'auth_gate', origin: 'standalone' };
+    if (initialView === 'checkout' && initialCheckoutPriceId) {
+      return { kind: 'direct_checkout_pending', priceId: initialCheckoutPriceId };
+    }
     return { kind: 'layout' };
   });
+  // Стабильный флаг «текущая сессия модалки — direct-checkout». Берётся из
+  // initialView на этапе mount/reset и держится до close: на error/already-paid
+  // не падаем в layout с тарифами, а закрываем модалку и эмитим событие.
+  const isDirectCheckout = initialView === 'checkout';
   // Защита от двойного auto-resume: useEffect ниже зависит от authSession,
   // и подписка onAuthChange может прислать одну и ту же сессию повторно
   // (refresh) — без флага мы дважды дёрнем createCheckout.
@@ -236,16 +262,24 @@ export function PaywallRoot({
         // checkout, auth-resume). renew=true пропускает эту проверку — host явно
         // показывает «Renew»/«Upgrade», тарифы должны быть видны.
         //
-        // initialView — standalone-flow (openSupport/openAuth/openSignup). Host
-        // явно открыл саппорт/auth-форму, перетирать gate в restored success —
-        // нарушение intent'а; host'у саппорт сейчас важнее статуса подписки.
-        if (data.user?.has_active_subscription && !renew && !initialView) {
+        // standalone-flows (openSupport/openAuth/openSignup) пропускают этот
+        // блок: host явно открыл саппорт/auth-форму, перетирать gate в restored
+        // success — нарушение intent'а. Direct-checkout (paywall.checkout)
+        // также проходит сюда — но restored-view там не показываем (headless
+        // reject): эмитим purchase_completed{restored:true} и закрываем модалку,
+        // host сам решит как сообщить юзеру.
+        const isStandaloneView = initialView === 'support' || initialView === 'auth';
+        if (data.user?.has_active_subscription && !renew && !isStandaloneView) {
           onEvent('purchase_completed', {
-            priceId: null,
+            priceId: initialCheckoutPriceId ?? null,
             sessionId: null,
             restored: true
           });
-          setGate({ kind: 'purchase_success', restored: true });
+          if (isDirectCheckout) {
+            onClose();
+          } else {
+            setGate({ kind: 'purchase_success', restored: true });
+          }
         }
       })
       .catch((error: unknown) => {
@@ -284,8 +318,10 @@ export function PaywallRoot({
       setGate({ kind: 'support', origin: 'standalone' });
     } else if (initialView === 'auth') {
       setGate({ kind: 'auth_gate', origin: 'standalone' });
+    } else if (initialView === 'checkout' && initialCheckoutPriceId) {
+      setGate({ kind: 'direct_checkout_pending', priceId: initialCheckoutPriceId });
     }
-  }, [open, initialView]);
+  }, [open, initialView, initialCheckoutPriceId]);
 
   const runCheckout = async (priceId: string) => {
     try {
@@ -320,8 +356,9 @@ export function PaywallRoot({
       // 409 hasActivePurchase от бэка — это не ошибка чекаута, это «у юзера
       // уже есть активная подписка». Освежаем cache (host'овский userChange
       // должен увидеть has_active_subscription=true), эмитим purchase_completed
-      // с restored=true и переключаемся в success-view. Не setGate в layout,
-      // не onEvent('error') — иначе host увидит false-negative.
+      // с restored=true. Для layout-flow переключаемся в success-view; для
+      // direct-checkout (paywall.checkout) — headless reject: закрываем
+      // модалку, host сам решит как сообщить юзеру.
       if (error instanceof PaywallError && error.code === 'already_purchased') {
         try {
           await client.getUser({ force: true });
@@ -329,7 +366,11 @@ export function PaywallRoot({
           /* offline / 401 — host'у getUser сам отрапортует, тут это не блокирует success-view */
         }
         onEvent('purchase_completed', { priceId, sessionId: null, restored: true });
-        setGate({ kind: 'purchase_success', restored: true });
+        if (isDirectCheckout) {
+          onClose();
+        } else {
+          setGate({ kind: 'purchase_success', restored: true });
+        }
         return;
       }
       const err =
@@ -337,9 +378,15 @@ export function PaywallRoot({
           ? error
           : new PaywallError('checkout_failed', 'Checkout failed', { cause: error });
       onEvent('error', err);
-      // На ошибке возвращаем юзера в layout — иначе застрянем в auth_gate
+      // Layout-flow: возвращаем юзера в layout — иначе застрянем в auth_gate
       // (если пришли через preauth-flow) с уже залогиненной сессией.
-      setGate({ kind: 'layout' });
+      // Direct-checkout: layout с тарифами никогда не должен светиться —
+      // закрываем модалку, host получит error-эвент и решит как реагировать.
+      if (isDirectCheckout) {
+        onClose();
+      } else {
+        setGate({ kind: 'layout' });
+      }
     }
   };
 
@@ -383,7 +430,8 @@ export function PaywallRoot({
       // Прежде чем продолжать flow (runCheckout / возврат в layout / закрытие
       // модалки), проверяем — может, у юзера уже есть active subscription.
       // Сценарии: Restore-кнопка (он уже платил с другого аккаунта); preauth
-      // signIn (юзер вспомнил, что подписка есть); standalone openAuth.
+      // signIn (юзер вспомнил, что подписка есть); standalone openAuth;
+      // direct-checkout с preauth-gate'ом.
       // Без этой проверки юзер увидел бы тарифы и кликнул Buy → 409 от бэка
       // → fallback на already_purchased. Лучше не давать ему этот шаг.
       // renew=true пропускает проверку — host явно делает renewal-flow.
@@ -396,7 +444,14 @@ export function PaywallRoot({
               sessionId: null,
               restored: true
             });
-            setGate({ kind: 'purchase_success', restored: true });
+            // Direct-checkout preauth-resume: тарифы не показываем, restored-
+            // view тоже (headless reject) — закрываем модалку. Host получит
+            // purchase_completed{restored:true} и решит как сообщить юзеру.
+            if (pending?.direct) {
+              onClose();
+            } else {
+              setGate({ kind: 'purchase_success', restored: true });
+            }
             return;
           }
         } catch {
@@ -418,6 +473,32 @@ export function PaywallRoot({
       resumingRef.current = false;
     });
   }, [authSession, gate]);
+
+  // Direct-checkout kick-off: gate в 'direct_checkout_pending' ждёт bootstrap.
+  // Как только state.ready — повторяем ту же ветку, что cta_button делает в
+  // layout (handleAction('checkout')): preauth-gate если нужен, иначе сразу
+  // runCheckout. has_active_subscription уже обработан в bootstrap-эффекте
+  // выше (там либо setGate в purchase_success для layout-flow, либо onClose
+  // для direct-checkout); сюда мы попадём только если юзер реально нуждается
+  // в покупке.
+  useEffect(() => {
+    if (state.status !== 'ready') return;
+    if (gate.kind !== 'direct_checkout_pending') return;
+    const priceId = gate.priceId;
+    const mode = state.data.settings.checkout_mode ?? 'guest';
+    const cachedSession = client.auth?.getCachedSession() ?? null;
+    const hasRealSession = !!cachedSession && !cachedSession.user.is_anonymous;
+    const needsAuth = mode === 'preauth' && !!client.auth && !hasRealSession;
+    if (needsAuth) {
+      // direct=true — auth-resume effect выберет onClose вместо purchase_success
+      // если юзер окажется уже подписан, и runCheckout (через ошибку) тоже
+      // закроет модалку вместо setGate('layout').
+      setGate({ kind: 'auth_gate', pendingCheckout: { priceId, direct: true } });
+      return;
+    }
+    void runCheckout(priceId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state, gate]);
 
   const handleAction = async (action: string, payload?: unknown) => {
     if (action === 'close') {
@@ -546,7 +627,7 @@ export function PaywallRoot({
         <PurchaseSuccessView restored={gate.restored} onContinue={onClose} />
       ) : supportView ? (
         supportView
-      ) : state.status === 'loading' || state.status === 'idle' || gate.kind === 'verifying' ? (
+      ) : state.status === 'loading' || state.status === 'idle' || gate.kind === 'verifying' || gate.kind === 'direct_checkout_pending' ? (
         <LoadingView verifying={gate.kind === 'verifying'} />
       ) : state.status === 'error' ? (
         <ErrorView message={state.error.message} />
