@@ -10,6 +10,7 @@
     "auth-flows-and-i18n-fixes",
     "auth-mv3-i18n-fixes",
     "billing-apikey-list-cancel",
+    "createcheckout-local-currency",
     "offer-resolver-api",
     "paywall-checkout-late-mount-offer",
     "paywall-direct-checkout",

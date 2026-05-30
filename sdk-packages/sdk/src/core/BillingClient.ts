@@ -1237,6 +1237,17 @@ export class BillingClient {
     const successUrl = params.successUrl ?? settings?.success_redirect_url ?? undefined;
     const shopUrl = params.shopUrl ?? settings?.checkout_shop_url ?? undefined;
 
+    // Резолвим local-currency по cached prices'ам. Бэк (checkout-with-acquiring)
+    // выбирает локализованную цену из paywall_internal_local_prices по этой
+    // валюте. Без явной передачи бэк падает на base-валюту (USD), и юзер,
+    // которому пейвол показывал £9.99, на Stripe увидит $9.99 — буквальный
+    // mismatch UI/чекаут. Каноничный источник — `price.local.currency` из
+    // bootstrap'а (бэк там сам резолвит по геолокации/настройкам).
+    const cachedPrice = this.cachedBootstrap?.prices.find(
+      (p) => p.id === params.priceId
+    );
+    const localCurrency = cachedPrice?.local?.currency ?? undefined;
+
     const promise = this.api
       .request<{
         checkoutUrl: string;
@@ -1261,7 +1272,8 @@ export class BillingClient {
           productName: settings?.checkout_product_name ?? undefined,
           trial_days: params.trialDays,
           ignoreActivePurchase: params.ignoreActivePurchase ? true : undefined,
-          userMeta: this.identity.userId ? { userId: this.identity.userId } : undefined
+          userMeta: this.identity.userId ? { userId: this.identity.userId } : undefined,
+          localCurrency
         })
       })
       .then((resp): CheckoutResult => ({ url: resp.checkoutUrl, acquiring: resp.acquiring }))
