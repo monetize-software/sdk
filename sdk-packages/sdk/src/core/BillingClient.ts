@@ -1323,7 +1323,9 @@ export class BillingClient {
    * инвойсы). Опен-флоу управляется host'ом:
    *
    * ```ts
-   * const { url } = await billing.getCustomerPortalUrl();
+   * const { url } = await billing.getCustomerPortalUrl({
+   *   returnUrl: 'https://your-app.com/account'
+   * });
    * window.open(url, '_blank');
    * ```
    *
@@ -1334,7 +1336,17 @@ export class BillingClient {
    * subscription to manage".
    */
   async getCustomerPortalUrl(
-    opts: { signal?: AbortSignal } = {}
+    opts: {
+      signal?: AbortSignal;
+      /** URL для return-button у провайдера (Stripe «Return to ...», Paddle
+       *  и Chargebee redirect_url'ы). Передавай туда страницу-аккаунт твоего
+       *  app'а — `https://your-app.com/account`. Без явного returnUrl бэк
+       *  применяет fallback в порядке: `paywall_settings.shop_url` →
+       *  custom_domain пейвола → NEXT_PUBLIC_ONLINE_ORIGIN (последнее — это
+       *  страница в самом online-сервисе, годится только для legacy
+       *  v2-iframe-флоу). */
+      returnUrl?: string;
+    } = {}
   ): Promise<{ url: string }> {
     if (!this.auth && !this.apiKey && !this.identity?.email) {
       throw new PaywallError(
@@ -1345,15 +1357,18 @@ export class BillingClient {
     const headers: Record<string, string> = {};
     if (this.apiKey) headers['X-Api-Key'] = this.apiKey;
     // Без Bearer — legacy путь: email/userMeta в body. С Bearer — бэк сам
-    // достаёт email через GoTrue, body можно слать пустым.
+    // достаёт email через GoTrue, body можно слать без identity-полей.
+    // returnUrl прокидываем в обоих режимах — host-controlled override
+    // не связан с auth-режимом.
     const body =
       this.auth && this.auth.getCachedSession()
-        ? {}
+        ? { returnUrl: opts.returnUrl }
         : {
             email: this.identity?.email,
             userMeta: this.identity?.userId
               ? { userId: this.identity.userId }
-              : undefined
+              : undefined,
+            returnUrl: opts.returnUrl
           };
     const resp = await this.api.request<{ url: string }>(
       `/api/v1/paywall/${this.paywallId}/get-customer-portal`,
