@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import type { BillingClient } from '../core/BillingClient';
 import type { AuthSession } from '../core/auth';
-import { findApplicableOffer } from '../core/offer';
+import { findLiveOffer, readBrowserOfferStart } from '../core/offer';
 import type { LayoutBlock, PaywallBootstrap } from '../core/types';
 import { PaywallError } from '../core/types';
 import { Modal } from './Modal';
@@ -418,9 +418,12 @@ export function PaywallRoot({
       // (countdown тикает в clientStorage) не применятся на чекауте — сервер не
       // может их валидировать, ему нужен явный offerId. end_date-офферы тоже
       // прокидываем — бэк ещё раз перепроверит applicable и отбросит чужие.
+      // findLiveOffer (а не сырой findApplicableOffer) — чтобы НЕ слать offerId
+      // просроченного duration-оффера: server-side таймера для них нет, бэк
+      // принял бы id и выдал бы скидку, которой в UI уже не видно.
       const cachedOffers = client.getCachedOffers?.() ?? null;
       const applicableOffer = cachedOffers
-        ? findApplicableOffer(cachedOffers, priceId)
+        ? findLiveOffer(cachedOffers, priceId, { readStart: readBrowserOfferStart })
         : null;
       const result = await client.createCheckout({
         priceId,

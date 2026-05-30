@@ -46,6 +46,29 @@ export function findApplicableOffer(
   return global ?? null;
 }
 
+/**
+ * Как `findApplicableOffer`, но возвращает оффер только пока он **жив** (не
+ * истёк). `findApplicableOffer` сам по себе фильтрует лишь по `price_id` +
+ * `discount_percent > 0` и срок не смотрит — поэтому strike-through/`-X%` в
+ * `PriceGrid` внутри модалки переживал expiry, хотя countdown-баннер уже
+ * скрывался (рассинхрон внутри модалки + расхождение с хост-прайсингом,
+ * который резолвит через `resolveOffer`). Эта обёртка прогоняет найденный
+ * оффер через `resolveOffer` и режет просроченное.
+ *
+ * Для duration_minutes-оффера без записанного старта (marker ещё не
+ * проставлен) `resolveOffer` отдаёт оффер как perpetual — скидка
+ * показывается, как и раньше; режется ровно истёкшее.
+ */
+export function findLiveOffer(
+  offers: PaywallOffer[] | null | undefined,
+  priceId: string,
+  opts: ResolveOfferOptions = {}
+): PaywallOffer | null {
+  const offer = findApplicableOffer(offers, priceId);
+  if (!offer) return null;
+  return resolveOffer(offer, opts) ? offer : null;
+}
+
 export interface ResolveOfferOptions {
   /** Current epoch ms. Inject for deterministic tests; default `Date.now()`. */
   now?: number;

@@ -1,5 +1,5 @@
 import type { LayoutBlock, PaywallOffer, PaywallPrice } from '../../../core/types';
-import { findApplicableOffer } from '../../../core/offer';
+import { findLiveOffer, readBrowserOfferStart } from '../../../core/offer';
 import type { BlockProps } from '../types';
 import { useI18n, type TFn } from '../../i18n';
 
@@ -82,8 +82,9 @@ function formatPriceParts(price: PaywallPrice, discountPercent: number | null): 
   };
 }
 
-// Подбор активного offer'а вынесен в `core/offer.ts:findApplicableOffer` —
-// единая точка для renderer'а и host-side API (`PaywallUI.getOfferForPrice`).
+// Подбор активного offer'а вынесен в `core/offer.ts:findLiveOffer` —
+// expiry-aware обёртка над findApplicableOffer (режет просроченные офферы,
+// чтобы strike-through/скидка исчезали синхронно с countdown-баннером).
 
 function planLabel(price: PaywallPrice, t: TFn): string {
   if (price.label) return price.label.toUpperCase();
@@ -146,7 +147,7 @@ export function PriceGrid({ block, ctx }: BlockProps<PriceGridBlock>) {
             isLast={idx === prices.length - 1}
             isPopular={block.popular_price_id === price.id}
             popularLabel={popularLabel}
-            offer={findApplicableOffer(ctx.bootstrap.offers, price.id)}
+            offer={findLiveOffer(ctx.bootstrap.offers, price.id, { readStart: readBrowserOfferStart })}
             selected={ctx.selectedPriceId === price.id}
             onSelect={() => {
               ctx.setSelectedPriceId(price.id);
@@ -171,7 +172,7 @@ export function PriceGrid({ block, ctx }: BlockProps<PriceGridBlock>) {
     // прыгает выше соседних со скидкой). Если оффера нет совсем — strike-row
     // схлопывается в 0 у всех, и не висит 22px пустоты под label'ом.
     const anyHasDiscount = prices.some(
-      (p) => (findApplicableOffer(ctx.bootstrap.offers, p.id)?.discount_percent ?? 0) > 0
+      (p) => (findLiveOffer(ctx.bootstrap.offers, p.id, { readStart: readBrowserOfferStart })?.discount_percent ?? 0) > 0
     );
     return (
       <div
@@ -186,7 +187,7 @@ export function PriceGrid({ block, ctx }: BlockProps<PriceGridBlock>) {
             price={price}
             isPopular={block.popular_price_id === price.id}
             popularLabel={popularLabel}
-            offer={findApplicableOffer(ctx.bootstrap.offers, price.id)}
+            offer={findLiveOffer(ctx.bootstrap.offers, price.id, { readStart: readBrowserOfferStart })}
             reserveStrikeRow={anyHasDiscount}
             selected={ctx.selectedPriceId === price.id}
             onSelect={() => {
@@ -209,7 +210,7 @@ export function PriceGrid({ block, ctx }: BlockProps<PriceGridBlock>) {
       {prices.map((price) => {
         const selected = ctx.selectedPriceId === price.id;
         const isPopular = block.popular_price_id === price.id;
-        const offer = findApplicableOffer(ctx.bootstrap.offers, price.id);
+        const offer = findLiveOffer(ctx.bootstrap.offers, price.id, { readStart: readBrowserOfferStart });
         const discountPercent = offer?.discount_percent ?? null;
         const { currency, amount, originalAmount } = formatPriceParts(price, discountPercent);
         return (

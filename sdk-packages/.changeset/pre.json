@@ -16,6 +16,7 @@
     "customer-portal-return-url",
     "getaccess-stale-user",
     "offer-banner-farming-fix",
+    "offer-pricegrid-checkout-expiry",
     "offer-resolver-api",
     "paywall-checkout-late-mount-offer",
     "paywall-direct-checkout",
