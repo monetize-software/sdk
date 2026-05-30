@@ -24,8 +24,10 @@ export interface PaywallOffer {
   expires_at: string | null;
   /** Относительный таймер: сколько минут offer живёт **от первого просмотра
    *  пейвола** данным юзером. Старт хранится в clientStorage под ключом
-   *  `pw-offer-{id}-start`, по истечении — auto-cleanup. Используется, когда
-   *  бэк хочет показывать "remaining time" без жёсткой server-time, а считать
+   *  `pw-offer-{id}-start` и остаётся там **после** expiry — это
+   *  forever-marker, чтобы юзер не мог «фармить» offer (re-open пейвола
+   *  не запускает countdown заново). Используется, когда бэк хочет
+   *  показывать "remaining time" без жёсткой server-time, а считать
    *  относительно сессии юзера. expires_at имеет приоритет если задано. */
   duration_minutes?: number | null;
   price_id: string | null;

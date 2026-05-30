@@ -7,7 +7,10 @@ type OfferBannerBlock = Extract<LayoutBlock, { type: 'offer_banner' }>;
 
 // Хранилище старта для относительных таймеров (offer.duration_minutes). Ключ
 // привязан к offer.id — повторное открытие пейвола не сбрасывает countdown,
-// юзер не может «фармить» offer-баннер бесконечно. Чистим по истечении.
+// юзер не может «фармить» offer-баннер бесконечно. Ключ остаётся в storage
+// и после expiry — это forever-marker «offer уже стартовал для юзера»; без
+// него повторное открытие после истечения снова записало бы свежий `start`
+// и countdown перезапустился бы с нуля.
 const STORAGE_KEY = (offerId: string): string => `pw-offer-${offerId}-start`;
 
 export interface TimeLeft {
@@ -92,16 +95,11 @@ export function useOfferCountdown(offer: PaywallOffer | null): TimeLeft | null {
     const timer = setInterval(() => {
       const next = calcTimeLeft(endMsRef.current ?? 0);
       setTimeLeft(next);
-      if (next.expired) {
-        clearInterval(timer);
-        if (offer?.duration_minutes && typeof window !== 'undefined') {
-          try {
-            window.localStorage.removeItem(STORAGE_KEY(offer.id));
-          } catch {
-            /* ignore */
-          }
-        }
-      }
+      // НЕ удаляем `pw-offer-<id>-start` при expiry — ключ нужен как
+      // forever-marker «offer уже стартовал»; иначе re-open пейвола после
+      // истечения запишет свежий start и countdown стартанёт с нуля
+      // (offer-farming bug). Достаточно остановить тик.
+      if (next.expired) clearInterval(timer);
     }, 1000);
     return () => clearInterval(timer);
   }, [endMs, offer?.duration_minutes, offer?.id]);
