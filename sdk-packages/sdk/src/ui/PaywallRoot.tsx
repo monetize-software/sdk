@@ -789,31 +789,57 @@ function PopupBlockedView({ onReopen }: { onReopen: () => void }) {
   const { t } = useI18n();
   return (
     <div class="flex flex-col items-center gap-3 py-8 text-center">
+      {/* External-link / open-in-new-window: окно с уходящей вверх-вправо
+       *  стрелкой — стандартная иконка «открыть в новой вкладке». Раньше
+       *  стоял check-in-box, который читался как «отмечено/готово» и не
+       *  передавал суть «нужно разрешить попап». */}
       <div
-        class="flex h-11 w-11 items-center justify-center rounded-full"
+        class="flex h-14 w-14 items-center justify-center rounded-full"
         style={{ background: 'color-mix(in srgb, var(--pw-accent) 12%, white)', color: 'var(--pw-accent)' }}
         aria-hidden="true"
       >
-        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-          <path d="M4 5h12v10H4z" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round" />
-          <path d="M7 9l3 3 4-5" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" />
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+          <path
+            d="M14 4h6v6"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+          <path
+            d="M20 4l-9 9"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+          <path
+            d="M19 13v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h5"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
         </svg>
       </div>
-      <p class="text-sm font-semibold tracking-tight text-gray-900">
+      <p
+        id="pw-title"
+        class="mt-1 text-lg font-semibold tracking-tight text-gray-900"
+      >
         {t('payment.popup_blocked_title', 'Allow popups to continue')}
       </p>
-      <p class="max-w-[18rem] text-xs leading-relaxed text-gray-500">
+      <p class="max-w-[20rem] text-sm leading-relaxed text-gray-500">
         {t('payment.popup_blocked_message', 'Your browser blocked the checkout tab. Click below to open it.')}
       </p>
       <button
         type="button"
         onClick={onReopen}
-        class="mt-1 rounded-xl px-4 py-2 text-xs font-semibold text-white transition-all hover:-translate-y-px hover:brightness-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--pw-accent)]"
+        class="mt-3 rounded-xl px-5 py-2.5 text-sm font-semibold text-white transition-all hover:-translate-y-px hover:brightness-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--pw-accent)]"
         style={{
           background:
             'linear-gradient(180deg, color-mix(in srgb, var(--pw-accent) 92%, white), var(--pw-accent))',
           boxShadow:
-            '0 1px 2px rgba(15,23,42,0.08), 0 6px 14px -4px color-mix(in srgb, var(--pw-accent) 50%, transparent)'
+            '0 1px 2px rgba(15,23,42,0.08), 0 8px 20px -6px color-mix(in srgb, var(--pw-accent) 50%, transparent)'
         }}
       >
         {t('payment.open_checkout_button', 'Open checkout')}
@@ -903,18 +929,24 @@ function AwaitingPaymentView({
         {t('nav.back', '← Back')}
       </button>
       <div class="flex flex-col items-center gap-3 py-6 text-center">
-        <div class="relative flex h-12 w-12 items-center justify-center">
+        {/* Иконка: spinner внутри ping-halo. h-14 контейнер — чтобы по
+         *  размеру соответствовать success-view'у и читался как «primary
+         *  status indicator», а не как маленький inline-spinner. */}
+        <div class="relative flex h-14 w-14 items-center justify-center">
           <span
             class="absolute inset-0 animate-ping rounded-full opacity-40"
             style={{ background: 'color-mix(in srgb, var(--pw-accent) 30%, transparent)' }}
             aria-hidden="true"
           />
-          <span class="relative inline-block h-7 w-7 animate-spin rounded-full border-[2.5px] border-gray-200 border-t-[var(--pw-accent)]" />
+          <span class="relative inline-block h-8 w-8 animate-spin rounded-full border-[2.5px] border-gray-200 border-t-[var(--pw-accent)]" />
         </div>
-        <p class="text-sm font-semibold tracking-tight text-gray-900">
+        <p
+          id="pw-title"
+          class="mt-1 text-lg font-semibold tracking-tight text-gray-900"
+        >
           {t('payment.awaiting_title', 'Complete payment in the new tab')}
         </p>
-        <p class="max-w-[20rem] text-xs leading-relaxed text-gray-500">
+        <p class="max-w-[22rem] text-sm leading-relaxed text-gray-500">
           {t(
             'payment.awaiting_subtitle',
             "We'll detect your payment automatically — or click below once you're done."
@@ -924,12 +956,12 @@ function AwaitingPaymentView({
           type="button"
           onClick={handleVerify}
           disabled={checking}
-          class="mt-1 rounded-xl px-5 py-2.5 text-sm font-semibold text-white transition-all hover:-translate-y-px hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:brightness-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--pw-accent)]"
+          class="mt-3 rounded-xl px-5 py-2.5 text-sm font-semibold text-white transition-all hover:-translate-y-px hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:brightness-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--pw-accent)]"
           style={{
             background:
               'linear-gradient(180deg, color-mix(in srgb, var(--pw-accent) 92%, white), var(--pw-accent))',
             boxShadow:
-              '0 1px 2px rgba(15,23,42,0.08), 0 6px 14px -4px color-mix(in srgb, var(--pw-accent) 50%, transparent)'
+              '0 1px 2px rgba(15,23,42,0.08), 0 8px 20px -6px color-mix(in srgb, var(--pw-accent) 50%, transparent)'
           }}
         >
           {checking ? t('payment.checking', 'Checking…') : t('payment.ive_paid', "I've paid")}

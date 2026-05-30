@@ -1,5 +1,12 @@
 # @monetize.software/sdk-extension
 
+## 3.0.0-alpha.18
+
+### Patch Changes
+
+- Updated dependencies
+  - @monetize.software/sdk@3.0.0-alpha.15
+
 ## 3.0.0-alpha.17
 
 ### Patch Changes
