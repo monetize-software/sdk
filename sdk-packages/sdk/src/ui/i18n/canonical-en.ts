@@ -88,6 +88,7 @@ const en = {
   'auth.check_email_message': 'Check your email for a confirmation code.',
   'auth.reset_sent_message': 'If that email exists, a reset code has been sent.',
   'auth.reset_sent_subtitle': 'We sent a password reset link. Follow the instructions in the email to reset your password.',
+  'auth.signup_sent_subtitle': 'We sent a confirmation link to your email. Click it to activate your account, then sign in.',
   'auth.reset_link_valid': 'The link is valid for 1 hour.',
   'auth.back_to_login': 'Back to Login',
   'auth.signin_failed': 'Sign-in failed',

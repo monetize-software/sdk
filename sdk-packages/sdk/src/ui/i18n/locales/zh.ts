@@ -52,6 +52,7 @@ const zh = {
   'auth.reset_password_title': '重置密码',
   'auth.reset_sent_message': '如果该邮箱存在，已发送重置码。',
   'auth.reset_sent_subtitle': '我们已发送密码重置链接。请按邮件中的说明操作。',
+  'auth.signup_sent_subtitle': '我们已向您的邮箱发送了确认链接。点击它激活您的账户，然后登录。',
   'auth.restore_purchases_heading': '恢复购买',
   'auth.restore_purchases_subheading': '请登录以恢复您的购买。',
   'auth.send_reset': '发送重置邮件',

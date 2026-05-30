@@ -47,6 +47,7 @@ const vi = {
   'auth.reset_password_title': 'Đặt lại mật khẩu',
   'auth.reset_sent_message': 'Nếu email đó tồn tại, mã đặt lại đã được gửi.',
   'auth.reset_sent_subtitle': 'Chúng tôi đã gửi liên kết đặt lại mật khẩu. Làm theo hướng dẫn trong email.',
+  'auth.signup_sent_subtitle': 'Chúng tôi đã gửi liên kết xác nhận đến email của bạn. Nhấp vào đó để kích hoạt tài khoản, sau đó đăng nhập.',
   'auth.restore_purchases_heading': 'Khôi phục giao dịch',
   'auth.restore_purchases_subheading': 'Vui lòng đăng nhập để khôi phục giao dịch của bạn.',
   'auth.send_reset': 'Gửi email đặt lại',

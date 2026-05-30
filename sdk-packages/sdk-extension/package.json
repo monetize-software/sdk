@@ -1,6 +1,6 @@
 {
   "name": "@monetize.software/sdk-extension",
-  "version": "3.0.0-alpha.25",
+  "version": "3.0.0-beta.0",
   "description": "Monetize SDK for Chrome extensions — single source of truth via offscreen document, drop-in compatible with @monetize.software/sdk public API",
   "type": "module",
   "sideEffects": false,

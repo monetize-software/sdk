@@ -52,6 +52,7 @@ const nl = {
   'auth.reset_password_title': 'Wachtwoord opnieuw instellen',
   'auth.reset_sent_message': 'Als dat e-mailadres bestaat, is er een resetcode verzonden.',
   'auth.reset_sent_subtitle': 'We hebben een wachtwoord-resetlink verzonden. Volg de instructies in de e-mail.',
+  'auth.signup_sent_subtitle': 'We hebben een bevestigingslink naar je e-mail gestuurd. Klik erop om je account te activeren en log daarna in.',
   'auth.restore_purchases_heading': 'Aankopen Herstellen',
   'auth.restore_purchases_subheading': 'Log in om je aankopen te herstellen.',
   'auth.send_reset': 'Reset-e-mail Versturen',

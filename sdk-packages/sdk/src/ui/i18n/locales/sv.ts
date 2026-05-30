@@ -47,6 +47,7 @@ const sv = {
   'auth.reset_password_title': 'Återställ lösenord',
   'auth.reset_sent_message': 'Om e-postadressen finns har en återställningskod skickats.',
   'auth.reset_sent_subtitle': 'Vi har skickat en länk för att återställa lösenordet. Följ instruktionerna i e-postmeddelandet.',
+  'auth.signup_sent_subtitle': 'Vi har skickat en bekräftelselänk till din e-post. Klicka på den för att aktivera ditt konto och logga sedan in.',
   'auth.restore_purchases_heading': 'Återställ Köp',
   'auth.restore_purchases_subheading': 'Logga in för att återställa dina köp.',
   'auth.send_reset': 'Skicka Återställningsmail',

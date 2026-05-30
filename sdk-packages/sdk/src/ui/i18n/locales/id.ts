@@ -47,6 +47,7 @@ const id = {
   'auth.reset_password_title': 'Atur ulang kata sandi',
   'auth.reset_sent_message': 'Jika email tersebut ada, kode reset telah dikirim.',
   'auth.reset_sent_subtitle': 'Kami telah mengirim tautan reset kata sandi. Ikuti petunjuk di email.',
+  'auth.signup_sent_subtitle': 'Kami telah mengirim tautan konfirmasi ke email Anda. Klik untuk mengaktifkan akun Anda, lalu masuk.',
   'auth.restore_purchases_heading': 'Pulihkan pembelian',
   'auth.restore_purchases_subheading': 'Silakan masuk untuk memulihkan pembelian Anda.',
   'auth.send_reset': 'Kirim email reset',

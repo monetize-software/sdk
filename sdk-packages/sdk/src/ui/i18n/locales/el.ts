@@ -47,6 +47,7 @@ const el = {
   'auth.reset_password_title': 'Επαναφορά κωδικού',
   'auth.reset_sent_message': 'Αν αυτό το email υπάρχει, εστάλη κωδικός επαναφοράς.',
   'auth.reset_sent_subtitle': 'Στείλαμε σύνδεσμο επαναφοράς κωδικού. Ακολουθήστε τις οδηγίες στο email.',
+  'auth.signup_sent_subtitle': 'Σας στείλαμε έναν σύνδεσμο επιβεβαίωσης στο email σας. Κάντε κλικ για να ενεργοποιήσετε τον λογαριασμό σας και μετά συνδεθείτε.',
   'auth.restore_purchases_heading': 'Επαναφορά αγορών',
   'auth.restore_purchases_subheading': 'Παρακαλώ συνδεθείτε για να επαναφέρετε τις αγορές σας.',
   'auth.send_reset': 'Αποστολή email επαναφοράς',

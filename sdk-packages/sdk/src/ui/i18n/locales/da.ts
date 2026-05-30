@@ -47,6 +47,7 @@ const da = {
   'auth.reset_password_title': 'Nulstil adgangskode',
   'auth.reset_sent_message': 'Hvis den e-mail findes, er der sendt en nulstillingskode.',
   'auth.reset_sent_subtitle': 'Vi har sendt et link til at nulstille adgangskoden. Følg instruktionerne i e-mailen.',
+  'auth.signup_sent_subtitle': 'Vi har sendt et bekræftelseslink til din e-mail. Klik på det for at aktivere din konto, og log derefter ind.',
   'auth.restore_purchases_heading': 'Gendan Køb',
   'auth.restore_purchases_subheading': 'Log ind for at gendanne dine køb.',
   'auth.send_reset': 'Send Nulstillingsmail',

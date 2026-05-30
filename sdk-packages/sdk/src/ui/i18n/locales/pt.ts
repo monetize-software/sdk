@@ -52,6 +52,7 @@ const pt = {
   'auth.reset_password_title': 'Redefinir senha',
   'auth.reset_sent_message': 'Se esse e-mail existir, um código de redefinição foi enviado.',
   'auth.reset_sent_subtitle': 'Enviamos um link para redefinir sua senha. Siga as instruções no e-mail.',
+  'auth.signup_sent_subtitle': 'Enviámos um link de confirmação para o seu e-mail. Clique nele para ativar a sua conta e depois inicie sessão.',
   'auth.restore_purchases_heading': 'Restaurar Compras',
   'auth.restore_purchases_subheading': 'Por favor, faça login para restaurar suas compras.',
   'auth.send_reset': 'Enviar E-mail de Redefinição',

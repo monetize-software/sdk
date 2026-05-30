@@ -52,6 +52,7 @@ const ja = {
   'auth.reset_password_title': 'パスワードをリセット',
   'auth.reset_sent_message': 'そのメールが存在する場合、リセットコードが送信されました。',
   'auth.reset_sent_subtitle': 'パスワードリセットのリンクをメールで送信しました。メール内の指示に従ってください。',
+  'auth.signup_sent_subtitle': '確認リンクをメールで送信しました。リンクをクリックしてアカウントを有効化し、サインインしてください。',
   'auth.restore_purchases_heading': '購入を復元',
   'auth.restore_purchases_subheading': '購入を復元するためにサインインしてください。',
   'auth.send_reset': 'リセットメールを送信',

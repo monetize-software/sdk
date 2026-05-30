@@ -47,6 +47,7 @@ const no = {
   'auth.reset_password_title': 'Tilbakestill passord',
   'auth.reset_sent_message': 'Hvis e-posten finnes, er det sendt en tilbakestillingskode.',
   'auth.reset_sent_subtitle': 'Vi har sendt en lenke for å tilbakestille passordet. Følg instruksjonene i e-posten.',
+  'auth.signup_sent_subtitle': 'Vi har sendt en bekreftelseslenke til e-posten din. Klikk på den for å aktivere kontoen, og logg deretter inn.',
   'auth.restore_purchases_heading': 'Gjenopprett Kjøp',
   'auth.restore_purchases_subheading': 'Logg inn for å gjenopprette kjøpene dine.',
   'auth.send_reset': 'Send Tilbakestillingsmail',

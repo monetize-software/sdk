@@ -47,6 +47,7 @@ const he = {
   'auth.reset_password_title': 'איפוס סיסמה',
   'auth.reset_sent_message': 'אם הדואר קיים, נשלח קוד איפוס.',
   'auth.reset_sent_subtitle': 'שלחנו קישור לאיפוס סיסמה. עקוב אחר ההוראות במייל.',
+  'auth.signup_sent_subtitle': 'שלחנו קישור אישור לכתובת המייל שלך. לחץ עליו כדי להפעיל את החשבון, ואז התחבר.',
   'auth.restore_purchases_heading': 'שחזר רכישות',
   'auth.restore_purchases_subheading': 'אנא התחבר כדי לשחזר את הרכישות שלך.',
   'auth.send_reset': 'שלח אימייל איפוס',

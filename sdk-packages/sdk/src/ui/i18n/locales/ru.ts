@@ -51,6 +51,7 @@ const ru = {
   'auth.reset_password_title': 'Сброс пароля',
   'auth.reset_sent_message': 'Если такой email существует, код для сброса отправлен.',
   'auth.reset_sent_subtitle': 'Мы отправили ссылку для сброса пароля. Следуйте инструкциям в письме.',
+  'auth.signup_sent_subtitle': 'Мы отправили ссылку для подтверждения на вашу почту. Перейдите по ней, чтобы активировать аккаунт, затем войдите.',
   'auth.restore_purchases_heading': 'Восстановить покупки',
   'auth.restore_purchases_subheading': 'Войдите, чтобы восстановить покупки.',
   'auth.send_reset': 'Отправить письмо для сброса',

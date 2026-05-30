@@ -7,7 +7,7 @@ import { useI18n, type TFn } from '../../i18n';
 
 type AuthPanelBlock = Extract<LayoutBlock, { type: 'auth_panel' }>;
 
-type Mode = 'signin' | 'signup' | 'signup_verify' | 'forgot' | 'reset_sent' | 'reset_verify';
+type Mode = 'signin' | 'signup' | 'signup_sent' | 'forgot' | 'reset_sent' | 'reset_verify';
 
 function providerLabel(provider: OAuthProvider, t: TFn): string {
   switch (provider) {
@@ -224,18 +224,17 @@ function AuthForm({ block, allowSignup, allowReset, ctx }: FormProps) {
         } else if (mode === 'signup') {
           const res = await auth.signUp({ email, password });
           if (res.kind === 'confirmation_required') {
-            // Email-confirm flow ≠ password-reset: пароль уже задан, нужен
-            // только OTP. Чистим password, чтобы не утащить его в signup_verify
-            // submit и не получить ложную ветку type='recovery'.
+            // Link-флоу (как recovery): прод-шаблон шлёт confirmation-ссылку,
+            // не код. Показываем «проверьте email → кликните ссылку» вместо
+            // dead-end экрана ввода кода. Подтверждение завершается на
+            // /paywall/v3/auth/confirm, сессия прилетает cross-tab → гейт сам
+            // продвигается. Чистим password, чтобы не висел в state.
             setPassword('');
-            setMode('signup_verify');
-            setInfo(t('auth.check_email_message', 'Check your email for a confirmation code.'));
+            setMode('signup_sent');
           }
         } else if (mode === 'forgot') {
           await auth.requestPasswordReset({ email });
           setMode('reset_sent');
-        } else if (mode === 'signup_verify') {
-          await auth.verifyOtp({ email, token: otpCode, type: 'email' });
         } else if (mode === 'reset_verify') {
           await auth.verifyOtp({
             email,
@@ -249,7 +248,7 @@ function AuthForm({ block, allowSignup, allowReset, ctx }: FormProps) {
       } catch (err) {
         const errMode =
           mode === 'signup' ? 'signup'
-            : mode === 'signup_verify' || mode === 'reset_verify' ? 'otp'
+            : mode === 'reset_verify' ? 'otp'
             : mode === 'forgot' ? 'reset' : 'signin';
         setError(authErrorMessage(err, errMode, t));
       } finally {
@@ -289,6 +288,10 @@ function AuthForm({ block, allowSignup, allowReset, ctx }: FormProps) {
 
   if (mode === 'reset_sent') {
     return <ResetSentView email={email} onBack={() => switchTo('signin')} t={t} />;
+  }
+
+  if (mode === 'signup_sent') {
+    return <SignupSentView email={email} onBack={() => switchTo('signin')} t={t} />;
   }
 
   return (
@@ -351,7 +354,7 @@ function AuthForm({ block, allowSignup, allowReset, ctx }: FormProps) {
           />
         )}
 
-        {(mode === 'signup_verify' || mode === 'reset_verify') && (
+        {mode === 'reset_verify' && (
           <FilledField
             type="text"
             placeholder={t('auth.confirmation_code', 'Confirmation code')}
@@ -454,6 +457,7 @@ function defaultHeader(mode: Mode, t: TFn): { title: string; subtitle: string | 
         )
       };
     case 'reset_sent':
+    case 'signup_sent':
       return {
         title: t('auth.check_email_title', 'Check your email'),
         subtitle: null
@@ -464,14 +468,6 @@ function defaultHeader(mode: Mode, t: TFn): { title: string; subtitle: string | 
         subtitle: t(
           'auth.reset_password_subtitle',
           'Enter the code from your email and a new password.'
-        )
-      };
-    case 'signup_verify':
-      return {
-        title: t('auth.confirm_email_title', 'Confirm your email'),
-        subtitle: t(
-          'auth.confirm_email_subtitle',
-          'Enter the code we sent to your email to finish creating your account.'
         )
       };
   }
@@ -496,7 +492,6 @@ function submitLabel(
         : t('auth.sign_up', 'Sign Up');
     case 'forgot':
       return t('auth.send_reset', 'Send Reset Email');
-    case 'signup_verify':
     case 'reset_verify':
       return t('auth.verify', 'Verify');
     default:
@@ -524,7 +519,7 @@ function FormFooter({
       </p>
     );
   }
-  if (mode === 'signup' || mode === 'signup_verify') {
+  if (mode === 'signup') {
     return (
       <p class="text-center text-sm text-gray-600">
         {t('auth.have_account', 'Already have an account?')}{' '}
@@ -762,6 +757,77 @@ function ProviderIcon({ provider }: { provider: OAuthProvider }) {
     <svg width="18" height="20" viewBox="0 0 14 16" fill="currentColor" aria-hidden="true">
       <path d="M14 2.7C14 1.2 12.8 0 11.3 0H2.7C1.2 0 0 1.2 0 2.7v10.6C0 14.8 1.2 16 2.7 16h4V9.8H4.7v-2H6.7V6.4c0-2 1.2-3.1 3-3.1.9 0 1.7.1 2 .2V5h-1.4c-.8 0-1 .4-1 1v1.5h2.4l-.3 2H9.3V16h2c1.5 0 2.7-1.2 2.7-2.7V2.7Z" />
     </svg>
+  );
+}
+
+// Link-флоу подтверждения signup'а — зеркало ResetSentView. Прод email-шаблон
+// «Confirm signup» шлёт ссылку (redirect_to → /paywall/v3/auth/confirm), не код.
+// После клика по ссылке юзер подтверждается на v3-странице, сессия синкается
+// cross-tab → auth-гейт сам продвигается. Этот экран — «ожидание подтверждения»
+// + fallback «Back to Login» (email уже подтверждён → можно зайти паролем).
+function SignupSentView({
+  email,
+  onBack,
+  t
+}: {
+  email: string;
+  onBack: () => void;
+  t: TFn;
+}) {
+  return (
+    <div class="flex flex-col items-center gap-4 py-2 text-center">
+      <div
+        class="flex h-14 w-14 items-center justify-center rounded-full"
+        style={{
+          background: 'linear-gradient(135deg, #4ade80, #16a34a)',
+          color: '#fff',
+          boxShadow:
+            '0 0 0 8px rgba(74,222,128,0.12), 0 8px 20px -6px rgba(22,163,74,0.45)'
+        }}
+        aria-hidden="true"
+      >
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+          <path
+            d="M5 13l4 4L19 7"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+      </div>
+
+      <h2 class="mt-1 text-3xl font-bold tracking-tight text-gray-900">
+        {t('auth.check_email_title', 'Check your email')}
+      </h2>
+
+      <p class="text-base leading-relaxed text-gray-600">
+        {t(
+          'auth.signup_sent_subtitle',
+          'We sent a confirmation link to your email. Click it to activate your account, then sign in.'
+        )}
+      </p>
+
+      {email ? (
+        <p class="break-all text-base font-semibold text-gray-900">{email}</p>
+      ) : null}
+
+      <button
+        type="button"
+        onClick={onBack}
+        class="pw-cta-shimmer relative mt-2 flex min-h-12 w-full items-center justify-center overflow-hidden rounded-3xl px-5 py-2 text-center text-base font-semibold leading-tight text-white transition-transform duration-150 active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--pw-accent)]"
+        style={{
+          background:
+            'linear-gradient(135deg, color-mix(in srgb, var(--pw-accent) 55%, white) 0%, var(--pw-accent) 55%, color-mix(in srgb, var(--pw-accent) 90%, black) 100%)',
+          boxShadow:
+            '0 0 20px 0 color-mix(in srgb, var(--pw-accent) 25%, transparent), inset 0 0 8px 0 color-mix(in srgb, white 25%, transparent)'
+        }}
+      >
+        <span class="relative z-10">
+          {t('auth.back_to_login', 'Back to Login')}
+        </span>
+      </button>
+    </div>
   );
 }
 

@@ -51,6 +51,7 @@ const uk = {
   'auth.reset_password_title': 'Скидання пароля',
   'auth.reset_sent_message': 'Якщо такий email існує, код для скидання надіслано.',
   'auth.reset_sent_subtitle': 'Ми надіслали посилання для скидання пароля. Дотримуйтесь інструкцій у листі.',
+  'auth.signup_sent_subtitle': 'Ми надіслали посилання для підтвердження на вашу пошту. Перейдіть за ним, щоб активувати акаунт, а потім увійдіть.',
   'auth.restore_purchases_heading': 'Відновити покупки',
   'auth.restore_purchases_subheading': 'Увійдіть, щоб відновити покупки.',
   'auth.send_reset': 'Надіслати лист для скидання',

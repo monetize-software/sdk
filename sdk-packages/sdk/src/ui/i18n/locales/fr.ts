@@ -52,6 +52,7 @@ const fr = {
   'auth.reset_password_title': 'Réinitialiser le mot de passe',
   'auth.reset_sent_message': 'Si cet e-mail existe, un code de réinitialisation a été envoyé.',
   'auth.reset_sent_subtitle': 'Nous avons envoyé un lien de réinitialisation. Suivez les instructions de l\'e-mail.',
+  'auth.signup_sent_subtitle': 'Nous avons envoyé un lien de confirmation à votre adresse e-mail. Cliquez dessus pour activer votre compte, puis connectez-vous.',
   'auth.restore_purchases_heading': 'Restaurer les Achats',
   'auth.restore_purchases_subheading': 'Veuillez vous connecter pour restaurer vos achats.',
   'auth.send_reset': 'Envoyer l\'E-mail de Réinitialisation',

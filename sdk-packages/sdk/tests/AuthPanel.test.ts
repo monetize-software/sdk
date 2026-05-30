@@ -264,7 +264,7 @@ describe('AuthPanel render', () => {
     );
   });
 
-  it('signup confirmation_required switches to OTP-verify mode', async () => {
+  it('signup confirmation_required switches to link-sent confirm screen', async () => {
     const signUp = vi.fn(
       async () =>
         ({ kind: 'confirmation_required', user: { id: 'u_2', email: 'new@b.c' } } as const)
@@ -301,10 +301,12 @@ describe('AuthPanel render', () => {
       form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
     });
 
-    // Должен появиться OTP-инпут с autocomplete=one-time-code.
+    // Link-флоу: показываем «check your email → click link», НЕ экран кода.
+    // OTP-инпута быть не должно (signup подтверждается ссылкой, не кодом).
     const otp = container.querySelector('input[autocomplete="one-time-code"]');
-    expect(otp).toBeTruthy();
+    expect(otp).toBeFalsy();
     expect(container.textContent).toContain('Check your email');
+    expect(container.textContent).toContain('confirmation link');
   });
 
   it('forgot password flow calls requestPasswordReset and shows confirmation', async () => {

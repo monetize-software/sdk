@@ -47,6 +47,7 @@ const ro = {
   'auth.reset_password_title': 'Resetare parolă',
   'auth.reset_sent_message': 'Dacă acel e-mail există, a fost trimis un cod de resetare.',
   'auth.reset_sent_subtitle': 'Am trimis un link pentru resetarea parolei. Urmează instrucțiunile din e-mail.',
+  'auth.signup_sent_subtitle': 'Ți-am trimis un link de confirmare pe e-mail. Apasă pe el pentru a-ți activa contul, apoi conectează-te.',
   'auth.restore_purchases_heading': 'Restabilește achizițiile',
   'auth.restore_purchases_subheading': 'Autentifică-te pentru a-ți restabili achizițiile.',
   'auth.send_reset': 'Trimite e-mail de resetare',

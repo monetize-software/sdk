@@ -52,6 +52,7 @@ const it = {
   'auth.reset_password_title': 'Reimposta password',
   'auth.reset_sent_message': 'Se l\'email esiste, è stato inviato un codice di reimpostazione.',
   'auth.reset_sent_subtitle': 'Abbiamo inviato un link per reimpostare la password. Segui le istruzioni nell\'email.',
+  'auth.signup_sent_subtitle': 'Ti abbiamo inviato un link di conferma via email. Cliccalo per attivare il tuo account, poi accedi.',
   'auth.restore_purchases_heading': 'Ripristina Acquisti',
   'auth.restore_purchases_subheading': 'La preghiamo di accedere per ripristinare i suoi acquisti.',
   'auth.send_reset': 'Invia E-mail di Ripristino',

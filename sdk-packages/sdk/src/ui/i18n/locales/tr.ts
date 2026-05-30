@@ -47,6 +47,7 @@ const tr = {
   'auth.reset_password_title': 'Şifreyi sıfırla',
   'auth.reset_sent_message': 'Bu e-posta varsa, sıfırlama kodu gönderildi.',
   'auth.reset_sent_subtitle': 'Şifre sıfırlama bağlantısı gönderdik. E-postadaki talimatları izleyin.',
+  'auth.signup_sent_subtitle': 'E-postana bir onay bağlantısı gönderdik. Hesabını etkinleştirmek için bağlantıya tıkla, ardından giriş yap.',
   'auth.restore_purchases_heading': 'Satın almaları geri yükle',
   'auth.restore_purchases_subheading': 'Satın alımlarınızı geri yüklemek için lütfen giriş yapın.',
   'auth.send_reset': 'Sıfırlama e-postası gönder',

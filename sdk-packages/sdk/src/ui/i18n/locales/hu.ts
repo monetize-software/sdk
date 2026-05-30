@@ -47,6 +47,7 @@ const hu = {
   'auth.reset_password_title': 'Jelszó visszaállítása',
   'auth.reset_sent_message': 'Ha ez az e-mail létezik, elküldtük a visszaállító kódot.',
   'auth.reset_sent_subtitle': 'Elküldtük a jelszó-visszaállító linket. Kövesse az e-mailben található utasításokat.',
+  'auth.signup_sent_subtitle': 'Megerősítő linket küldtünk az e-mail-címedre. Kattints rá a fiók aktiválásához, majd jelentkezz be.',
   'auth.restore_purchases_heading': 'Vásárlások visszaállítása',
   'auth.restore_purchases_subheading': 'Jelentkezzen be a vásárlásai visszaállításához.',
   'auth.send_reset': 'Visszaállító e-mail küldése',

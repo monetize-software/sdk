@@ -47,6 +47,7 @@ const th = {
   'auth.reset_password_title': 'รีเซ็ตรหัสผ่าน',
   'auth.reset_sent_message': 'หากอีเมลนี้มีอยู่ ระบบได้ส่งรหัสรีเซ็ตแล้ว',
   'auth.reset_sent_subtitle': 'เราได้ส่งลิงก์รีเซ็ตรหัสผ่านแล้ว ทำตามคำแนะนำในอีเมล',
+  'auth.signup_sent_subtitle': 'เราได้ส่งลิงก์ยืนยันไปยังอีเมลของคุณแล้ว คลิกเพื่อเปิดใช้งานบัญชีของคุณ แล้วลงชื่อเข้าใช้',
   'auth.restore_purchases_heading': 'คืนค่าการซื้อ',
   'auth.restore_purchases_subheading': 'กรุณาเข้าสู่ระบบเพื่อคืนค่าการซื้อของคุณ',
   'auth.send_reset': 'ส่งอีเมลรีเซ็ต',

@@ -1,16 +1,17 @@
 {
   "mode": "pre",
-  "tag": "alpha",
+  "tag": "beta",
   "initialVersions": {
-    "@monetize.software/sdk": "3.0.0-alpha.3",
-    "@monetize.software/sdk-extension": "3.0.0-alpha.3",
-    "@monetize.software/sdk-react": "3.0.0-alpha.0"
+    "@monetize.software/sdk": "3.0.0-alpha.22",
+    "@monetize.software/sdk-extension": "3.0.0-alpha.25",
+    "@monetize.software/sdk-react": "3.0.0-alpha.22"
   },
   "changesets": [
     "auth-flows-and-i18n-fixes",
     "auth-mv3-i18n-fixes",
     "auth-reset-sent-i18n",
     "auth-reset-sent-view",
+    "auth-signup-link-flow",
     "billing-apikey-list-cancel",
     "createcheckout-local-currency",
     "customer-portal-return-url",

@@ -52,6 +52,7 @@ const es = {
   'auth.reset_password_title': 'Restablecer contraseña',
   'auth.reset_sent_message': 'Si ese correo existe, hemos enviado un código de restablecimiento.',
   'auth.reset_sent_subtitle': 'Te enviamos un enlace para restablecer tu contraseña. Sigue las instrucciones del correo.',
+  'auth.signup_sent_subtitle': 'Te enviamos un enlace de confirmación a tu correo. Haz clic en él para activar tu cuenta y luego inicia sesión.',
   'auth.restore_purchases_heading': 'Restaurar Compras',
   'auth.restore_purchases_subheading': 'Por favor, inicie sesión para restaurar sus compras.',
   'auth.send_reset': 'Enviar Correo de Restablecimiento',

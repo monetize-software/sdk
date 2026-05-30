@@ -47,6 +47,7 @@ const ar = {
   'auth.reset_password_title': 'إعادة تعيين كلمة المرور',
   'auth.reset_sent_message': 'إذا كان هذا البريد موجودًا، فقد تم إرسال رمز إعادة التعيين.',
   'auth.reset_sent_subtitle': 'أرسلنا رابط إعادة تعيين كلمة المرور. اتبع التعليمات في البريد الإلكتروني.',
+  'auth.signup_sent_subtitle': 'أرسلنا رابط تأكيد إلى بريدك الإلكتروني. انقر عليه لتفعيل حسابك، ثم سجّل الدخول.',
   'auth.restore_purchases_heading': 'استعادة المشتريات',
   'auth.restore_purchases_subheading': 'يُرجى تسجيل الدخول لاستعادة مشترياتك.',
   'auth.send_reset': 'إرسال بريد إعادة التعيين',

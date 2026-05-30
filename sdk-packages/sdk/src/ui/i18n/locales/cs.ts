@@ -47,6 +47,7 @@ const cs = {
   'auth.reset_password_title': 'Resetovat heslo',
   'auth.reset_sent_message': 'Pokud tento e-mail existuje, byl odeslán kód pro reset.',
   'auth.reset_sent_subtitle': 'Poslali jsme odkaz pro obnovení hesla. Postupujte podle pokynů v e-mailu.',
+  'auth.signup_sent_subtitle': 'Poslali jsme vám na e-mail potvrzovací odkaz. Kliknutím na něj aktivujete účet a poté se přihlaste.',
   'auth.restore_purchases_heading': 'Obnovit nákupy',
   'auth.restore_purchases_subheading': 'Přihlaste se pro obnovení svých nákupů.',
   'auth.send_reset': 'Odeslat obnovovací e-mail',

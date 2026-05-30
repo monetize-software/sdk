@@ -49,14 +49,14 @@ pnpm add @monetize.software/sdk-extension @monetize.software/sdk-react react
 
 ```html
 <script type="module">
-  import { PaywallUI } from 'https://esm.sh/@monetize.software/sdk@alpha';
+  import { PaywallUI } from 'https://esm.sh/@monetize.software/sdk';
 
   const paywall = new PaywallUI({ paywallId: 'YOUR_ID', auth: true });
   document.getElementById('upgrade').onclick = () => paywall.open();
 </script>
 ```
 
-Pin a specific version for production: `…/sdk@3.0.0-alpha.3` instead of `@alpha`. The `@alpha` tag floats to the latest alpha and is ideal during early integration.
+Pin a specific version for production: `…/sdk@3.0.0-beta.0` instead of the bare specifier. The bare `@monetize.software/sdk` floats to the latest published release (`latest` tag) and is ideal during early integration.
 
 For React on a website use the import-map setup below. For Chrome extensions see the warning above — CDN loading is not allowed by Chrome Web Store policy; use the bundled `@monetize.software/sdk-extension` instead.
 
@@ -71,8 +71,8 @@ For React on a website use the import-map setup below. For Chrome extensions see
     "react": "https://esm.sh/react@18",
     "react/jsx-runtime": "https://esm.sh/react@18/jsx-runtime",
     "react-dom/client": "https://esm.sh/react-dom@18/client",
-    "@monetize.software/sdk": "https://esm.sh/@monetize.software/sdk@alpha",
-    "@monetize.software/sdk-react": "https://esm.sh/@monetize.software/sdk-react@alpha?external=react,@monetize.software/sdk"
+    "@monetize.software/sdk": "https://esm.sh/@monetize.software/sdk",
+    "@monetize.software/sdk-react": "https://esm.sh/@monetize.software/sdk-react?external=react,@monetize.software/sdk"
   }
 }
 </script>
@@ -97,8 +97,8 @@ The `?external=react,@monetize.software/sdk` query on the `sdk-react` URL tells 
 
 ### Alternative CDNs
 
-- **unpkg**: `https://unpkg.com/@monetize.software/sdk@alpha`
-- **jsDelivr**: `https://cdn.jsdelivr.net/npm/@monetize.software/sdk@alpha`
+- **unpkg**: `https://unpkg.com/@monetize.software/sdk`
+- **jsDelivr**: `https://cdn.jsdelivr.net/npm/@monetize.software/sdk`
 
 unpkg and jsDelivr serve the raw npm tarball — they work for ESM imports but don't rewrite bare imports the way esm.sh does, so you'll need import maps for peer deps even for core `sdk`. esm.sh is the most ergonomic for React; unpkg/jsDelivr are fine for vanilla.
 

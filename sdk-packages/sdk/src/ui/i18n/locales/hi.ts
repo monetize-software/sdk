@@ -47,6 +47,7 @@ const hi = {
   'auth.reset_password_title': 'पासवर्ड रीसेट करें',
   'auth.reset_sent_message': 'यदि वह ईमेल मौजूद है, तो रीसेट कोड भेज दिया गया है।',
   'auth.reset_sent_subtitle': 'हमने पासवर्ड रीसेट लिंक भेजा है। ईमेल में दिए निर्देशों का पालन करें।',
+  'auth.signup_sent_subtitle': 'हमने आपके ईमेल पर एक पुष्टिकरण लिंक भेजा है। अपना खाता सक्रिय करने के लिए उस पर क्लिक करें, फिर साइन इन करें।',
   'auth.restore_purchases_heading': 'खरीदारी पुनर्स्थापित करें',
   'auth.restore_purchases_subheading': 'कृपया अपनी खरीदारी पुनर्स्थापित करने के लिए साइन इन करें।',
   'auth.send_reset': 'रीसेट ईमेल भेजें',

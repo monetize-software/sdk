@@ -52,6 +52,7 @@ const de = {
   'auth.reset_password_title': 'Passwort zurücksetzen',
   'auth.reset_sent_message': 'Wenn diese E-Mail existiert, wurde ein Reset-Code gesendet.',
   'auth.reset_sent_subtitle': 'Wir haben einen Link zum Zurücksetzen des Passworts gesendet. Folgen Sie den Anweisungen in der E-Mail.',
+  'auth.signup_sent_subtitle': 'Wir haben einen Bestätigungslink an Ihre E-Mail gesendet. Klicken Sie darauf, um Ihr Konto zu aktivieren, und melden Sie sich dann an.',
   'auth.restore_purchases_heading': 'Käufe wiederherstellen',
   'auth.restore_purchases_subheading': 'Bitte melden Sie sich an, um Ihre Käufe wiederherzustellen.',
   'auth.send_reset': 'Zurücksetzungs-E-Mail senden',

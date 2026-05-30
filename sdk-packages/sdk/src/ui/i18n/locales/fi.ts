@@ -47,6 +47,7 @@ const fi = {
   'auth.reset_password_title': 'Nollaa salasana',
   'auth.reset_sent_message': 'Jos sähköposti on olemassa, lähetimme palautuskoodin.',
   'auth.reset_sent_subtitle': 'Lähetimme salasanan palautuslinkin. Noudata sähköpostin ohjeita.',
+  'auth.signup_sent_subtitle': 'Lähetimme vahvistuslinkin sähköpostiisi. Aktivoi tilisi napsauttamalla sitä ja kirjaudu sitten sisään.',
   'auth.restore_purchases_heading': 'Palauta ostot',
   'auth.restore_purchases_subheading': 'Kirjaudu palauttaaksesi ostoksesi.',
   'auth.send_reset': 'Lähetä palautuslinkki',

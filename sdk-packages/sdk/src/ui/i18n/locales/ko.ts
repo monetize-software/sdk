@@ -52,6 +52,7 @@ const ko = {
   'auth.reset_password_title': '비밀번호 재설정',
   'auth.reset_sent_message': '해당 이메일이 존재하면 재설정 코드가 발송되었습니다.',
   'auth.reset_sent_subtitle': '비밀번호 재설정 링크를 보냈습니다. 이메일의 안내를 따라주세요.',
+  'auth.signup_sent_subtitle': '확인 링크를 이메일로 보냈습니다. 링크를 클릭해 계정을 활성화한 후 로그인하세요.',
   'auth.restore_purchases_heading': '구매 복원',
   'auth.restore_purchases_subheading': '구매를 복원하려면 로그인하세요.',
   'auth.send_reset': '재설정 이메일 보내기',

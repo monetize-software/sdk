@@ -47,6 +47,7 @@ const pl = {
   'auth.reset_password_title': 'Zresetuj hasło',
   'auth.reset_sent_message': 'Jeśli ten adres istnieje, wysłaliśmy kod resetujący.',
   'auth.reset_sent_subtitle': 'Wysłaliśmy link do resetowania hasła. Postępuj zgodnie z instrukcjami w wiadomości.',
+  'auth.signup_sent_subtitle': 'Wysłaliśmy link potwierdzający na Twój e-mail. Kliknij go, aby aktywować konto, a następnie zaloguj się.',
   'auth.restore_purchases_heading': 'Przywróć zakupy',
   'auth.restore_purchases_subheading': 'Zaloguj się, aby przywrócić swoje zakupy.',
   'auth.send_reset': 'Wyślij link resetujący',
