@@ -9,6 +9,7 @@
 const th = {
   'anon.heading_default': 'ดำเนินการต่อในฐานะแขก',
   'anon.try_again': 'ลองอีกครั้ง',
+  'auth.back_to_login': 'กลับไปที่หน้าเข้าสู่ระบบ',
   'auth.check_email_message': 'ตรวจสอบอีเมลของคุณเพื่อรับรหัสยืนยัน',
   'auth.check_email_title': 'ตรวจสอบอีเมลของคุณ',
   'auth.confirm_email_title': 'ยืนยันอีเมลของคุณ',
@@ -42,8 +43,10 @@ const th = {
   'auth.passwords_mismatch': 'รหัสผ่านไม่ตรงกัน',
   'auth.rate_limited': 'มีคำขอมากเกินไป โปรดลองอีกครั้งภายหลัง',
   'auth.repeat_password': 'ยืนยันรหัสผ่าน',
+  'auth.reset_link_valid': 'ลิงก์มีอายุ 1 ชั่วโมง',
   'auth.reset_password_title': 'รีเซ็ตรหัสผ่าน',
   'auth.reset_sent_message': 'หากอีเมลนี้มีอยู่ ระบบได้ส่งรหัสรีเซ็ตแล้ว',
+  'auth.reset_sent_subtitle': 'เราได้ส่งลิงก์รีเซ็ตรหัสผ่านแล้ว ทำตามคำแนะนำในอีเมล',
   'auth.restore_purchases_heading': 'คืนค่าการซื้อ',
   'auth.restore_purchases_subheading': 'กรุณาเข้าสู่ระบบเพื่อคืนค่าการซื้อของคุณ',
   'auth.send_reset': 'ส่งอีเมลรีเซ็ต',

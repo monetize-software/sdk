@@ -9,6 +9,7 @@
 const he = {
   'anon.heading_default': 'המשך כאורח',
   'anon.try_again': 'נסה שוב',
+  'auth.back_to_login': 'חזרה להתחברות',
   'auth.check_email_message': 'בדוק את הדואר שלך לקבלת קוד האישור.',
   'auth.check_email_title': 'בדוק את הדואר שלך',
   'auth.confirm_email_title': 'אימות הדואר האלקטרוני',
@@ -42,8 +43,10 @@ const he = {
   'auth.passwords_mismatch': 'הסיסמאות אינן תואמות',
   'auth.rate_limited': 'יותר מדי בקשות. נסה שוב מאוחר יותר.',
   'auth.repeat_password': 'חזור על הסיסמה',
+  'auth.reset_link_valid': 'הקישור בתוקף לשעה.',
   'auth.reset_password_title': 'איפוס סיסמה',
   'auth.reset_sent_message': 'אם הדואר קיים, נשלח קוד איפוס.',
+  'auth.reset_sent_subtitle': 'שלחנו קישור לאיפוס סיסמה. עקוב אחר ההוראות במייל.',
   'auth.restore_purchases_heading': 'שחזר רכישות',
   'auth.restore_purchases_subheading': 'אנא התחבר כדי לשחזר את הרכישות שלך.',
   'auth.send_reset': 'שלח אימייל איפוס',

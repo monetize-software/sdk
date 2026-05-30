@@ -9,6 +9,7 @@
 const el = {
   'anon.heading_default': 'Συνέχεια ως επισκέπτης',
   'anon.try_again': 'Δοκιμάστε ξανά',
+  'auth.back_to_login': 'Πίσω στη σύνδεση',
   'auth.check_email_message': 'Ελέγξτε το email σας για τον κωδικό επιβεβαίωσης.',
   'auth.check_email_title': 'Ελέγξτε το email σας',
   'auth.confirm_email_title': 'Επιβεβαιώστε το email σας',
@@ -42,8 +43,10 @@ const el = {
   'auth.passwords_mismatch': 'Οι κωδικοί δεν ταιριάζουν',
   'auth.rate_limited': 'Πολλά αιτήματα. Δοκιμάστε ξανά αργότερα.',
   'auth.repeat_password': 'Επανάληψη κωδικού',
+  'auth.reset_link_valid': 'Ο σύνδεσμος ισχύει για 1 ώρα.',
   'auth.reset_password_title': 'Επαναφορά κωδικού',
   'auth.reset_sent_message': 'Αν αυτό το email υπάρχει, εστάλη κωδικός επαναφοράς.',
+  'auth.reset_sent_subtitle': 'Στείλαμε σύνδεσμο επαναφοράς κωδικού. Ακολουθήστε τις οδηγίες στο email.',
   'auth.restore_purchases_heading': 'Επαναφορά αγορών',
   'auth.restore_purchases_subheading': 'Παρακαλώ συνδεθείτε για να επαναφέρετε τις αγορές σας.',
   'auth.send_reset': 'Αποστολή email επαναφοράς',

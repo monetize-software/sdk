@@ -9,6 +9,7 @@
 const no = {
   'anon.heading_default': 'Fortsett som gjest',
   'anon.try_again': 'Prøv igjen',
+  'auth.back_to_login': 'Tilbake til innlogging',
   'auth.check_email_message': 'Sjekk e-posten din — vi har sendt en bekreftelseskode.',
   'auth.check_email_title': 'Sjekk e-posten din',
   'auth.confirm_email_title': 'Bekreft e-posten din',
@@ -42,8 +43,10 @@ const no = {
   'auth.passwords_mismatch': 'Passordene samsvarer ikke',
   'auth.rate_limited': 'For mange forespørsler. Prøv igjen senere.',
   'auth.repeat_password': 'Gjenta passord',
+  'auth.reset_link_valid': 'Lenken er gyldig i 1 time.',
   'auth.reset_password_title': 'Tilbakestill passord',
   'auth.reset_sent_message': 'Hvis e-posten finnes, er det sendt en tilbakestillingskode.',
+  'auth.reset_sent_subtitle': 'Vi har sendt en lenke for å tilbakestille passordet. Følg instruksjonene i e-posten.',
   'auth.restore_purchases_heading': 'Gjenopprett Kjøp',
   'auth.restore_purchases_subheading': 'Logg inn for å gjenopprette kjøpene dine.',
   'auth.send_reset': 'Send Tilbakestillingsmail',

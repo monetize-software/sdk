@@ -9,6 +9,7 @@
 const ar = {
   'anon.heading_default': 'متابعة كضيف',
   'anon.try_again': 'حاول مرة أخرى',
+  'auth.back_to_login': 'العودة إلى تسجيل الدخول',
   'auth.check_email_message': 'تحقق من بريدك الإلكتروني للحصول على رمز التأكيد.',
   'auth.check_email_title': 'تحقق من بريدك الإلكتروني',
   'auth.confirm_email_title': 'تأكيد بريدك الإلكتروني',
@@ -42,8 +43,10 @@ const ar = {
   'auth.passwords_mismatch': 'كلمتا المرور غير متطابقتين',
   'auth.rate_limited': 'طلبات كثيرة جدًا. حاول مرة أخرى لاحقًا.',
   'auth.repeat_password': 'كرّر كلمة المرور',
+  'auth.reset_link_valid': 'الرابط صالح لمدة ساعة واحدة.',
   'auth.reset_password_title': 'إعادة تعيين كلمة المرور',
   'auth.reset_sent_message': 'إذا كان هذا البريد موجودًا، فقد تم إرسال رمز إعادة التعيين.',
+  'auth.reset_sent_subtitle': 'أرسلنا رابط إعادة تعيين كلمة المرور. اتبع التعليمات في البريد الإلكتروني.',
   'auth.restore_purchases_heading': 'استعادة المشتريات',
   'auth.restore_purchases_subheading': 'يُرجى تسجيل الدخول لاستعادة مشترياتك.',
   'auth.send_reset': 'إرسال بريد إعادة التعيين',

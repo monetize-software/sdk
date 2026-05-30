@@ -9,6 +9,7 @@
 const tr = {
   'anon.heading_default': 'Misafir olarak devam et',
   'anon.try_again': 'Tekrar dene',
+  'auth.back_to_login': 'Girişe dön',
   'auth.check_email_message': 'Onay kodu için e-postanızı kontrol edin.',
   'auth.check_email_title': 'E-postanızı kontrol edin',
   'auth.confirm_email_title': 'E-postanı doğrula',
@@ -42,8 +43,10 @@ const tr = {
   'auth.passwords_mismatch': 'Şifreler eşleşmiyor',
   'auth.rate_limited': 'Çok fazla istek. Lütfen daha sonra tekrar deneyin.',
   'auth.repeat_password': 'Şifreyi tekrarla',
+  'auth.reset_link_valid': 'Bağlantı 1 saat geçerlidir.',
   'auth.reset_password_title': 'Şifreyi sıfırla',
   'auth.reset_sent_message': 'Bu e-posta varsa, sıfırlama kodu gönderildi.',
+  'auth.reset_sent_subtitle': 'Şifre sıfırlama bağlantısı gönderdik. E-postadaki talimatları izleyin.',
   'auth.restore_purchases_heading': 'Satın almaları geri yükle',
   'auth.restore_purchases_subheading': 'Satın alımlarınızı geri yüklemek için lütfen giriş yapın.',
   'auth.send_reset': 'Sıfırlama e-postası gönder',

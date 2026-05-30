@@ -9,6 +9,7 @@
 const ro = {
   'anon.heading_default': 'Continuă ca invitat',
   'anon.try_again': 'Încearcă din nou',
+  'auth.back_to_login': 'Înapoi la autentificare',
   'auth.check_email_message': 'Verifică-ți e-mailul — am trimis un cod de confirmare.',
   'auth.check_email_title': 'Verifică-ți e-mailul',
   'auth.confirm_email_title': 'Confirmă-ți e-mailul',
@@ -42,8 +43,10 @@ const ro = {
   'auth.passwords_mismatch': 'Parolele nu se potrivesc',
   'auth.rate_limited': 'Prea multe cereri. Încearcă din nou mai târziu.',
   'auth.repeat_password': 'Repetă parola',
+  'auth.reset_link_valid': 'Linkul este valabil 1 oră.',
   'auth.reset_password_title': 'Resetare parolă',
   'auth.reset_sent_message': 'Dacă acel e-mail există, a fost trimis un cod de resetare.',
+  'auth.reset_sent_subtitle': 'Am trimis un link pentru resetarea parolei. Urmează instrucțiunile din e-mail.',
   'auth.restore_purchases_heading': 'Restabilește achizițiile',
   'auth.restore_purchases_subheading': 'Autentifică-te pentru a-ți restabili achizițiile.',
   'auth.send_reset': 'Trimite e-mail de resetare',

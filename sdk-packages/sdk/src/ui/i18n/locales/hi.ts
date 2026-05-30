@@ -9,6 +9,7 @@
 const hi = {
   'anon.heading_default': 'अतिथि के रूप में जारी रखें',
   'anon.try_again': 'फिर से प्रयास करें',
+  'auth.back_to_login': 'लॉगिन पर वापस जाएं',
   'auth.check_email_message': 'पुष्टि कोड के लिए अपना ईमेल देखें।',
   'auth.check_email_title': 'अपना ईमेल देखें',
   'auth.confirm_email_title': 'अपना ईमेल पुष्टि करें',
@@ -42,8 +43,10 @@ const hi = {
   'auth.passwords_mismatch': 'पासवर्ड मेल नहीं खाते',
   'auth.rate_limited': 'बहुत अधिक अनुरोध। बाद में पुनः प्रयास करें।',
   'auth.repeat_password': 'पासवर्ड दोहराएँ',
+  'auth.reset_link_valid': 'यह लिंक 1 घंटे के लिए मान्य है।',
   'auth.reset_password_title': 'पासवर्ड रीसेट करें',
   'auth.reset_sent_message': 'यदि वह ईमेल मौजूद है, तो रीसेट कोड भेज दिया गया है।',
+  'auth.reset_sent_subtitle': 'हमने पासवर्ड रीसेट लिंक भेजा है। ईमेल में दिए निर्देशों का पालन करें।',
   'auth.restore_purchases_heading': 'खरीदारी पुनर्स्थापित करें',
   'auth.restore_purchases_subheading': 'कृपया अपनी खरीदारी पुनर्स्थापित करने के लिए साइन इन करें।',
   'auth.send_reset': 'रीसेट ईमेल भेजें',

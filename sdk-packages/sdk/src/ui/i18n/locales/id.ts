@@ -9,6 +9,7 @@
 const id = {
   'anon.heading_default': 'Lanjutkan sebagai tamu',
   'anon.try_again': 'Coba lagi',
+  'auth.back_to_login': 'Kembali ke login',
   'auth.check_email_message': 'Periksa email Anda untuk kode konfirmasi.',
   'auth.check_email_title': 'Periksa email Anda',
   'auth.confirm_email_title': 'Konfirmasi email Anda',
@@ -42,8 +43,10 @@ const id = {
   'auth.passwords_mismatch': 'Kata sandi tidak cocok',
   'auth.rate_limited': 'Terlalu banyak permintaan. Coba lagi nanti.',
   'auth.repeat_password': 'Ulangi kata sandi',
+  'auth.reset_link_valid': 'Tautan berlaku selama 1 jam.',
   'auth.reset_password_title': 'Atur ulang kata sandi',
   'auth.reset_sent_message': 'Jika email tersebut ada, kode reset telah dikirim.',
+  'auth.reset_sent_subtitle': 'Kami telah mengirim tautan reset kata sandi. Ikuti petunjuk di email.',
   'auth.restore_purchases_heading': 'Pulihkan pembelian',
   'auth.restore_purchases_subheading': 'Silakan masuk untuk memulihkan pembelian Anda.',
   'auth.send_reset': 'Kirim email reset',

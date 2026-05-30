@@ -9,6 +9,7 @@
 const hu = {
   'anon.heading_default': 'Folytatás vendégként',
   'anon.try_again': 'Próbálja újra',
+  'auth.back_to_login': 'Vissza a bejelentkezéshez',
   'auth.check_email_message': 'Nézze meg az e-mailjeit — küldtünk egy megerősítő kódot.',
   'auth.check_email_title': 'Ellenőrizze az e-mailjét',
   'auth.confirm_email_title': 'Erősítse meg e-mail-címét',
@@ -42,8 +43,10 @@ const hu = {
   'auth.passwords_mismatch': 'A jelszavak nem egyeznek',
   'auth.rate_limited': 'Túl sok kérés. Próbálja meg később.',
   'auth.repeat_password': 'Jelszó megerősítése',
+  'auth.reset_link_valid': 'A link 1 órán át érvényes.',
   'auth.reset_password_title': 'Jelszó visszaállítása',
   'auth.reset_sent_message': 'Ha ez az e-mail létezik, elküldtük a visszaállító kódot.',
+  'auth.reset_sent_subtitle': 'Elküldtük a jelszó-visszaállító linket. Kövesse az e-mailben található utasításokat.',
   'auth.restore_purchases_heading': 'Vásárlások visszaállítása',
   'auth.restore_purchases_subheading': 'Jelentkezzen be a vásárlásai visszaállításához.',
   'auth.send_reset': 'Visszaállító e-mail küldése',

@@ -9,6 +9,7 @@
 const cs = {
   'anon.heading_default': 'Pokračovat jako host',
   'anon.try_again': 'Zkusit znovu',
+  'auth.back_to_login': 'Zpět na přihlášení',
   'auth.check_email_message': 'Zkontrolujte e-mail — poslali jsme potvrzovací kód.',
   'auth.check_email_title': 'Zkontrolujte e-mail',
   'auth.confirm_email_title': 'Potvrďte e-mail',
@@ -42,8 +43,10 @@ const cs = {
   'auth.passwords_mismatch': 'Hesla se neshodují',
   'auth.rate_limited': 'Příliš mnoho požadavků. Zkuste to později.',
   'auth.repeat_password': 'Zopakujte heslo',
+  'auth.reset_link_valid': 'Odkaz je platný 1 hodinu.',
   'auth.reset_password_title': 'Resetovat heslo',
   'auth.reset_sent_message': 'Pokud tento e-mail existuje, byl odeslán kód pro reset.',
+  'auth.reset_sent_subtitle': 'Poslali jsme odkaz pro obnovení hesla. Postupujte podle pokynů v e-mailu.',
   'auth.restore_purchases_heading': 'Obnovit nákupy',
   'auth.restore_purchases_subheading': 'Přihlaste se pro obnovení svých nákupů.',
   'auth.send_reset': 'Odeslat obnovovací e-mail',

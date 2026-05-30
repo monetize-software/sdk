@@ -9,6 +9,7 @@
 const vi = {
   'anon.heading_default': 'Tiếp tục với tư cách khách',
   'anon.try_again': 'Thử lại',
+  'auth.back_to_login': 'Quay lại đăng nhập',
   'auth.check_email_message': 'Kiểm tra email của bạn để xem mã xác nhận.',
   'auth.check_email_title': 'Kiểm tra email của bạn',
   'auth.confirm_email_title': 'Xác nhận email của bạn',
@@ -42,8 +43,10 @@ const vi = {
   'auth.passwords_mismatch': 'Mật khẩu không khớp',
   'auth.rate_limited': 'Quá nhiều yêu cầu. Vui lòng thử lại sau.',
   'auth.repeat_password': 'Nhập lại mật khẩu',
+  'auth.reset_link_valid': 'Liên kết có hiệu lực trong 1 giờ.',
   'auth.reset_password_title': 'Đặt lại mật khẩu',
   'auth.reset_sent_message': 'Nếu email đó tồn tại, mã đặt lại đã được gửi.',
+  'auth.reset_sent_subtitle': 'Chúng tôi đã gửi liên kết đặt lại mật khẩu. Làm theo hướng dẫn trong email.',
   'auth.restore_purchases_heading': 'Khôi phục giao dịch',
   'auth.restore_purchases_subheading': 'Vui lòng đăng nhập để khôi phục giao dịch của bạn.',
   'auth.send_reset': 'Gửi email đặt lại',

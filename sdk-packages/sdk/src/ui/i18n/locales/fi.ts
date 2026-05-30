@@ -9,6 +9,7 @@
 const fi = {
   'anon.heading_default': 'Jatka vieraana',
   'anon.try_again': 'Yritä uudelleen',
+  'auth.back_to_login': 'Takaisin kirjautumiseen',
   'auth.check_email_message': 'Tarkista sähköpostisi — lähetimme vahvistuskoodin.',
   'auth.check_email_title': 'Tarkista sähköpostisi',
   'auth.confirm_email_title': 'Vahvista sähköpostisi',
@@ -42,8 +43,10 @@ const fi = {
   'auth.passwords_mismatch': 'Salasanat eivät täsmää',
   'auth.rate_limited': 'Liian monta pyyntöä. Yritä myöhemmin uudelleen.',
   'auth.repeat_password': 'Toista salasana',
+  'auth.reset_link_valid': 'Linkki on voimassa 1 tunnin.',
   'auth.reset_password_title': 'Nollaa salasana',
   'auth.reset_sent_message': 'Jos sähköposti on olemassa, lähetimme palautuskoodin.',
+  'auth.reset_sent_subtitle': 'Lähetimme salasanan palautuslinkin. Noudata sähköpostin ohjeita.',
   'auth.restore_purchases_heading': 'Palauta ostot',
   'auth.restore_purchases_subheading': 'Kirjaudu palauttaaksesi ostoksesi.',
   'auth.send_reset': 'Lähetä palautuslinkki',

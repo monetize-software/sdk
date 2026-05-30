@@ -9,6 +9,7 @@
 const pl = {
   'anon.heading_default': 'Kontynuuj jako gość',
   'anon.try_again': 'Spróbuj ponownie',
+  'auth.back_to_login': 'Powrót do logowania',
   'auth.check_email_message': 'Sprawdź skrzynkę — wysłaliśmy kod potwierdzający.',
   'auth.check_email_title': 'Sprawdź pocztę',
   'auth.confirm_email_title': 'Potwierdź e-mail',
@@ -42,8 +43,10 @@ const pl = {
   'auth.passwords_mismatch': 'Hasła nie pasują do siebie',
   'auth.rate_limited': 'Zbyt wiele żądań. Spróbuj ponownie później.',
   'auth.repeat_password': 'Powtórz hasło',
+  'auth.reset_link_valid': 'Link jest ważny przez 1 godzinę.',
   'auth.reset_password_title': 'Zresetuj hasło',
   'auth.reset_sent_message': 'Jeśli ten adres istnieje, wysłaliśmy kod resetujący.',
+  'auth.reset_sent_subtitle': 'Wysłaliśmy link do resetowania hasła. Postępuj zgodnie z instrukcjami w wiadomości.',
   'auth.restore_purchases_heading': 'Przywróć zakupy',
   'auth.restore_purchases_subheading': 'Zaloguj się, aby przywrócić swoje zakupy.',
   'auth.send_reset': 'Wyślij link resetujący',

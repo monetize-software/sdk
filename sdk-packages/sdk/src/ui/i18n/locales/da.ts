@@ -9,6 +9,7 @@
 const da = {
   'anon.heading_default': 'Fortsæt som gæst',
   'anon.try_again': 'Prøv igen',
+  'auth.back_to_login': 'Tilbage til login',
   'auth.check_email_message': 'Tjek din e-mail — vi har sendt en bekræftelseskode.',
   'auth.check_email_title': 'Tjek din e-mail',
   'auth.confirm_email_title': 'Bekræft din e-mail',
@@ -42,8 +43,10 @@ const da = {
   'auth.passwords_mismatch': 'Adgangskoder matcher ikke',
   'auth.rate_limited': 'For mange anmodninger. Prøv igen senere.',
   'auth.repeat_password': 'Gentag adgangskode',
+  'auth.reset_link_valid': 'Linket er gyldigt i 1 time.',
   'auth.reset_password_title': 'Nulstil adgangskode',
   'auth.reset_sent_message': 'Hvis den e-mail findes, er der sendt en nulstillingskode.',
+  'auth.reset_sent_subtitle': 'Vi har sendt et link til at nulstille adgangskoden. Følg instruktionerne i e-mailen.',
   'auth.restore_purchases_heading': 'Gendan Køb',
   'auth.restore_purchases_subheading': 'Log ind for at gendanne dine køb.',
   'auth.send_reset': 'Send Nulstillingsmail',

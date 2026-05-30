@@ -1,5 +1,12 @@
 # @monetize.software/sdk-react
 
+## 3.0.0-alpha.19
+
+### Patch Changes
+
+- Updated dependencies
+  - @monetize.software/sdk@3.0.0-alpha.19
+
 ## 3.0.0-alpha.18
 
 ### Patch Changes

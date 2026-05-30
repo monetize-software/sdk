@@ -9,6 +9,7 @@
 const sv = {
   'anon.heading_default': 'Fortsätt som gäst',
   'anon.try_again': 'Försök igen',
+  'auth.back_to_login': 'Tillbaka till inloggning',
   'auth.check_email_message': 'Kontrollera din e-post — vi har skickat en bekräftelsekod.',
   'auth.check_email_title': 'Kontrollera din e-post',
   'auth.confirm_email_title': 'Bekräfta din e-post',
@@ -42,8 +43,10 @@ const sv = {
   'auth.passwords_mismatch': 'Lösenorden matchar inte',
   'auth.rate_limited': 'För många förfrågningar. Försök igen senare.',
   'auth.repeat_password': 'Upprepa lösenord',
+  'auth.reset_link_valid': 'Länken är giltig i 1 timme.',
   'auth.reset_password_title': 'Återställ lösenord',
   'auth.reset_sent_message': 'Om e-postadressen finns har en återställningskod skickats.',
+  'auth.reset_sent_subtitle': 'Vi har skickat en länk för att återställa lösenordet. Följ instruktionerna i e-postmeddelandet.',
   'auth.restore_purchases_heading': 'Återställ Köp',
   'auth.restore_purchases_subheading': 'Logga in för att återställa dina köp.',
   'auth.send_reset': 'Skicka Återställningsmail',
