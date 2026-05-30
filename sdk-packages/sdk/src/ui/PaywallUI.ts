@@ -1381,7 +1381,17 @@ export class PaywallUI {
       }
     }
 
-    const user = bootstrap.user ?? null;
+    // Cached bootstrap содержит user-снимок С МОМЕНТА его fetch'а — после
+    // покупки этот снимок stale (has_active_subscription=false), хотя
+    // UserWatcher уже обновил `billing.cachedUser` до true и эмитнул
+    // userChange. `getCachedBootstrap()` намеренно отдаёт raw структуру
+    // (она же не должна каждый раз пересобираться), поэтому overlay
+    // делаем здесь: предпочитаем cachedUser, fallback на bootstrap.user
+    // если cachedUser ещё не загружен (cold start или после signOut).
+    // Без этого фикса usePaywallAccess реагирует на userChange-event,
+    // дёргает getAccess, но получает stale-bootstrap.user — host'овский
+    // <PaywallGate> остаётся blocked при реально активной подписке.
+    const user = this.billing.getCachedUser() ?? bootstrap.user ?? null;
 
     if (user?.has_active_subscription) {
       return {

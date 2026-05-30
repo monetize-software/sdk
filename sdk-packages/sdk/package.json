@@ -1,6 +1,6 @@
 {
   "name": "@monetize.software/sdk",
-  "version": "3.0.0-alpha.15",
+  "version": "3.0.0-alpha.16",
   "description": "Monetize SDK — bundled billing client and paywall render engine for web and Chrome extensions",
   "type": "module",
   "sideEffects": false,

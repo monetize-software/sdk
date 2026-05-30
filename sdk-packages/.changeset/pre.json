@@ -11,6 +11,7 @@
     "auth-mv3-i18n-fixes",
     "billing-apikey-list-cancel",
     "createcheckout-local-currency",
+    "getaccess-stale-user",
     "offer-resolver-api",
     "paywall-checkout-late-mount-offer",
     "paywall-direct-checkout",
