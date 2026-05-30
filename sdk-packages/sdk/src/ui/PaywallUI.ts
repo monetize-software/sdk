@@ -37,7 +37,12 @@ import { UserWatcher, shouldRunUserWatcher } from './UserWatcher';
 
 type PaywallStateListener = (state: PaywallStateSnapshot) => void;
 
-const CLOSED_STATE: PaywallStateSnapshot = { open: false, view: null, error: null };
+const CLOSED_STATE: PaywallStateSnapshot = {
+  open: false,
+  view: null,
+  error: null,
+  processing: false
+};
 
 // Контракт событий SDK. Клиент подписывается через paywall.on(event, handler).
 // Каждый event строго типизирован — IDE даёт автокомплит на payload.
@@ -237,14 +242,11 @@ export interface GetAccessOptions {
   signal?: AbortSignal;
 }
 
-/** Internal-only расширение `OpenOptions` — `authMode` и `checkoutPriceId` мы
- *  не светим в публичный API (`authMode` имеет dedicated `openSignin`/`openSignup`;
- *  `checkoutPriceId` приходит из `checkout(priceId)`-публичного метода первым
- *  позиционным аргументом), но через private-методы плюс mountAndShow
- *  прокидываем именно тут. */
+/** Internal-only расширение `OpenOptions` — `authMode` мы не светим в публичный
+ *  API (есть dedicated `openSignin`/`openSignup`), но через private-методы
+ *  плюс mountAndShow прокидываем именно тут. */
 type InternalOpenOptions = OpenOptions & {
   authMode?: 'signin' | 'signup';
-  checkoutPriceId?: string;
 };
 
 export interface OpenOptions {
@@ -606,26 +608,39 @@ export class PaywallUI {
   }
 
   /**
-   * Direct-checkout: открыть модалку и сразу перейти к /start-checkout по
-   * конкретной цене, минуя layout с тарифами. Полезно когда host-приложение
-   * рендерит pricing-карточки/таблицу собственным UI и хочет, чтобы клик по
-   * «Buy / Get this plan» вёл прямо в платёжного провайдера, без второго
-   * выбора плана в модалке SDK.
+   * Direct-checkout: создать checkout-URL по конкретной цене и сразу открыть
+   * платёжного провайдера, минуя layout с тарифами. Полезно когда
+   * host-приложение рендерит pricing-карточки/таблицу собственным UI и
+   * хочет, чтобы клик по «Buy / Get this plan» вёл прямо в Stripe/Paddle.
    *
-   * Что переиспользуется из обычного `open()`-flow:
-   *  - `checkout_mode='preauth'` + managed-auth → auth-gate (форма signin'а),
-   *    после успеха auto-resume в createCheckout;
-   *  - popup_blocked / awaiting_payment / purchase_success views;
-   *  - UserWatcher polling после `checkout_started`;
-   *  - аналитика `checkout_started`/`purchase_completed`/`purchase_failed`.
+   * **Late-mount UX.** В отличие от `open()`, модалка не появляется во время
+   * фоновой работы (bootstrap + visibility/trial gates + createCheckout).
+   * Хост на этой фазе показывает busy-state прямо на своей кнопке (через
+   * `state.processing === true` из `paywall.getState()` — или автоматически
+   * через `<PaywallButton priceId>` в sdk-react). Модалка монтируется
+   * ТОЛЬКО когда реально нужна UI:
+   *  - `checkout_mode='preauth'` + managed-auth + не залогинен → auth-gate
+   *    (форма signin'а); после успеха auto-resume в createCheckout.
+   *  - popup провайдера заблокирован браузером → popup_blocked view с
+   *    retry-кнопкой под fresh user gesture.
+   *  - popup открылся успешно → awaiting_payment view (индикатор «оплати
+   *    в новой вкладке» + I've paid).
    *
-   * Что отличается от `open()`:
-   *  - layout с тарифами не показывается ни на один кадр (включая откат после
-   *    ошибки — модалка закрывается, эмитится `error`);
-   *  - already-paid сценарий (cached user, fresh bootstrap, preauth-resume,
-   *    409 hasActivePurchase от бэка) — НЕ показывает restored success-view,
-   *    эмитит `purchase_completed{restored:true}` и закрывает/не открывает
-   *    модалку. Host сам решает как сообщить юзеру.
+   * Что эмитится без модалки:
+   *  - `purchase_completed{restored:true, priceId}` когда юзер уже подписан
+   *    (cached user, fresh bootstrap, или 409 hasActivePurchase от бэка) —
+   *    headless reject;
+   *  - `error` когда createCheckout упал или identity.email отсутствует;
+   *  - `visibility_blocked` / `trial_blocked` — стандартные gate-эвенты.
+   *
+   * Что эмитится одновременно с модалкой:
+   *  - `checkout_started{priceId, url, acquiring}` ровно когда headless URL
+   *    получен, ДО mount'а awaiting_payment/popup_blocked.
+   *
+   * Offer (countdown-скидка) автоматически резолвится из cached offers'ов
+   * через `getOfferForPrice(priceId)` и передаётся в createCheckout как
+   * `offerId` — чтобы duration_minutes-офферы тоже применились на бэке
+   * (для них нет server-side таймера, без явного offer-id скидка теряется).
    *
    * Требования:
    *  - `identity.email` должен быть выставлен (через `opts.identity`, либо
@@ -634,15 +649,15 @@ export class PaywallUI {
    *  - В `checkout_mode='preauth'` без managed-auth — backend требует
    *    email-юзера; убедись что `identity.email` явно задан.
    *
-   * Без модалки/полностью headless (когда host рендерит свой checkout-UI и
-   * хочет только URL) — используй `paywall.billing.createCheckout({priceId})`
-   * напрямую, но тогда auth-gate / popup_blocked / awaiting_payment придётся
-   * рисовать самостоятельно.
+   * Без модалки совсем (когда host рендерит свой awaiting-payment экран) —
+   * используй `paywall.billing.createCheckout({priceId, offerId})` напрямую,
+   * но тогда auth-gate / popup_blocked / awaiting_payment придётся рисовать
+   * самостоятельно.
    */
   checkout(priceId: string, opts: OpenOptions = {}): void {
-    // Cached user → already-paid: не монтируем модалку вовсе. Свежий bootstrap
-    // в PaywallRoot перепроверит (cached user мог устареть после signOut на
-    // другом табе), и если расхождение — emit + onClose уже изнутри модалки.
+    if (opts.identity) this.billing.setIdentity(opts.identity);
+
+    // Cached user → already-paid: ничего не монтируем, эмитим headless.
     // renew пропускает все pre-check'и — host явно делает upgrade.
     if (opts.renew !== true) {
       const cachedUser = this.billing.getCachedUser();
@@ -655,7 +670,231 @@ export class PaywallUI {
         return;
       }
     }
-    this.openInternal('checkout', { ...opts, checkoutPriceId: priceId });
+
+    // Late-mount: всё дальше — async. Включаем processing-флаг, host
+    // через state.processing видит «SDK что-то делает» и дизейблит кнопку.
+    // Сбрасываем processing в false только в no-mount-возвратах (headless
+    // reject, gate-блок, error). Для путей, заканчивающихся mountAndShow,
+    // PaywallRoot.onState сам отрапортует processing=false первым же
+    // snapshot'ом — если бы мы здесь делали .finally, между applyProcessing(false)
+    // и PaywallRoot.onState был бы flicker «processing=false, view=null»
+    // (выглядит как «ничего не происходит»).
+    void this.runDirectCheckout(priceId, opts);
+  }
+
+  /** Headless prep-work для `checkout(priceId, opts)`: bootstrap → gates →
+   *  preauth check → createCheckout → mount модалки с финальным view.
+   *  Вынесено отдельным методом ради чистого async/await flow вместо вложенных
+   *  then-chain'ов (5+ ветвей). Любая ошибка не пробрасывается наружу: эмитим
+   *  через `paywall.emit('error')` и выходим — host подписан на `error`-event. */
+  private async runDirectCheckout(
+    priceId: string,
+    opts: OpenOptions
+  ): Promise<void> {
+    const renew = opts.renew === true;
+    const skipTrial = opts.skipTrial === true;
+    const skipVisibility = opts.skipVisibility === true;
+
+    // Включаем processing для host'овской кнопки.
+    this.applyProcessing(true);
+
+    // Helper: emit/headless-выход — обязательно сбрасываем processing перед
+    // return'ом, иначе host'овский UI зависнет в busy-state навсегда.
+    const exitHeadless = (): void => {
+      this.applyProcessing(false);
+    };
+
+    // 1. Bootstrap. Cached path — мгновенно; cold — RTT 200-500ms.
+    let bootstrap: PaywallBootstrap;
+    try {
+      bootstrap = await this.billing.bootstrap();
+    } catch (err) {
+      const wrapped =
+        err instanceof PaywallError
+          ? err
+          : new PaywallError('unknown', 'Failed to load paywall', { cause: err });
+      this.emit('error', wrapped);
+      exitHeadless();
+      return;
+    }
+
+    // 2. Gates (visibility → trial). НЕ монтируем модалку: блокирующий gate
+    //    → emit и выход. Идентичная семантика open(): trial_blocked /
+    //    visibility_blocked.
+    if (!skipVisibility) {
+      const v = bootstrap.settings.visibility;
+      if (v) {
+        this.lastVisibility = v;
+        if (!v.visible) {
+          this.emit('visibility_blocked', v);
+          exitHeadless();
+          return;
+        }
+      }
+    }
+    if (!skipTrial) {
+      const trialBlocked = await this.checkTrialBeforeCheckout(bootstrap);
+      if (trialBlocked) {
+        exitHeadless();
+        return;
+      }
+    }
+
+    // 3. Fresh bootstrap user — переиспроверяем active subscription.
+    //    Cached path выше мог быть устаревшим (signOut на другом табе и т.п.).
+    if (!renew && bootstrap.user?.has_active_subscription) {
+      this.emit('purchase_completed', {
+        priceId,
+        sessionId: null,
+        restored: true
+      });
+      exitHeadless();
+      return;
+    }
+
+    // 4. Preauth check. Если требуется realsignin — монтируем модалку с
+    //    auth-gate; PaywallRoot после signin'а сделает createCheckout
+    //    самостоятельно (runCheckout внутри auth-resume effect'а), и offer
+    //    туда резолвится тем же путём. processing сбросит PaywallRoot.onState
+    //    своим первым snapshot'ом (processing=false в computePaywallSnapshot),
+    //    нам тут руками не надо.
+    const mode = bootstrap.settings.checkout_mode ?? 'guest';
+    const cachedSession = this.auth?.getCachedSession() ?? null;
+    const hasRealSession = !!cachedSession && !cachedSession.user.is_anonymous;
+    const needsAuth = mode === 'preauth' && !!this.auth && !hasRealSession;
+    if (needsAuth) {
+      this.purchased = false;
+      this.mountAndShow('auth', {
+        renew,
+        authMode: 'signin',
+        checkoutPriceId: priceId
+      });
+      return;
+    }
+
+    // 5. Headless createCheckout. Резолвим offer тут же — без явного offerId
+    //    duration-офферы (countdown в clientStorage) на бэке не применятся.
+    const offer = this.getOfferForPrice(priceId);
+    let result;
+    try {
+      result = await this.billing.createCheckout({
+        priceId,
+        offerId: offer?.offer.id,
+        ignoreActivePurchase: renew
+      });
+    } catch (error) {
+      if (
+        error instanceof PaywallError &&
+        error.code === 'already_purchased'
+      ) {
+        try {
+          await this.billing.getUser({ force: true });
+        } catch {
+          /* offline — host'у getUser сам отрапортует */
+        }
+        this.emit('purchase_completed', {
+          priceId,
+          sessionId: null,
+          restored: true
+        });
+        exitHeadless();
+        return;
+      }
+      const wrapped =
+        error instanceof PaywallError
+          ? error
+          : new PaywallError('checkout_failed', 'Checkout failed', { cause: error });
+      this.emit('error', wrapped);
+      exitHeadless();
+      return;
+    }
+
+    // 6. Эмитим checkout_started ДО mount'а — host'овский аналитический
+    //    listener срабатывает синхронно (модалка ещё не на экране, но event
+    //    уже произошёл). Также запускаем UserWatcher через onEvent в mountAndShow
+    //    (он вешает обработчик на checkout_started), но startUserWatcher
+    //    идемпотентен — повторный вызов тут не сломает.
+    this.emit('checkout_started', {
+      priceId,
+      url: result.url,
+      acquiring: result.acquiring
+    });
+    this.startUserWatcher();
+
+    // 7. Открываем popup и монтируем соответствующий view. SSR/no-window —
+    //    awaiting без попытки window.open (host сам редиректит из своего env).
+    if (typeof window === 'undefined' || !result.url) {
+      this.mountAndShow('awaiting_payment', {
+        renew,
+        checkoutPriceId: priceId,
+        checkoutUrl: result.url
+      });
+      return;
+    }
+    const popup = window.open(result.url, '_blank');
+    this.purchased = false;
+    if (popup) {
+      try {
+        popup.opener = null;
+      } catch {
+        /* cross-origin already — ok */
+      }
+      this.mountAndShow('awaiting_payment', {
+        renew,
+        checkoutPriceId: priceId,
+        checkoutUrl: result.url
+      });
+    } else {
+      // Popup blocked — обычно после async signin (transient activation
+      // потерян). Модалка остаётся со своей retry-кнопкой; клик =
+      // fresh gesture, попап откроется.
+      this.mountAndShow('popup_blocked', {
+        renew,
+        checkoutPriceId: priceId,
+        checkoutUrl: result.url
+      });
+    }
+  }
+
+  /** Trial-check без mount'а (для late-mount direct-checkout). Возвращает
+   *  true если trial заблокировал — caller должен прекратить flow. На любой
+   *  storage-ошибке log+продолжаем (не блокируем продажу). */
+  private async checkTrialBeforeCheckout(
+    bootstrap: PaywallBootstrap
+  ): Promise<boolean> {
+    const trialCfg = bootstrap.settings.trial;
+    if (!trialCfg) return false;
+    const store = this.ensureTrialStore(trialCfg);
+    try {
+      const status = await store.check();
+      this.lastTrialStatus = status;
+      if (status.mode === 'none') return false;
+      if (status.blocked) {
+        const updated = await store.recordBlock();
+        this.lastTrialStatus = updated;
+        this.emit('trial_blocked', updated);
+        return true;
+      }
+      if (!this.trialExpiredFired) {
+        this.trialExpiredFired = true;
+        this.emit('trial_expired');
+      }
+      return false;
+    } catch (e) {
+      if (typeof console !== 'undefined') {
+        console.warn('[paywall] trial check failed', e);
+      }
+      return false;
+    }
+  }
+
+  private applyProcessing(value: boolean): void {
+    if (this.currentState.processing === value) return;
+    // Мутируем processing на текущем snapshot'е сохраняя остальные поля.
+    // PaywallRoot эмитит свои snapshot'ы с processing=false; здесь мы
+    // обновляем поле перед/после mount'а — между этими точками state
+    // не меняется через PaywallRoot.onState.
+    this.applyState({ ...this.currentState, processing: value });
   }
 
   /**
@@ -698,10 +937,9 @@ export class PaywallUI {
       view === 'support' ||
       view === 'auth';
     const renew = opts.renew === true;
-    const checkoutPriceId = opts.checkoutPriceId;
 
     if (skipTrial && skipVisibility) {
-      this.mountAndShow(view, { renew, authMode: opts.authMode, checkoutPriceId });
+      this.mountAndShow(view, { renew, authMode: opts.authMode });
       return;
     }
 
@@ -710,7 +948,7 @@ export class PaywallUI {
     // или нет, без флеша.
     const cached = this.billing.getCachedBootstrap();
     if (cached) {
-      this.runOpenGates(view, cached, { skipTrial, skipVisibility, renew, checkoutPriceId });
+      this.runOpenGates(view, cached, { skipTrial, skipVisibility, renew });
       return;
     }
 
@@ -727,7 +965,7 @@ export class PaywallUI {
     //   отсутствия флеша на блоке, но кнопка кажется «мёртвой» 200-500мс
     //   на холодном кеше.
     if (this.mountThenLoad) {
-      this.mountAndShow(view, { renew, checkoutPriceId });
+      this.mountAndShow(view, { renew });
       this.billing
         .bootstrap()
         .then((b) => this.runDelayedGates(b, { skipTrial, skipVisibility }))
@@ -740,11 +978,11 @@ export class PaywallUI {
     this.billing
       .bootstrap()
       .then((b) =>
-        this.runOpenGates(view, b, { skipTrial, skipVisibility, renew, checkoutPriceId })
+        this.runOpenGates(view, b, { skipTrial, skipVisibility, renew })
       )
       .catch(() => {
         // Bootstrap упал — открываем без gates; PaywallRoot покажет error.
-        this.mountAndShow(view, { renew, checkoutPriceId });
+        this.mountAndShow(view, { renew });
       });
   }
 
@@ -809,7 +1047,6 @@ export class PaywallUI {
       skipTrial: boolean;
       skipVisibility: boolean;
       renew: boolean;
-      checkoutPriceId?: string;
     }
   ): void {
     if (!flags.skipVisibility) {
@@ -824,21 +1061,20 @@ export class PaywallUI {
     }
 
     if (flags.skipTrial) {
-      this.mountAndShow(view, { renew: flags.renew, checkoutPriceId: flags.checkoutPriceId });
+      this.mountAndShow(view, { renew: flags.renew });
       return;
     }
-    this.gateThroughTrial(view, bootstrap, flags.renew, flags.checkoutPriceId);
+    this.gateThroughTrial(view, bootstrap, flags.renew);
   }
 
   private gateThroughTrial(
     view: PaywallView,
     bootstrap: PaywallBootstrap,
-    renew: boolean,
-    checkoutPriceId?: string
+    renew: boolean
   ): void {
     const trialCfg = bootstrap.settings.trial;
     if (!trialCfg) {
-      this.mountAndShow(view, { renew, checkoutPriceId });
+      this.mountAndShow(view, { renew });
       return;
     }
     const store = this.ensureTrialStore(trialCfg);
@@ -847,7 +1083,7 @@ export class PaywallUI {
       .then(async (status) => {
         this.lastTrialStatus = status;
         if (status.mode === 'none') {
-          this.mountAndShow(view, { renew, checkoutPriceId });
+          this.mountAndShow(view, { renew });
           return;
         }
         if (status.blocked) {
@@ -865,13 +1101,13 @@ export class PaywallUI {
           this.trialExpiredFired = true;
           this.emit('trial_expired');
         }
-        this.mountAndShow(view, { renew, checkoutPriceId });
+        this.mountAndShow(view, { renew });
       })
       .catch((e) => {
         // Storage недоступен (privacy mode, quota) — не блокируем юзера,
         // открываем модалку и не теряем продажу.
         if (typeof console !== 'undefined') console.warn('[paywall] trial check failed', e);
-        this.mountAndShow(view, { renew, checkoutPriceId });
+        this.mountAndShow(view, { renew });
       });
   }
 
@@ -897,16 +1133,31 @@ export class PaywallUI {
     mountOpts: {
       renew?: boolean;
       authMode?: 'signin' | 'signup';
+      /** Direct-checkout контекст. Прокидывается в PaywallRoot для двух режимов:
+       *   - `view='auth'` + priceId → preauth-flow: gate стартует в
+       *     auth_gate с pendingCheckout.direct=true;
+       *   - `view='awaiting_payment'|'popup_blocked'` + priceId + url →
+       *     headless-checkout уже выписал URL, модалка показывает финальный
+       *     экран без loading-флеша. */
       checkoutPriceId?: string;
+      checkoutUrl?: string;
     } = {}
   ): void {
     const renew = mountOpts.renew === true;
     const initialAuthMode = mountOpts.authMode;
-    // priceId имеет смысл только при view='checkout'. На всякий случай
-    // нормализуем в null для остальных view, чтобы handle.update не
-    // переносил stale priceId с предыдущей direct-checkout сессии.
-    const initialCheckoutPriceId =
-      view === 'checkout' ? mountOpts.checkoutPriceId ?? null : null;
+    // priceId имеет смысл только для auth (preauth direct-checkout) и
+    // awaiting_payment/popup_blocked (post-headless mount). На остальных
+    // view'ах нормализуем в null чтобы handle.update не переносил stale
+    // priceId с предыдущей direct-checkout сессии.
+    const carriesCheckoutContext =
+      view === 'auth' || view === 'awaiting_payment' || view === 'popup_blocked';
+    const initialCheckoutPriceId = carriesCheckoutContext
+      ? mountOpts.checkoutPriceId ?? null
+      : null;
+    const initialCheckoutUrl =
+      view === 'awaiting_payment' || view === 'popup_blocked'
+        ? mountOpts.checkoutUrl ?? null
+        : null;
     if (this.handle) {
       this.isOpen = true;
       this.handle.update({
@@ -914,6 +1165,7 @@ export class PaywallUI {
         initialView: view,
         initialAuthMode,
         initialCheckoutPriceId,
+        initialCheckoutUrl,
         purchased: false,
         renew
       });
@@ -930,6 +1182,7 @@ export class PaywallUI {
         initialView: view,
         initialAuthMode,
         initialCheckoutPriceId,
+        initialCheckoutUrl,
         purchased: false,
         renew,
         onClose: () => this.close(),
@@ -1354,7 +1607,12 @@ function sameStateSnapshot(
   a: PaywallStateSnapshot,
   b: PaywallStateSnapshot
 ): boolean {
-  return a.open === b.open && a.view === b.view && a.error === b.error;
+  return (
+    a.open === b.open &&
+    a.view === b.view &&
+    a.error === b.error &&
+    a.processing === b.processing
+  );
 }
 
 function sameTrialConfig(a: TrialConfig, b: TrialConfig): boolean {

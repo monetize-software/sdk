@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import type { BillingClient } from '../core/BillingClient';
 import type { AuthSession } from '../core/auth';
+import { findApplicableOffer } from '../core/offer';
 import type { LayoutBlock, PaywallBootstrap } from '../core/types';
 import { PaywallError } from '../core/types';
 import { Modal } from './Modal';
@@ -10,7 +11,12 @@ import { SupportGate } from './SupportGate';
 import { Renderer } from './renderer/Renderer';
 import { I18nProvider, useI18n } from './i18n';
 
-export type PaywallView = 'layout' | 'support' | 'auth' | 'checkout';
+export type PaywallView =
+  | 'layout'
+  | 'support'
+  | 'auth'
+  | 'awaiting_payment'
+  | 'popup_blocked';
 
 /**
  * Публичный snapshot состояния PaywallUI для host'а. Производится из internal
@@ -18,7 +24,10 @@ export type PaywallView = 'layout' | 'support' | 'auth' | 'checkout';
  * один call onState; повторы (`useSyncExternalStore`-friendly).
  */
 export interface PaywallStateSnapshot {
-  /** Модалка отрендерена и видна. False — closed (или ещё не открывалась). */
+  /** Модалка отрендерена и видна. False — closed (или ещё не открывалась).
+   *  Может быть false при `processing=true` — direct-checkout (paywall.checkout)
+   *  делает bootstrap + createCheckout headless до того, как решит надо ли
+   *  монтировать модалку. */
   open: boolean;
   /** Что показывается в модалке. null когда `open=false`. */
   view:
@@ -33,6 +42,16 @@ export interface PaywallStateSnapshot {
     | null;
   /** Заполнено только когда `view === 'error'`. */
   error: PaywallError | null;
+  /** SDK делает фоновую работу для `paywall.checkout(priceId)` — bootstrap,
+   *  visibility/trial-gates, createCheckout — до того, как реально нужна
+   *  UI-модалка. Хост на этой фазе может задизейблить свою кнопку и
+   *  показать спиннер прямо на ней, чтобы у юзера не было ощущения «клик
+   *  ничего не сделал». Сбрасывается в false сразу после mountAndShow
+   *  (модалка взяла на себя UI), либо после headless reject (already-paid,
+   *  ошибка createCheckout без модалки). Для `paywall.open()`-flow всегда
+   *  false: там модалка появляется мгновенно со своим LoadingView и
+   *  отдельный «processing» не нужен. */
+  processing: boolean;
 }
 
 export interface PaywallRootProps {
@@ -40,20 +59,29 @@ export interface PaywallRootProps {
   open: boolean;
   onClose: () => void;
   onEvent: (event: string, payload?: unknown) => void;
-  /** Какой view показать при open=true. 'support' стартует сразу с саппорт-формой,
-   *  Back/Done закрывают модалку (origin='standalone'). 'checkout' стартует
-   *  direct-checkout по `initialCheckoutPriceId` минуя layout (paywall.checkout()).
-   *  По умолчанию 'layout'. */
+  /** Какой view показать при open=true. По умолчанию 'layout'.
+   *  - 'support' / 'auth' — standalone-открытия paywall.openSupport / openSignin.
+   *  - 'awaiting_payment' / 'popup_blocked' — direct-checkout (paywall.checkout):
+   *    PaywallUI делает createCheckout headless, потом монтирует модалку
+   *    сразу с финальным view (без loading-флеша). Требует
+   *    `initialCheckoutPriceId` + `initialCheckoutUrl`. */
   initialView?: PaywallView;
   /** Mode для AuthPanel когда `initialView='auth'` — 'signin' (дефолт) или
    *  'signup'. Выставляется PaywallUI'ем из openSignup()/openSignin(). */
   initialAuthMode?: 'signin' | 'signup';
-  /** Целевая цена для direct-checkout. Используется когда `initialView='checkout'`
-   *  (`paywall.checkout(priceId)`): после bootstrap'а сразу триггерим
-   *  /start-checkout по этой цене, минуя layout с тарифами. preauth-gate,
-   *  popup_blocked и awaiting_payment views переиспользуются как в обычном flow.
+  /** Целевая цена для direct-checkout. Используется в двух режимах:
+   *  - `initialView='auth'` + priceId → preauth-flow direct-checkout: модалка
+   *    стартует с auth-gate, после signIn auto-resume в createCheckout
+   *    (с offer-id из cached offers).
+   *  - `initialView='awaiting_payment'|'popup_blocked'` → checkout уже создан
+   *    headless'ом в PaywallUI, модалка показывает финальный экран.
    *  Игнорируется при остальных `initialView`. */
   initialCheckoutPriceId?: string | null;
+  /** URL hosted checkout от провайдера. Передаётся вместе с
+   *  `initialCheckoutPriceId` когда initialView='awaiting_payment' или
+   *  'popup_blocked' — используется для retry/reopen-кнопок без повторного
+   *  захода в createCheckout. */
+  initialCheckoutUrl?: string | null;
   /** Server-confirmed покупка — показать success-вью с кнопкой Continue.
    *  Управляется снаружи (PaywallUI выставляет true из watcher.onActive),
    *  сбрасывается на open()/close(). Перебивает любые другие view. */
@@ -85,13 +113,6 @@ type LoadState =
 
 type GateState =
   | { kind: 'layout' }
-  // Direct-checkout (paywall.checkout(priceId)): модалка смонтирована, ждём
-  // bootstrap, чтобы триггернуть preauth-gate / createCheckout. На один кадр
-  // показывается LoadingView — host явно попросил «сразу в checkout», тарифы
-  // не нужны. После bootstrap'а либо closes (already-paid / error), либо
-  // переходит в auth_gate.pendingCheckout, либо стартует createCheckout
-  // → awaiting_payment / popup_blocked.
-  | { kind: 'direct_checkout_pending'; priceId: string }
   // pendingCheckout=undefined, origin='layout' — gate открыт через "Restore purchases"
   // (без последующего checkout-а), после signIn схлопываемся в layout. С
   // pendingCheckout — gate открыт по preauth-flow от cta_button и после signIn
@@ -143,33 +164,45 @@ function computePaywallSnapshot(
   gate: GateState,
   purchased: boolean | undefined
 ): PaywallStateSnapshot {
-  if (!open) return { open: false, view: null, error: null };
-  if (purchased) return { open: true, view: 'purchased', error: null };
+  // `processing` управляется PaywallUI (direct-checkout headless prep) и
+  // мерджится в snapshot до пуша в applyState. Здесь всегда выставляем false —
+  // когда модалка реально смонтирована, host'у нечего «ждать» помимо
+  // gate'овских view'ев.
+  if (!open) return { open: false, view: null, error: null, processing: false };
+  if (purchased)
+    return { open: true, view: 'purchased', error: null, processing: false };
   if (state.status === 'idle' || state.status === 'loading') {
-    return { open: true, view: 'loading', error: null };
+    return { open: true, view: 'loading', error: null, processing: false };
   }
   if (state.status === 'error') {
-    return { open: true, view: 'error', error: state.error };
+    return { open: true, view: 'error', error: state.error, processing: false };
   }
-  if (gate.kind === 'support') return { open: true, view: 'support', error: null };
-  if (gate.kind === 'auth_gate') return { open: true, view: 'auth', error: null };
+  if (gate.kind === 'support')
+    return { open: true, view: 'support', error: null, processing: false };
+  if (gate.kind === 'auth_gate')
+    return { open: true, view: 'auth', error: null, processing: false };
   if (gate.kind === 'awaiting_payment') {
-    return { open: true, view: 'awaiting_payment', error: null };
+    return { open: true, view: 'awaiting_payment', error: null, processing: false };
   }
   if (gate.kind === 'popup_blocked') {
-    return { open: true, view: 'popup_blocked', error: null };
+    return { open: true, view: 'popup_blocked', error: null, processing: false };
   }
   if (gate.kind === 'purchase_success') {
-    return { open: true, view: 'purchased', error: null };
+    return { open: true, view: 'purchased', error: null, processing: false };
   }
-  if (gate.kind === 'verifying' || gate.kind === 'direct_checkout_pending') {
-    return { open: true, view: 'loading', error: null };
+  if (gate.kind === 'verifying') {
+    return { open: true, view: 'loading', error: null, processing: false };
   }
-  return { open: true, view: 'layout', error: null };
+  return { open: true, view: 'layout', error: null, processing: false };
 }
 
 function sameSnapshot(a: PaywallStateSnapshot, b: PaywallStateSnapshot): boolean {
-  return a.open === b.open && a.view === b.view && a.error === b.error;
+  return (
+    a.open === b.open &&
+    a.view === b.view &&
+    a.error === b.error &&
+    a.processing === b.processing
+  );
 }
 
 export function PaywallRoot({
@@ -180,6 +213,7 @@ export function PaywallRoot({
   initialView,
   initialAuthMode,
   initialCheckoutPriceId,
+  initialCheckoutUrl,
   purchased,
   renew,
   onState,
@@ -195,16 +229,45 @@ export function PaywallRoot({
   );
   const [gate, setGate] = useState<GateState>(() => {
     if (initialView === 'support') return { kind: 'support', origin: 'standalone' };
-    if (initialView === 'auth') return { kind: 'auth_gate', origin: 'standalone' };
-    if (initialView === 'checkout' && initialCheckoutPriceId) {
-      return { kind: 'direct_checkout_pending', priceId: initialCheckoutPriceId };
+    if (initialView === 'auth') {
+      // initialCheckoutPriceId выставлен → preauth direct-checkout: после
+      // signin'а auth-resume effect соберёт createCheckout по этой цене и
+      // переключит в awaiting_payment/popup_blocked. На back/error падать
+      // в layout нельзя (host рисует тарифы сам) — closes-on-back через
+      // origin='standalone' семантически подходит.
+      if (initialCheckoutPriceId) {
+        return {
+          kind: 'auth_gate',
+          pendingCheckout: { priceId: initialCheckoutPriceId, direct: true },
+          origin: 'standalone',
+          intent: 'preauth'
+        };
+      }
+      return { kind: 'auth_gate', origin: 'standalone' };
+    }
+    if (initialView === 'awaiting_payment' && initialCheckoutPriceId && initialCheckoutUrl) {
+      return {
+        kind: 'awaiting_payment',
+        priceId: initialCheckoutPriceId,
+        url: initialCheckoutUrl
+      };
+    }
+    if (initialView === 'popup_blocked' && initialCheckoutPriceId && initialCheckoutUrl) {
+      return {
+        kind: 'popup_blocked',
+        priceId: initialCheckoutPriceId,
+        url: initialCheckoutUrl
+      };
     }
     return { kind: 'layout' };
   });
   // Стабильный флаг «текущая сессия модалки — direct-checkout». Берётся из
   // initialView на этапе mount/reset и держится до close: на error/already-paid
   // не падаем в layout с тарифами, а закрываем модалку и эмитим событие.
-  const isDirectCheckout = initialView === 'checkout';
+  const isDirectCheckout =
+    initialView === 'awaiting_payment' ||
+    initialView === 'popup_blocked' ||
+    (initialView === 'auth' && !!initialCheckoutPriceId);
   // Защита от двойного auto-resume: useEffect ниже зависит от authSession,
   // и подписка onAuthChange может прислать одну и ту же сессию повторно
   // (refresh) — без флага мы дважды дёрнем createCheckout.
@@ -265,21 +328,20 @@ export function PaywallRoot({
         // standalone-flows (openSupport/openAuth/openSignup) пропускают этот
         // блок: host явно открыл саппорт/auth-форму, перетирать gate в restored
         // success — нарушение intent'а. Direct-checkout (paywall.checkout)
-        // также проходит сюда — но restored-view там не показываем (headless
-        // reject): эмитим purchase_completed{restored:true} и закрываем модалку,
-        // host сам решит как сообщить юзеру.
-        const isStandaloneView = initialView === 'support' || initialView === 'auth';
-        if (data.user?.has_active_subscription && !renew && !isStandaloneView) {
+        // тоже пропускаем: PaywallUI уже сделал pre-check по fresh getUser
+        // перед mount'ом и эмитнул purchase_completed{restored} headless'ом
+        // если нужно. Если модалка всё-таки смонтирована (awaiting_payment с
+        // URL уже на руках, или preauth-auth gate), значит юзер реально в
+        // процессе оплаты — повторно «restored» эмитить и сбивать UI не надо.
+        const skipActiveSubOverride =
+          initialView === 'support' || initialView === 'auth' || isDirectCheckout;
+        if (data.user?.has_active_subscription && !renew && !skipActiveSubOverride) {
           onEvent('purchase_completed', {
             priceId: initialCheckoutPriceId ?? null,
             sessionId: null,
             restored: true
           });
-          if (isDirectCheckout) {
-            onClose();
-          } else {
-            setGate({ kind: 'purchase_success', restored: true });
-          }
+          setGate({ kind: 'purchase_success', restored: true });
         }
       })
       .catch((error: unknown) => {
@@ -317,16 +379,52 @@ export function PaywallRoot({
     if (initialView === 'support') {
       setGate({ kind: 'support', origin: 'standalone' });
     } else if (initialView === 'auth') {
-      setGate({ kind: 'auth_gate', origin: 'standalone' });
-    } else if (initialView === 'checkout' && initialCheckoutPriceId) {
-      setGate({ kind: 'direct_checkout_pending', priceId: initialCheckoutPriceId });
+      if (initialCheckoutPriceId) {
+        setGate({
+          kind: 'auth_gate',
+          pendingCheckout: { priceId: initialCheckoutPriceId, direct: true },
+          origin: 'standalone',
+          intent: 'preauth'
+        });
+      } else {
+        setGate({ kind: 'auth_gate', origin: 'standalone' });
+      }
+    } else if (
+      initialView === 'awaiting_payment' &&
+      initialCheckoutPriceId &&
+      initialCheckoutUrl
+    ) {
+      setGate({
+        kind: 'awaiting_payment',
+        priceId: initialCheckoutPriceId,
+        url: initialCheckoutUrl
+      });
+    } else if (
+      initialView === 'popup_blocked' &&
+      initialCheckoutPriceId &&
+      initialCheckoutUrl
+    ) {
+      setGate({
+        kind: 'popup_blocked',
+        priceId: initialCheckoutPriceId,
+        url: initialCheckoutUrl
+      });
     }
-  }, [open, initialView, initialCheckoutPriceId]);
+  }, [open, initialView, initialCheckoutPriceId, initialCheckoutUrl]);
 
   const runCheckout = async (priceId: string) => {
     try {
+      // Резолвим активный offer по cached offers'ам. Без этого duration-офферы
+      // (countdown тикает в clientStorage) не применятся на чекауте — сервер не
+      // может их валидировать, ему нужен явный offerId. end_date-офферы тоже
+      // прокидываем — бэк ещё раз перепроверит applicable и отбросит чужие.
+      const cachedOffers = client.getCachedOffers?.() ?? null;
+      const applicableOffer = cachedOffers
+        ? findApplicableOffer(cachedOffers, priceId)
+        : null;
       const result = await client.createCheckout({
         priceId,
+        offerId: applicableOffer?.id,
         ignoreActivePurchase: renew === true
       });
       onEvent('checkout_started', { priceId, url: result.url, acquiring: result.acquiring });
@@ -474,32 +572,6 @@ export function PaywallRoot({
     });
   }, [authSession, gate]);
 
-  // Direct-checkout kick-off: gate в 'direct_checkout_pending' ждёт bootstrap.
-  // Как только state.ready — повторяем ту же ветку, что cta_button делает в
-  // layout (handleAction('checkout')): preauth-gate если нужен, иначе сразу
-  // runCheckout. has_active_subscription уже обработан в bootstrap-эффекте
-  // выше (там либо setGate в purchase_success для layout-flow, либо onClose
-  // для direct-checkout); сюда мы попадём только если юзер реально нуждается
-  // в покупке.
-  useEffect(() => {
-    if (state.status !== 'ready') return;
-    if (gate.kind !== 'direct_checkout_pending') return;
-    const priceId = gate.priceId;
-    const mode = state.data.settings.checkout_mode ?? 'guest';
-    const cachedSession = client.auth?.getCachedSession() ?? null;
-    const hasRealSession = !!cachedSession && !cachedSession.user.is_anonymous;
-    const needsAuth = mode === 'preauth' && !!client.auth && !hasRealSession;
-    if (needsAuth) {
-      // direct=true — auth-resume effect выберет onClose вместо purchase_success
-      // если юзер окажется уже подписан, и runCheckout (через ошибку) тоже
-      // закроет модалку вместо setGate('layout').
-      setGate({ kind: 'auth_gate', pendingCheckout: { priceId, direct: true } });
-      return;
-    }
-    void runCheckout(priceId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state, gate]);
-
   const handleAction = async (action: string, payload?: unknown) => {
     if (action === 'close') {
       onClose();
@@ -627,7 +699,7 @@ export function PaywallRoot({
         <PurchaseSuccessView restored={gate.restored} onContinue={onClose} />
       ) : supportView ? (
         supportView
-      ) : state.status === 'loading' || state.status === 'idle' || gate.kind === 'verifying' || gate.kind === 'direct_checkout_pending' ? (
+      ) : state.status === 'loading' || state.status === 'idle' || gate.kind === 'verifying' ? (
         <LoadingView verifying={gate.kind === 'verifying'} />
       ) : state.status === 'error' ? (
         <ErrorView message={state.error.message} />

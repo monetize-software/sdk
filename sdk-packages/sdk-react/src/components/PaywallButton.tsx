@@ -6,6 +6,7 @@ import {
 } from 'react';
 import type { OpenOptions } from '@monetize.software/sdk';
 import { usePaywall } from '../hooks/usePaywall';
+import { usePaywallState } from '../hooks/usePaywallState';
 
 /**
  * Параметры открытия пейвола, проксируются в `paywall.open(opts)`.
@@ -37,6 +38,11 @@ export interface PaywallButtonRenderArgs {
   open: () => void;
   /** Готов ли инстанс PaywallUI. До mount-а Provider'а / на SSR — `false`. */
   ready: boolean;
+  /** Direct-checkout в процессе headless bootstrap+createCheckout (только когда
+   *  у кнопки задан `priceId`). Render-prop может показать спиннер прямо на
+   *  своей кнопке и задизейблить её, чтобы юзер не кликал ещё раз. Для
+   *  не-priceId-режимов всегда false. */
+  processing: boolean;
 }
 
 /**
@@ -88,6 +94,7 @@ export type PaywallButtonProps = CommonProps & ButtonRenderProps;
 export const PaywallButton = forwardRef<HTMLButtonElement, PaywallButtonProps>(
   function PaywallButton(props, ref) {
     const paywall = usePaywall();
+    const state = usePaywallState();
     const {
       mode = 'paywall',
       priceId,
@@ -102,6 +109,14 @@ export const PaywallButton = forwardRef<HTMLButtonElement, PaywallButtonProps>(
     } = props;
 
     const ready = paywall !== null;
+
+    // Direct-checkout (priceId-режим): пока SDK делает headless bootstrap +
+    // createCheckout, `state.processing` истинно. Дизейблим кнопку и
+    // показываем aria-busy — host получает «I clicked, SDK is working»
+    // фидбек без модалки-флеша. Для не-priceId-режимов (modal-flow) этот
+    // флаг всегда false: модалка появляется мгновенно и сама показывает
+    // LoadingView, никакой busy на кнопке не нужен.
+    const processing = !!priceId && state.processing;
 
     const openOpts: OpenOptions = { identity, renew, skipTrial, skipVisibility };
 
@@ -131,15 +146,15 @@ export const PaywallButton = forwardRef<HTMLButtonElement, PaywallButtonProps>(
     };
 
     if (render) {
-      return render({ open, ready });
+      return render({ open, ready, processing });
     }
 
     return (
       <button
         ref={ref}
         type="button"
-        disabled={disabled || !ready}
-        aria-busy={!ready ? true : undefined}
+        disabled={disabled || !ready || processing}
+        aria-busy={!ready || processing ? true : undefined}
         onClick={(event) => {
           // Наш handler первым — host через event.preventDefault() ничего
           // не остановит, потому что open() уже стрельнул. Это намеренно:

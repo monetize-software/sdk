@@ -9,7 +9,12 @@ import { usePaywall } from './usePaywall';
 //
 // Shape проверяется в contract.ts — если PaywallStateSnapshot в SDK обзаведётся
 // новым полем, TS-build sdk-react падает раньше, чем кто-то заметит расхождение.
-const SSR_SNAPSHOT: PaywallStateSnapshot = { open: false, view: null, error: null };
+const SSR_SNAPSHOT: PaywallStateSnapshot = {
+  open: false,
+  view: null,
+  error: null,
+  processing: false
+};
 
 /**
  * Подписка на состояние модалки пейвола: открыта/закрыта, текущий view,

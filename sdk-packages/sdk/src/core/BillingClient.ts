@@ -1179,6 +1179,17 @@ export class BillingClient {
     errorUrl?: string;
     shopUrl?: string;
     trialDays?: number;
+    /** Активный offer для этой цены — резолвится host'ом через
+     *  `paywall.getOfferForPrice(priceId)?.offer.id` или
+     *  `findApplicableOffer(client.getCachedOffers(), priceId)?.id`. Без
+     *  явной передачи бэк сделает auto-resolve по email — но только для
+     *  end_date-офферов. duration_minutes-офферы тикают в clientStorage и
+     *  сервер их не видит: для них offerId ОБЯЗАН прийти от клиента, иначе
+     *  скидка не применится на чекауте, хотя UI её показывал.
+     *
+     *  Передавать offer-id всегда безопасно — бэк сам проверит applicable
+     *  ли offer к этому юзеру (страна/email/режим) и игнорирует если нет. */
+    offerId?: string;
     /**
      * Stage 1 защиты от дубликатов покупок. Идемпотентный ключ запроса
      * (UUID). Повторный вызов с тем же ключом вернёт тот же checkout-URL
@@ -1243,6 +1254,7 @@ export class BillingClient {
         body: JSON.stringify({
           email: this.identity.email,
           priceId: Number(params.priceId),
+          offerId: params.offerId,
           successUrl,
           errorUrl: params.errorUrl,
           shopUrl,

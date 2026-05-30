@@ -64,7 +64,12 @@ export class FakePaywall {
   destroyCalls = 0;
 
   constructor(opts: FakePaywallOptions = {}) {
-    this.state = opts.initialState ?? { open: false, view: null, error: null };
+    this.state = opts.initialState ?? {
+      open: false,
+      view: null,
+      error: null,
+      processing: false
+    };
     this.user = opts.initialUser ?? null;
     this.access =
       opts.initialAccess ?? {

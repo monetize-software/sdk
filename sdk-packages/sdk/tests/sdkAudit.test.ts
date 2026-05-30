@@ -263,7 +263,7 @@ describe('PaywallUI.getState / onStateChange', () => {
       fetch: async () => jsonResponse({}),
       autoDetectReturn: false
     });
-    expect(ui.getState()).toEqual({ open: false, view: null, error: null });
+    expect(ui.getState()).toEqual({ open: false, view: null, error: null, processing: false });
   });
 
   it('onStateChange emits initial snapshot in microtask by default', async () => {
@@ -277,7 +277,7 @@ describe('PaywallUI.getState / onStateChange', () => {
     ui.onStateChange(cb);
     expect(cb).not.toHaveBeenCalled(); // microtask, not sync
     await Promise.resolve();
-    expect(cb).toHaveBeenCalledWith({ open: false, view: null, error: null });
+    expect(cb).toHaveBeenCalledWith({ open: false, view: null, error: null, processing: false });
   });
 
   it('onStateChange with immediate:sync calls in same tick', () => {
@@ -290,7 +290,7 @@ describe('PaywallUI.getState / onStateChange', () => {
     const cb = vi.fn();
     ui.onStateChange(cb, { immediate: 'sync' });
     expect(cb).toHaveBeenCalledTimes(1);
-    expect(cb).toHaveBeenCalledWith({ open: false, view: null, error: null });
+    expect(cb).toHaveBeenCalledWith({ open: false, view: null, error: null, processing: false });
   });
 
   it('onStateChange with immediate:none does not deliver initial', async () => {
@@ -321,7 +321,8 @@ describe('PaywallUI.getState / onStateChange', () => {
     (ui as unknown as { applyState: Function }).applyState({
       open: true,
       view: 'loading',
-      error: null
+      error: null,
+      processing: false
     });
     expect(cb).not.toHaveBeenCalled();
   });
@@ -339,7 +340,8 @@ describe('PaywallUI.getState / onStateChange', () => {
     (ui as unknown as { applyState: Function }).applyState({
       open: false,
       view: null,
-      error: null
+      error: null,
+      processing: false
     });
     expect(cb).not.toHaveBeenCalled();
   });
@@ -358,9 +360,15 @@ describe('PaywallUI.getState / onStateChange', () => {
     (ui as unknown as { applyState: Function }).applyState({
       open: true,
       view: 'error',
-      error: err
+      error: err,
+      processing: false
     });
-    expect(cb).toHaveBeenCalledWith({ open: true, view: 'error', error: err });
+    expect(cb).toHaveBeenCalledWith({
+      open: true,
+      view: 'error',
+      error: err,
+      processing: false
+    });
     expect(ui.getState().error).toBe(err);
   });
 });

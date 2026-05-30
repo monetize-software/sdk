@@ -117,10 +117,13 @@ type _AssertCheckoutSignature = Parameters<PaywallUI['checkout']> extends [strin
 // -----------------------------------------------------------------------------
 
 // Поля, на которые опирается usePaywallState и наш SSR_SNAPSHOT placeholder.
+// `processing` добавлено в alpha.13 для late-mount direct-checkout: PaywallButton
+// читает его в priceId-режиме, чтобы показать busy без флеша модалки.
 type _AssertStateShape = PaywallStateSnapshot extends {
   open: boolean;
   view: unknown;
   error: unknown;
+  processing: boolean;
 }
   ? true
   : false;
