@@ -51,6 +51,13 @@ function emit(ui: PaywallUI, event: string, payload?: unknown) {
   (ui as unknown as { emit: (e: string, p?: unknown) => void }).emit(event, payload);
 }
 
+// paywall_opened/paywall_viewed/paywall_closed гейтятся на lastMountedView ===
+// 'layout' — в обычной жизни его выставляет mountAndShow. В юнит-тестах,
+// которые эмитят события напрямую, ставим его руками.
+function setMountedView(ui: PaywallUI, view: string | null) {
+  (ui as unknown as { lastMountedView: string | null }).lastMountedView = view;
+}
+
 describe('PaywallUI tracking integration', () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -74,6 +81,7 @@ describe('PaywallUI tracking integration', () => {
 
   it('forwards open/close/ready/price_selected/checkout_started/purchase_completed/purchase_failed', async () => {
     const { ui, calls } = makeUI();
+    setMountedView(ui, 'layout');
 
     emit(ui, 'open');
     emit(ui, 'ready', {
@@ -106,6 +114,7 @@ describe('PaywallUI tracking integration', () => {
 
   it('paywall_viewed payload carries bootstrap counts and test-mode flag', async () => {
     const { ui, calls } = makeUI();
+    setMountedView(ui, 'layout');
     emit(ui, 'ready', {
       settings: { id: 'pw_1', name: 'X', is_test_mode: true },
       prices: [{ id: '1' }, { id: '2' }, { id: '3' }],
@@ -118,6 +127,33 @@ describe('PaywallUI tracking integration', () => {
       type: 'paywall_viewed',
       props: { is_test_mode: true, prices_count: 3, offers_count: 1 }
     });
+  });
+
+  it('non-layout view (support/auth) does NOT emit paywall_opened/viewed/closed', async () => {
+    const { ui, calls } = makeUI();
+    // Открыт support — публичные open/ready/close эмитятся, но это не «пейвол».
+    setMountedView(ui, 'support');
+
+    emit(ui, 'open');
+    emit(ui, 'ready', {
+      settings: { id: 'pw_1', name: 'X', is_test_mode: false },
+      prices: [{ id: '1' }],
+      offers: []
+    });
+    // checkout внутри support-flow (например после restore) всё ещё форвардится —
+    // гейт только на paywall-lifecycle события, не на остальное.
+    emit(ui, 'price_selected', { priceId: '1', price: {} });
+    emit(ui, 'close');
+
+    await vi.advanceTimersByTimeAsync(50);
+
+    const types = calls.length
+      ? JSON.parse(calls[0].init.body as string).events.map((e: { type: string }) => e.type)
+      : [];
+    expect(types).not.toContain('paywall_opened');
+    expect(types).not.toContain('paywall_viewed');
+    expect(types).not.toContain('paywall_closed');
+    expect(types).toContain('price_selected');
   });
 
   it('analytics: false disables tracker entirely', async () => {

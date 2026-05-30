@@ -1010,14 +1010,18 @@ function PurchaseSuccessView({
   restored?: boolean;
 }) {
   const { t } = useI18n();
+  // Типографика/CTA — зеркало канонического success-вью `reset_sent`
+  // (AuthPanel): h-14 иконка, text-3xl bold заголовок, text-base gray-600
+  // подзаголовок, full-width pw-cta-shimmer кнопка. Раньше вью использовал
+  // text-lg/text-sm заголовки и мелкую inline-кнопку — выбивался из остального
+  // пейвола.
   return (
-    <div class="flex flex-col items-center gap-3 py-8 text-center">
+    <div class="flex flex-col items-center gap-4 py-6 text-center">
       <div
-        class="flex h-14 w-14 items-center justify-center rounded-full ring-8"
+        class="flex h-14 w-14 items-center justify-center rounded-full"
         style={{
           background: 'linear-gradient(135deg, #4ade80, #16a34a)',
           color: '#fff',
-          // emerald ring with low alpha for a halo effect
           boxShadow: '0 0 0 8px rgba(74,222,128,0.12), 0 8px 20px -6px rgba(22,163,74,0.45)'
         }}
         aria-hidden="true"
@@ -1032,12 +1036,12 @@ function PurchaseSuccessView({
           />
         </svg>
       </div>
-      <p id="pw-title" class="mt-1 text-lg font-semibold tracking-tight text-gray-900">
+      <p id="pw-title" class="mt-1 text-3xl font-bold tracking-tight text-gray-900">
         {restored
           ? t('modal.purchase_restored_title', 'Subscription restored')
           : t('modal.purchase_success_title', 'Payment received')}
       </p>
-      <p class="text-sm leading-relaxed text-gray-500">
+      <p class="text-base leading-relaxed text-gray-600">
         {restored
           ? t(
               'modal.purchase_restored_subtitle',
@@ -1048,15 +1052,15 @@ function PurchaseSuccessView({
       <button
         type="button"
         onClick={onContinue}
-        class="mt-3 rounded-xl px-5 py-2.5 text-sm font-semibold text-white transition-all hover:-translate-y-px hover:brightness-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--pw-accent)]"
+        class="pw-cta-shimmer relative mt-2 flex min-h-12 w-full items-center justify-center overflow-hidden rounded-3xl px-5 py-2 text-center text-base font-semibold leading-tight text-white transition-transform duration-150 active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--pw-accent)]"
         style={{
           background:
-            'linear-gradient(180deg, color-mix(in srgb, var(--pw-accent) 92%, white), var(--pw-accent))',
+            'linear-gradient(135deg, color-mix(in srgb, var(--pw-accent) 55%, white) 0%, var(--pw-accent) 55%, color-mix(in srgb, var(--pw-accent) 90%, black) 100%)',
           boxShadow:
-            '0 1px 2px rgba(15,23,42,0.08), 0 8px 20px -6px color-mix(in srgb, var(--pw-accent) 50%, transparent)'
+            '0 0 20px 0 color-mix(in srgb, var(--pw-accent) 25%, transparent), inset 0 0 8px 0 color-mix(in srgb, white 25%, transparent)'
         }}
       >
-        {t('modal.continue', 'Continue')}
+        <span class="relative z-10">{t('modal.continue', 'Continue')}</span>
       </button>
     </div>
   );

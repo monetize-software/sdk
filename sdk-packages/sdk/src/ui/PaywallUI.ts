@@ -296,6 +296,12 @@ export class PaywallUI {
   private watcher: UserWatcher | null = null;
   private tracker: EventTracker | null = null;
   private purchased = false;
+  /** View, с которым последний раз монтировалась модалка. Гейтит аналитику
+   *  `paywall_opened`/`paywall_viewed` на реальный пейвол (`'layout'`): открытие
+   *  support / standalone-auth / awaiting_payment эмитит публичный `'open'` и
+   *  `'ready'`, но это не «пейвол открыт/просмотрен» — иначе саппорт-клик шлёт
+   *  ложный `paywall_opened`. */
+  private lastMountedView: PaywallView | null = null;
   /** Lazy-инстанс TrialStore. Резолвится при первом open(), когда уже знаем
    *  `bootstrap.settings.trial`. null — триал отключён в конфиге пейвола. */
   private trialStore: TrialStore | null = null;
@@ -385,14 +391,20 @@ export class PaywallUI {
     // Биндим внутренние SDK-события на аналитический транспорт. Один эмиттер,
     // один потребитель (трекер) — никто кроме трекера не должен трогать
     // эти имена событий за пределами PaywallUI.
-    this.on('open', () => this.tracker?.track('paywall_opened'));
-    this.on('ready', (b) =>
+    // paywall_opened/paywall_viewed — только для реального пейвола ('layout').
+    // Публичные 'open'/'ready' эмитятся и для support/auth/awaiting_payment,
+    // но это не «пейвол открыт/просмотрен» (см. lastMountedView).
+    this.on('open', () => {
+      if (this.lastMountedView === 'layout') this.tracker?.track('paywall_opened');
+    });
+    this.on('ready', (b) => {
+      if (this.lastMountedView !== 'layout') return;
       this.tracker?.track('paywall_viewed', {
         is_test_mode: b.settings.is_test_mode,
         prices_count: b.prices.length,
         offers_count: b.offers.length
-      })
-    );
+      });
+    });
     this.on('price_selected', (p) =>
       this.tracker?.track('price_selected', { price_id: p.priceId })
     );
@@ -411,7 +423,9 @@ export class PaywallUI {
     this.on('purchase_failed', (p) =>
       this.tracker?.track('purchase_failed', { reason: p.reason })
     );
-    this.on('close', () => this.tracker?.track('paywall_closed'));
+    this.on('close', () => {
+      if (this.lastMountedView === 'layout') this.tracker?.track('paywall_closed');
+    });
     this.on('trial_blocked', (s) =>
       this.tracker?.track('trial_blocked', {
         mode: s.mode,
@@ -1143,6 +1157,9 @@ export class PaywallUI {
       checkoutUrl?: string;
     } = {}
   ): void {
+    // Запоминаем view для гейта аналитики (paywall_opened/paywall_viewed) —
+    // эмитим их только когда реально показываем пейвол ('layout').
+    this.lastMountedView = view;
     const renew = mountOpts.renew === true;
     const initialAuthMode = mountOpts.authMode;
     // priceId имеет смысл только для auth (preauth direct-checkout) и
