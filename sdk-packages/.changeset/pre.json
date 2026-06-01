@@ -12,6 +12,7 @@
     "auth-reset-sent-i18n",
     "auth-reset-sent-view",
     "auth-signup-link-flow",
+    "billing-apikey-browser-throw",
     "billing-apikey-list-cancel",
     "createcheckout-local-currency",
     "customer-portal-return-url",
