@@ -1,7 +1,21 @@
 {
   "name": "@monetize.software/sdk",
-  "version": "3.0.0-beta.0",
+  "version": "3.0.0-beta.1",
   "description": "Monetize SDK — bundled billing client and paywall render engine for web and Chrome extensions",
+  "keywords": [
+    "paywall",
+    "billing",
+    "subscriptions",
+    "monetization",
+    "checkout",
+    "stripe",
+    "paddle",
+    "in-app-purchases",
+    "shadow-dom",
+    "preact",
+    "chrome-extension",
+    "sdk"
+  ],
   "type": "module",
   "sideEffects": false,
   "license": "MIT",

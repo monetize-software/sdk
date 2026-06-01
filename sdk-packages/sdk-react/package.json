@@ -1,7 +1,18 @@
 {
   "name": "@monetize.software/sdk-react",
-  "version": "3.0.0-beta.0",
+  "version": "3.0.0-beta.1",
   "description": "React bindings for @monetize.software/sdk — Provider, hooks and declarative components. Works with the web SDK and the extension SDK (any drop-in compatible PaywallUI).",
+  "keywords": [
+    "paywall",
+    "billing",
+    "subscriptions",
+    "monetization",
+    "react",
+    "react-hooks",
+    "checkout",
+    "in-app-purchases",
+    "sdk"
+  ],
   "type": "module",
   "sideEffects": false,
   "license": "MIT",

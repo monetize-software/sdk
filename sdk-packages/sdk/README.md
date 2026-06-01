@@ -8,9 +8,6 @@ in a Shadow DOM modal on your page, with no iframe.
   package and bundle as an npm dependency — Chrome Web Store MV3 policy forbids
   remote code execution, so CDN loading is **not** allowed.
 
-Status: **alpha**. API surface is stabilizing but may still shift between alpha
-releases; see [CHANGELOG.md](CHANGELOG.md).
-
 ## Three entrypoints
 
 ```ts
