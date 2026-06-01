@@ -191,15 +191,34 @@ describe('apiKey/userId security warnings', () => {
   });
   afterEach(() => vi.restoreAllMocks());
 
-  it('apiKey in browser triggers console.error', () => {
+  it('apiKey in browser throws apikey_in_browser by default', () => {
+    expect(
+      () =>
+        new BillingClient({
+          apiOrigin: TEST_API_ORIGIN,
+          paywallId: 'pw_1',
+          apiKey: 'sk_test_xxx',
+          fetch: async () => jsonResponse({}),
+          storage: freshStorage()
+        })
+    ).toThrowError(
+      expect.objectContaining({ code: 'apikey_in_browser' })
+    );
+  });
+
+  it('apiKey in browser with allowInsecureBrowserUsage warns instead of throwing', () => {
     const errSpy = console.error as unknown as ReturnType<typeof vi.fn>;
-    new BillingClient({
-      apiOrigin: TEST_API_ORIGIN,
-      paywallId: 'pw_1',
-      apiKey: 'sk_test_xxx',
-      fetch: async () => jsonResponse({}),
-      storage: freshStorage()
-    });
+    expect(
+      () =>
+        new BillingClient({
+          apiOrigin: TEST_API_ORIGIN,
+          paywallId: 'pw_1',
+          apiKey: 'sk_test_xxx',
+          allowInsecureBrowserUsage: true,
+          fetch: async () => jsonResponse({}),
+          storage: freshStorage()
+        })
+    ).not.toThrow();
     expect(errSpy).toHaveBeenCalled();
     const msg = (errSpy.mock.calls[0]?.[0] as string) || '';
     expect(msg).toContain('SECURITY');

@@ -118,8 +118,21 @@ export interface BillingClientOptions {
    * Server SDK API key. Используется для `/start-checkout` в headless/hybrid-сценариях,
    * где вызов идёт из trusted-окружения (backend клиента). В client-native пути
    * ключ НЕ передавать — приватный токен утечёт в браузер.
+   *
+   * По умолчанию конструктор throw'ает `apikey_in_browser`, если ключ задан в
+   * браузерном контексте (`window.document`) — защита от типового «затупа»
+   * интегратора. Снять блок можно только осознанно через
+   * `allowInsecureBrowserUsage: true`.
    */
   apiKey?: string;
+  /**
+   * Разрешить `apiKey` в браузерном контексте. ТОЛЬКО для e2e/интеграционных
+   * тестов, где ключ инжектится в браузер намеренно. В проде это утечка
+   * server-SDK ключа и компрометация всего аккаунта. Дефолт false → конструктор
+   * throw'ает при обнаружении ключа в браузере. Когда true — вместо throw'а
+   * просто `console.error`-предупреждение.
+   */
+  allowInsecureBrowserUsage?: boolean;
   /**
    * AuthClient для подключения Bearer-авторизации и автосинка identity. Если
    * передан — все запросы получают `Authorization: Bearer <access_token>`,
@@ -239,18 +252,29 @@ export class BillingClient {
     // Безопасность: приватный server-SDK ключ НИКОГДА не должен попасть в
     // браузер. Detect-эвристика — наличие `window.document` (не идеальная,
     // но отсекает обычные web/extension случаи; в Node/Deno/Bun fallback
-    // на `typeof window === 'undefined'`). Не throw'аем — host может иметь
-    // нестандартный сценарий (e2e-тесты с инжекцией ключа), но громко
-    // предупреждаем в console.error чтобы это попало в Sentry / логи.
+    // на `typeof window === 'undefined'`). По умолчанию throw'аем на первой
+    // же строке `new BillingClient(...)` — наивный интегратор не соберёт
+    // рабочий клиент с ключом и не заметит. Осознанный нестандартный сценарий
+    // (e2e с инжекцией ключа) снимает блок флагом allowInsecureBrowserUsage —
+    // тогда лишь громкий console.error для Sentry / логов.
     if (
       opts.apiKey &&
       typeof window !== 'undefined' &&
       typeof (window as { document?: unknown }).document !== 'undefined'
     ) {
+      if (!opts.allowInsecureBrowserUsage) {
+        throw new PaywallError(
+          'apikey_in_browser',
+          'BillingClient.apiKey detected in browser context. This is a server-SDK ' +
+            'key and exposes your entire account. Move BillingClient to a trusted ' +
+            'backend, or pass allowInsecureBrowserUsage:true if this is intentional ' +
+            '(e2e tests).'
+        );
+      }
       console.error(
-        '[paywall] SECURITY: BillingClient.apiKey detected in browser context. ' +
-          'This is a server-SDK key and exposes your account. Remove apiKey ' +
-          'or move BillingClient to a trusted backend.'
+        '[paywall] SECURITY: BillingClient.apiKey detected in browser context ' +
+          '(allowInsecureBrowserUsage). This is a server-SDK key and exposes your ' +
+          'account. Never ship this to production.'
       );
     }
     this.storage = createStorage(opts.storage);
