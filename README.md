@@ -56,8 +56,6 @@ pnpm add @monetize.software/sdk-extension @monetize.software/sdk-react react
 </script>
 ```
 
-Pin a specific version for production: `…/sdk@3.0.0-beta.0` instead of the bare specifier. The bare `@monetize.software/sdk` floats to the latest published release (`latest` tag) and is ideal during early integration.
-
 For React on a website, install with a bundler (`pnpm add @monetize.software/sdk @monetize.software/sdk-react react`) — that's the supported path; the React bindings aren't designed for buildless CDN use. For Chrome extensions see the warning above — CDN loading is not allowed by Chrome Web Store policy; use the bundled `@monetize.software/sdk-extension` instead.
 
 ```ts
