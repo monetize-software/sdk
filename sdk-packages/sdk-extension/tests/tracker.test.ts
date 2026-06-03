@@ -73,8 +73,8 @@ describe('EventTracker — single batch across tabs', () => {
     const tab1 = new RemoteEventTracker(new TransportClient(() => c1));
     const tab2 = new RemoteEventTracker(new TransportClient(() => c2));
 
-    tab1.track('paywall_opened', { source: 'tab1' });
-    tab2.track('paywall_opened', { source: 'tab2' });
+    tab1.track('paywall_viewed', { source: 'tab1' });
+    tab2.track('paywall_viewed', { source: 'tab2' });
     tab2.track('price_selected', { price_id: 'p1' });
 
     // Дать flush'у отработать.
@@ -86,8 +86,8 @@ describe('EventTracker — single batch across tabs', () => {
     const batch = flushedBatches[0] as Array<{ type: string }>;
     expect(batch).toHaveLength(3);
     expect(batch.map((e) => e.type)).toEqual([
-      'paywall_opened',
-      'paywall_opened',
+      'paywall_viewed',
+      'paywall_viewed',
       'price_selected'
     ]);
 

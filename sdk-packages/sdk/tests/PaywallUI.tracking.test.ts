@@ -51,7 +51,7 @@ function emit(ui: PaywallUI, event: string, payload?: unknown) {
   (ui as unknown as { emit: (e: string, p?: unknown) => void }).emit(event, payload);
 }
 
-// paywall_opened/paywall_viewed/paywall_closed гейтятся на lastMountedView ===
+// paywall_viewed/paywall_closed гейтятся на lastMountedView ===
 // 'layout' — в обычной жизни его выставляет mountAndShow. В юнит-тестах,
 // которые эмитят события напрямую, ставим его руками.
 function setMountedView(ui: PaywallUI, view: string | null) {
@@ -79,10 +79,11 @@ describe('PaywallUI tracking integration', () => {
     });
   });
 
-  it('forwards open/close/ready/price_selected/checkout_started/purchase_completed/purchase_failed', async () => {
+  it('forwards ready/price_selected/checkout_started/purchase_completed/purchase_failed/close', async () => {
     const { ui, calls } = makeUI();
     setMountedView(ui, 'layout');
 
+    // 'open' больше не трекается отдельно — показ пейвола фиксирует 'viewed'.
     emit(ui, 'open');
     emit(ui, 'ready', {
       settings: { id: 'pw_1', name: 'X', is_test_mode: false },
@@ -102,7 +103,6 @@ describe('PaywallUI tracking integration', () => {
       (e: { type: string }) => e.type
     );
     expect(types).toEqual([
-      'paywall_opened',
       'paywall_viewed',
       'price_selected',
       'checkout_started',
@@ -129,7 +129,7 @@ describe('PaywallUI tracking integration', () => {
     });
   });
 
-  it('non-layout view (support/auth) does NOT emit paywall_opened/viewed/closed', async () => {
+  it('non-layout view (support/auth) does NOT emit paywall_viewed/closed', async () => {
     const { ui, calls } = makeUI();
     // Открыт support — публичные open/ready/close эмитятся, но это не «пейвол».
     setMountedView(ui, 'support');
@@ -150,7 +150,6 @@ describe('PaywallUI tracking integration', () => {
     const types = calls.length
       ? JSON.parse(calls[0].init.body as string).events.map((e: { type: string }) => e.type)
       : [];
-    expect(types).not.toContain('paywall_opened');
     expect(types).not.toContain('paywall_viewed');
     expect(types).not.toContain('paywall_closed');
     expect(types).toContain('price_selected');

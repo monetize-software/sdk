@@ -96,7 +96,6 @@ export class PaywallUI extends BasePaywallUI {
     if (!t) return;
 
     this.trackerUnsubs.push(
-      this.on('open', () => t.track('paywall_opened')),
       this.on('ready', (b) =>
         t.track('paywall_viewed', {
           is_test_mode: b.settings.is_test_mode,

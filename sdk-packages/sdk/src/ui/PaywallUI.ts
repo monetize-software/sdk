@@ -297,10 +297,10 @@ export class PaywallUI {
   private tracker: EventTracker | null = null;
   private purchased = false;
   /** View, с которым последний раз монтировалась модалка. Гейтит аналитику
-   *  `paywall_opened`/`paywall_viewed` на реальный пейвол (`'layout'`): открытие
-   *  support / standalone-auth / awaiting_payment эмитит публичный `'open'` и
-   *  `'ready'`, но это не «пейвол открыт/просмотрен» — иначе саппорт-клик шлёт
-   *  ложный `paywall_opened`. */
+   *  `paywall_viewed`/`paywall_closed` на реальный пейвол (`'layout'`): открытие
+   *  support / standalone-auth / awaiting_payment эмитит публичный `'ready'` и
+   *  `'close'`, но это не «пейвол просмотрен/закрыт» — иначе саппорт-клик шлёт
+   *  ложный `paywall_viewed`. */
   private lastMountedView: PaywallView | null = null;
   /** Lazy-инстанс TrialStore. Резолвится при первом open(), когда уже знаем
    *  `bootstrap.settings.trial`. null — триал отключён в конфиге пейвола. */
@@ -391,12 +391,11 @@ export class PaywallUI {
     // Биндим внутренние SDK-события на аналитический транспорт. Один эмиттер,
     // один потребитель (трекер) — никто кроме трекера не должен трогать
     // эти имена событий за пределами PaywallUI.
-    // paywall_opened/paywall_viewed — только для реального пейвола ('layout').
-    // Публичные 'open'/'ready' эмитятся и для support/auth/awaiting_payment,
-    // но это не «пейвол открыт/просмотрен» (см. lastMountedView).
-    this.on('open', () => {
-      if (this.lastMountedView === 'layout') this.tracker?.track('paywall_opened');
-    });
+    // paywall_viewed — только для реального пейвола ('layout'). Публичные
+    // 'ready'/'close' эмитятся и для support/auth/awaiting_payment, но это не
+    // «пейвол просмотрен» (см. lastMountedView). 'open' больше не трекаем
+    // отдельно: 'viewed' (на 'ready', после загрузки bootstrap) — единственный
+    // сигнал показа пейвола.
     this.on('ready', (b) => {
       if (this.lastMountedView !== 'layout') return;
       this.tracker?.track('paywall_viewed', {
@@ -1157,7 +1156,7 @@ export class PaywallUI {
       checkoutUrl?: string;
     } = {}
   ): void {
-    // Запоминаем view для гейта аналитики (paywall_opened/paywall_viewed) —
+    // Запоминаем view для гейта аналитики (paywall_viewed/paywall_closed) —
     // эмитим их только когда реально показываем пейвол ('layout').
     this.lastMountedView = view;
     const renew = mountOpts.renew === true;

@@ -233,12 +233,15 @@ describe('PaywallUI integration (extension)', () => {
     expect(types).toContain('host:another');
   });
 
-  it('auto-tracking: open emits "paywall_opened" via offscreen tracker', async () => {
+  it('auto-tracking: ready emits "paywall_viewed" via offscreen tracker', async () => {
     const { paywall, stub } = bootstrapPaywall();
     paywall.open();
+    // 'open' больше не трекается — показ фиксирует 'viewed' на 'ready' (после
+    // загрузки bootstrap), поэтому ждём async-резолв bootstrap'а.
     await new Promise((r) => setTimeout(r, 60));
     const types = stub.flushedEvents.map((e) => e.type);
-    expect(types).toContain('paywall_opened');
+    expect(types).toContain('paywall_viewed');
+    expect(types).not.toContain('paywall_opened');
   });
 
   it('analytics:false → track() and auto-events do not reach offscreen tracker', async () => {
