@@ -16,6 +16,7 @@
     "billing-apikey-list-cancel",
     "createcheckout-local-currency",
     "customer-portal-return-url",
+    "drop-paywall-opened-event",
     "getaccess-stale-user",
     "offer-banner-farming-fix",
     "offer-pricegrid-checkout-expiry",
