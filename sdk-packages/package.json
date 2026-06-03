@@ -6,7 +6,7 @@
   "scripts": {
     "changeset": "changeset",
     "version-packages": "changeset version",
-    "release": "pnpm -r build && changeset publish",
+    "release": "pnpm -r build && changeset publish && node scripts/promote-latest.mjs",
     "release:alpha": "changeset pre enter alpha && changeset version && pnpm -r build && changeset publish && changeset pre exit",
     "build": "pnpm -r build",
     "test": "pnpm -r test",
