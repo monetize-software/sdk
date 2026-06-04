@@ -127,10 +127,10 @@ describe('BillingClient', () => {
   });
 
   it('keeps bootstrap cache across identity changes (structure is identity-agnostic)', async () => {
-    // bootstrap structure (settings/prices/offers/layout/locales) от identity
-    // не зависит — `setIdentity` сбрасывает только cached user. Следующий
-    // bootstrap() возвращает кэш без сети; свежий user приходит через
-    // отдельный getUser({force:true}), который setIdentity дёргает сам.
+    // The bootstrap structure (settings/prices/offers/layout/locales) doesn't depend
+    // on identity — `setIdentity` only resets the cached user. The next
+    // bootstrap() returns the cache without hitting the network; a fresh user comes via
+    // a separate getUser({force:true}), which setIdentity triggers itself.
     const fetchImpl = bootstrapFetch(() => json(BOOTSTRAP));
     const client = new BillingClient({ apiOrigin: TEST_API_ORIGIN, paywallId: 'pw_1', fetch: fetchImpl });
 
@@ -139,8 +139,8 @@ describe('BillingClient', () => {
     client.setIdentity({ email: 'a@b.c' });
     await client.bootstrap();
 
-    // bootstrap не перезапрашивается; setIdentity мог триггернуть getUser
-    // (другой endpoint) — bootstrap-endpoint остаётся на 1 вызов.
+    // bootstrap isn't re-fetched; setIdentity may have triggered getUser
+    // (a different endpoint) — the bootstrap endpoint stays at 1 call.
     const bootstrapCalls = (fetchImpl as ReturnType<typeof vi.fn>).mock.calls.filter(
       ([url]) => String(url).includes('/bootstrap')
     ).length;
@@ -243,8 +243,8 @@ describe('BillingClient', () => {
     const p2 = client.createCheckout({ priceId: 'monthly' });
     const p3 = client.createCheckout({ priceId: 'monthly' });
 
-    // ApiClient.request делает один await перед fetch (auth token guard) —
-    // даём microtask'ам пройти, чтобы fetch успел дёрнуться.
+    // ApiClient.request does one await before fetch (auth token guard) —
+    // we let the microtasks run so fetch has a chance to fire.
     await Promise.resolve();
     await Promise.resolve();
     expect(checkoutFetch.mock.calls.length).toBe(1);
@@ -273,8 +273,8 @@ describe('BillingClient', () => {
       fetch: checkoutFetch
     });
 
-    // priceId уходит через Number(...) — нужен числовой id, иначе NaN→null
-    // в JSON и тест мерит «https://pay/null».
+    // priceId goes through Number(...) — a numeric id is required, otherwise NaN→null
+    // in JSON and the test would measure "https://pay/null".
     const [r1, r2] = await Promise.all([
       client.createCheckout({ priceId: '101' }),
       client.createCheckout({ priceId: '202' })
@@ -312,10 +312,10 @@ describe('BillingClient', () => {
   });
 
   it('createCheckout maps freemius response (checkoutUrl → url)', async () => {
-    // Freemius hosted checkout: бэк возвращает ту же shape `{checkoutUrl, userId,
-    // acquiring}` что Stripe/Paddle. SDK не ветвит логику по acquiring — просто
-    // мапит checkoutUrl в url. Тест защищает от случайного добавления
-    // per-acquirer ветки или сужения типа.
+    // Freemius hosted checkout: the backend returns the same shape `{checkoutUrl, userId,
+    // acquiring}` as Stripe/Paddle. The SDK doesn't branch its logic by acquiring — it just
+    // maps checkoutUrl into url. This test guards against accidentally adding a
+    // per-acquirer branch or narrowing the type.
     const checkoutFetch = vi.fn<typeof fetch>(async () =>
       json({
         checkoutUrl: 'https://checkout.freemius.com/product/123/plan/456/?billing_cycle=annual',
@@ -339,9 +339,9 @@ describe('BillingClient', () => {
   });
 
   it('createCheckout dedupes parallel freemius calls (same priceId)', async () => {
-    // Дедуп — общий механизм, не зависит от acquiring. Этот тест
-    // явно фиксирует, что для freemius он тоже работает: дубль-клик по CTA
-    // не создаёт два checkout-URL'а у Freemius (которые потом протухнут оба).
+    // Dedup is a shared mechanism, independent of acquiring. This test
+    // explicitly pins that it also works for freemius: a double-click on the CTA
+    // doesn't create two checkout URLs at Freemius (which would both then expire).
     let resolveResp: (r: Response) => void = () => {};
     const checkoutFetch = vi.fn<typeof fetch>(
       () =>
@@ -395,8 +395,8 @@ describe('BillingClient', () => {
     expect(checkoutFetch.mock.calls.length).toBe(2);
   });
 
-  // SDK 3.0: listPurchases и cancelSubscription поддерживают два пути —
-  // Bearer (через AuthClient) или apiKey + identity. Без обоих — identity_required.
+  // SDK 3.0: listPurchases and cancelSubscription support two paths —
+  // Bearer (via AuthClient) or apiKey + identity. Without either — identity_required.
   it('listPurchases throws identity_required without auth and without apiKey+identity', async () => {
     const client = new BillingClient({ apiOrigin: TEST_API_ORIGIN, paywallId: 'pw_1' });
 

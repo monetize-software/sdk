@@ -2,29 +2,30 @@ import { createContext } from 'react';
 import type { PaywallUI } from '@monetize.software/sdk';
 
 /**
- * Внутренний React Context, в который PaywallProvider кладёт PaywallUI-инстанс.
+ * Internal React Context into which PaywallProvider puts the PaywallUI instance.
  *
- * value === null до того, как Provider успел смонтировать инстанс (SSR,
- * первый render до useEffect, дев double-mount в StrictMode после cleanup).
- * Хуки должны корректно обрабатывать null — отдавать loading/null/no-op,
- * а не падать.
+ * value === null until the Provider has managed to mount the instance (SSR,
+ * the first render before useEffect, a dev double-mount in StrictMode after
+ * cleanup). Hooks must handle null correctly — return loading/null/no-op
+ * rather than crashing.
  *
- * defaultValue intentionally `null`, а не `undefined` — это позволяет
- * usePaywall() различать «Provider не оборачивает дерево» (undefined-симуляция
- * через sentinel-объект ниже не нужна, мы это ловим иначе) и «Provider есть,
- * но инстанс ещё не создан» (null).
+ * defaultValue is intentionally `null`, not `undefined` — this lets
+ * usePaywall() distinguish "Provider doesn't wrap the tree" (the
+ * undefined-simulation via the sentinel object below isn't needed, we catch
+ * that differently) from "Provider exists, but the instance isn't created
+ * yet" (null).
  */
 export const PaywallContext = createContext<PaywallUI | null>(null);
 PaywallContext.displayName = 'PaywallContext';
 
 /**
- * Sentinel для отслеживания: «компонент вообще находится внутри Provider'а?».
+ * Sentinel for tracking: "is the component inside a Provider at all?".
  *
- * React Context отдаёт defaultValue, когда `<Provider>` не оборачивает дерево.
- * Если defaultValue=null, а Provider тоже легально кладёт null (на SSR /
- * до mount-а) — мы не различаем эти два случая. Поэтому Provider всегда
- * оборачивает второй Context с маркером HAS_PROVIDER=true, который usePaywall
- * проверяет первым.
+ * React Context returns defaultValue when `<Provider>` doesn't wrap the tree.
+ * If defaultValue=null and the Provider also legitimately puts null (on SSR /
+ * before mount) — we can't distinguish these two cases. So the Provider always
+ * wraps a second Context with a HAS_PROVIDER=true marker, which usePaywall
+ * checks first.
  */
 export const PaywallProviderMarker = createContext<boolean>(false);
 PaywallProviderMarker.displayName = 'PaywallProviderMarker';

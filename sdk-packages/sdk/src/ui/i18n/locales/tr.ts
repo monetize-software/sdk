@@ -1,10 +1,10 @@
 /**
- * Static-translations для tr. Сгенерировано из:
- *  - `online/lang/static-translations.ts` (legacy, через KEY_MAP)
- *  - `tools/sdk-translations.mjs` (SDK-specific строки)
+ * Static-translations for tr. Generated from:
+ *  - `online/lang/static-translations.ts` (legacy, via KEY_MAP)
+ *  - `tools/sdk-translations.mjs` (SDK-specific strings)
  *
- * Не править вручную — изменения теряются при следующем `node tools/gen-locales.mjs`.
- * Чтобы исправить перевод — править legacy/sdk-translations.mjs и регенерить.
+ * Do not edit by hand — changes are lost on the next `node tools/gen-locales.mjs`.
+ * To fix a translation, edit legacy/sdk-translations.mjs and regenerate.
  */
 const tr = {
   'anon.heading_default': 'Misafir olarak devam et',
@@ -47,7 +47,6 @@ const tr = {
   'auth.reset_password_title': 'Şifreyi sıfırla',
   'auth.reset_sent_message': 'Bu e-posta varsa, sıfırlama kodu gönderildi.',
   'auth.reset_sent_subtitle': 'Şifre sıfırlama bağlantısı gönderdik. E-postadaki talimatları izleyin.',
-  'auth.signup_sent_subtitle': 'E-postana bir onay bağlantısı gönderdik. Hesabını etkinleştirmek için bağlantıya tıkla, ardından giriş yap.',
   'auth.restore_purchases_heading': 'Satın almaları geri yükle',
   'auth.restore_purchases_subheading': 'Satın alımlarınızı geri yüklemek için lütfen giriş yapın.',
   'auth.send_reset': 'Sıfırlama e-postası gönder',
@@ -75,9 +74,9 @@ const tr = {
   'modal.continue': 'Devam et',
   'modal.error_generic': 'Bir şeyler ters gitti',
   'modal.loading': 'Yükleniyor…',
-  'modal.purchase_restored_subtitle': 'Tekrar hoş geldiniz — aboneliğiniz zaten aktif.',
-  'modal.purchase_restored_title': 'Abonelik geri yüklendi',
-  'modal.purchase_success_subtitle': 'Aboneliğiniz artık aktif.',
+  'modal.purchase_restored_subtitle': 'Her şey hazır — keyfini çıkarın!',
+  'modal.purchase_restored_title': 'Tekrar hoş geldiniz',
+  'modal.purchase_success_subtitle': 'Her şey hazır — keyfini çıkarın!',
   'modal.purchase_success_title': 'Ödeme alındı',
   'modal.verifying_subscription': 'Aboneliğiniz kontrol ediliyor…',
   'nav.back': '← Geri',

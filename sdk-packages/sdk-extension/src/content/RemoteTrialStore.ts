@@ -1,7 +1,7 @@
-// RemoteTrialStore — TrialStore-совместимый proxy. check / recordBlock /
-// reset идут через transport в offscreen, где реальный TrialStore работает
-// под navigator.locks — два таба не могут одновременно read-modify-write
-// один и тот же counter, drift'а нет.
+// RemoteTrialStore — a TrialStore-compatible proxy. check / recordBlock / reset
+// go through transport to offscreen, where the real TrialStore runs under
+// navigator.locks — two tabs can't read-modify-write the same counter
+// simultaneously, so there's no drift.
 
 import type { TrialStore } from '@sdk/core/trial';
 import type { TrialConfig, TrialStatus } from '@sdk/core/types';

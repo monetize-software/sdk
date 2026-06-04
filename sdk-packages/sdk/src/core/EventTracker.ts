@@ -1,16 +1,16 @@
 import { SDK_VERSION } from './api';
 
-// Аналитический трекер SDK 3.0. Принимает события (системные через
-// bindEventTracker и кастомные через PaywallUI.track()), копит в буфере и
-// батчем шлёт на /api/v1/paywall/{id}/events.
+// The SDK 3.0 analytics tracker. It accepts events (system ones via
+// bindEventTracker and custom ones via PaywallUI.track()), accumulates them in a
+// buffer, and sends them in a batch to /api/v1/paywall/{id}/events.
 //
-// Принципы:
-// - Fire-and-forget. Любая ошибка POST не должна влиять на UX.
-// - Бэк-нагрузка минимальна: батч ~10-20 событий за окно ~1.5с.
-// - sendBeacon на pagehide/visibilitychange — гарантирует доставку
-//   "последней мили" при закрытии вкладки.
-// - Без headers в beacon-режиме (нельзя по спеке) — visitor_id/user_id/sdk
-//   metadata дублируются в body как fallback. Сервер их умеет читать.
+// Principles:
+// - Fire-and-forget. Any POST error must not affect the UX.
+// - Backend load is minimal: a batch of ~10-20 events per ~1.5s window.
+// - sendBeacon on pagehide/visibilitychange — guarantees "last mile" delivery
+//   when the tab is closed.
+// - No headers in beacon mode (not allowed by spec) — visitor_id/user_id/sdk
+//   metadata are duplicated into the body as a fallback. The server can read them.
 
 export interface TrackedEvent {
   type: string;
@@ -28,15 +28,15 @@ export interface EventTrackerOptions {
   enabled?: boolean;
   flushIntervalMs?: number;
   maxBufferSize?: number;
-  /** Тестовый override fetch'а. */
+  /** Test override for fetch. */
   fetch?: typeof fetch;
-  /** Тестовый override sendBeacon'а — позволяет проверить unload-flow в jsdom. */
+  /** Test override for sendBeacon — lets us verify the unload flow in jsdom. */
   sendBeacon?: (url: string, data: BodyInit) => boolean;
 }
 
 const DEFAULT_FLUSH_INTERVAL_MS = 1500;
 const DEFAULT_MAX_BUFFER_SIZE = 20;
-// Hard cap, чтобы фоновая запись не разрослась бесконечно при глухой сети.
+// Hard cap so the background record doesn't grow indefinitely on a dead network.
 const HARD_BUFFER_LIMIT = 200;
 
 export class EventTracker {
@@ -68,7 +68,7 @@ export class EventTracker {
       return;
     }
     if (this.buffer.length > HARD_BUFFER_LIMIT) {
-      // Защита от утечки при недоступности сервера: дропаем самые старые.
+      // Protection against a leak when the server is unavailable: we drop the oldest.
       this.buffer = this.buffer.slice(-HARD_BUFFER_LIMIT);
     }
     this.scheduleFlush();
@@ -103,20 +103,20 @@ export class EventTracker {
       await fetchImpl(this.opts.endpoint, {
         method: 'POST',
         credentials: 'omit',
-        keepalive: true, // если страница закроется в этот момент — браузер всё равно дотянет
+        keepalive: true, // if the page closes at this moment — the browser still finishes it
         headers: this.buildHeaders(visitorId, userId),
         body
       });
     } catch {
-      /* тихо: аналитика не должна мешать UX. Потеря события приемлема. */
+      /* silent: analytics must not interfere with UX. Losing an event is acceptable. */
     }
   }
 
   /**
-   * Отправка через navigator.sendBeacon — для unload/pagehide. Гарантированно
-   * долетает (POST с keepalive тоже почти, но beacon сделан именно под это).
-   * Headers ставить нельзя (спецификация), поэтому SDK metadata едет в body
-   * как fallback-поля, которые сервер читает в дополнение к headers.
+   * Sending via navigator.sendBeacon — for unload/pagehide. Guaranteed to
+   * arrive (a POST with keepalive almost is too, but beacon is built exactly for
+   * this). Headers can't be set (per spec), so SDK metadata travels in the body
+   * as fallback fields that the server reads in addition to headers.
    */
   flushBeacon(): void {
     if (this.buffer.length === 0) return;
@@ -127,8 +127,8 @@ export class EventTracker {
     const visitorId = this.opts.getCachedVisitorId?.() ?? null;
     const userId = this.opts.getUserId?.() ?? null;
 
-    // Если visitor_id ещё не зарезолвили (редкий race на ранней секунде жизни) —
-    // вернём события в буфер и вызовем обычный flush с keepalive-fetch'ом.
+    // If visitor_id isn't resolved yet (a rare race in the early second of life) —
+    // we return the events to the buffer and call the regular flush with a keepalive fetch.
     if (!visitorId) {
       this.buffer.unshift(...events);
       void this.flush();
@@ -137,7 +137,7 @@ export class EventTracker {
 
     const body = JSON.stringify({
       events,
-      // body-level дубликаты для beacon-flow, читаются сервером как fallback.
+      // body-level duplicates for the beacon flow, read by the server as a fallback.
       visitor_id: visitorId,
       user_id: userId,
       sdk_version: SDK_VERSION,
@@ -152,14 +152,14 @@ export class EventTracker {
         : null);
 
     if (!beacon) {
-      // Возвращаем events в буфер — обычный flush через keepalive подберёт.
+      // We return events to the buffer — the regular flush via keepalive picks them up.
       this.buffer.unshift(...events);
       void this.flush();
       return;
     }
 
     try {
-      // text/plain — sendBeacon обычно ставит этот тип, сервер парсит вручную.
+      // text/plain — sendBeacon usually sets this type, the server parses manually.
       const ok = beacon(this.opts.endpoint, body);
       if (!ok) {
         this.buffer.unshift(...events);
@@ -195,9 +195,9 @@ export class EventTracker {
       }
     };
 
-    // pagehide — основной путь (стабильнее чем unload, работает в bfcache).
+    // pagehide — the main path (more stable than unload, works in bfcache).
     window.addEventListener('pagehide', this.unloadHandler);
-    // visibilitychange/hidden — дополнительный, на iOS Safari часто единственный.
+    // visibilitychange/hidden — additional, often the only one on iOS Safari.
     if (typeof document !== 'undefined') {
       document.addEventListener('visibilitychange', this.visibilityHandler);
     }

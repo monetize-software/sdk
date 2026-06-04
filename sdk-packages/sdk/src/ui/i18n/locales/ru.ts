@@ -1,10 +1,10 @@
 /**
- * Static-translations для ru. Сгенерировано из:
- *  - `online/lang/static-translations.ts` (legacy, через KEY_MAP)
- *  - `tools/sdk-translations.mjs` (SDK-specific строки)
+ * Static-translations for ru. Generated from:
+ *  - `online/lang/static-translations.ts` (legacy, via KEY_MAP)
+ *  - `tools/sdk-translations.mjs` (SDK-specific strings)
  *
- * Не править вручную — изменения теряются при следующем `node tools/gen-locales.mjs`.
- * Чтобы исправить перевод — править legacy/sdk-translations.mjs и регенерить.
+ * Do not edit by hand — changes are lost on the next `node tools/gen-locales.mjs`.
+ * To fix a translation, edit legacy/sdk-translations.mjs and regenerate.
  */
 const ru = {
   'anon.description_default': 'Настраиваем гостевую сессию…',
@@ -51,7 +51,6 @@ const ru = {
   'auth.reset_password_title': 'Сброс пароля',
   'auth.reset_sent_message': 'Если такой email существует, код для сброса отправлен.',
   'auth.reset_sent_subtitle': 'Мы отправили ссылку для сброса пароля. Следуйте инструкциям в письме.',
-  'auth.signup_sent_subtitle': 'Мы отправили ссылку для подтверждения на вашу почту. Перейдите по ней, чтобы активировать аккаунт, затем войдите.',
   'auth.restore_purchases_heading': 'Восстановить покупки',
   'auth.restore_purchases_subheading': 'Войдите, чтобы восстановить покупки.',
   'auth.send_reset': 'Отправить письмо для сброса',
@@ -84,9 +83,9 @@ const ru = {
   'modal.continue': 'Продолжить',
   'modal.error_generic': 'Что-то пошло не так',
   'modal.loading': 'Загрузка…',
-  'modal.purchase_restored_subtitle': 'С возвращением — подписка уже активна.',
-  'modal.purchase_restored_title': 'Подписка восстановлена',
-  'modal.purchase_success_subtitle': 'Подписка активна.',
+  'modal.purchase_restored_subtitle': 'Всё готово — пользуйтесь!',
+  'modal.purchase_restored_title': 'С возвращением',
+  'modal.purchase_success_subtitle': 'Всё готово — пользуйтесь!',
   'modal.purchase_success_title': 'Платёж получен',
   'modal.verifying_subscription': 'Проверяем подписку…',
   'nav.back': '← Назад',

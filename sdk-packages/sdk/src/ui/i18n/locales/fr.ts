@@ -1,10 +1,10 @@
 /**
- * Static-translations для fr. Сгенерировано из:
- *  - `online/lang/static-translations.ts` (legacy, через KEY_MAP)
- *  - `tools/sdk-translations.mjs` (SDK-specific строки)
+ * Static-translations for fr. Generated from:
+ *  - `online/lang/static-translations.ts` (legacy, via KEY_MAP)
+ *  - `tools/sdk-translations.mjs` (SDK-specific strings)
  *
- * Не править вручную — изменения теряются при следующем `node tools/gen-locales.mjs`.
- * Чтобы исправить перевод — править legacy/sdk-translations.mjs и регенерить.
+ * Do not edit by hand — changes are lost on the next `node tools/gen-locales.mjs`.
+ * To fix a translation, edit legacy/sdk-translations.mjs and regenerate.
  */
 const fr = {
   'anon.description_default': 'Configuration de votre session invité…',
@@ -52,7 +52,6 @@ const fr = {
   'auth.reset_password_title': 'Réinitialiser le mot de passe',
   'auth.reset_sent_message': 'Si cet e-mail existe, un code de réinitialisation a été envoyé.',
   'auth.reset_sent_subtitle': 'Nous avons envoyé un lien de réinitialisation. Suivez les instructions de l\'e-mail.',
-  'auth.signup_sent_subtitle': 'Nous avons envoyé un lien de confirmation à votre adresse e-mail. Cliquez dessus pour activer votre compte, puis connectez-vous.',
   'auth.restore_purchases_heading': 'Restaurer les Achats',
   'auth.restore_purchases_subheading': 'Veuillez vous connecter pour restaurer vos achats.',
   'auth.send_reset': 'Envoyer l\'E-mail de Réinitialisation',
@@ -81,9 +80,9 @@ const fr = {
   'modal.continue': 'Continuer',
   'modal.error_generic': 'Une erreur s\'est produite',
   'modal.loading': 'Chargement…',
-  'modal.purchase_restored_subtitle': 'Bon retour — votre abonnement est déjà actif.',
-  'modal.purchase_restored_title': 'Abonnement restauré',
-  'modal.purchase_success_subtitle': 'Votre abonnement est maintenant actif.',
+  'modal.purchase_restored_subtitle': 'Tout est prêt — profitez-en !',
+  'modal.purchase_restored_title': 'Bon retour',
+  'modal.purchase_success_subtitle': 'Tout est prêt — profitez-en !',
   'modal.purchase_success_title': 'Paiement reçu',
   'modal.verifying_subscription': 'Vérification de votre abonnement…',
   'nav.back': '← Retour',

@@ -6,10 +6,10 @@ import type {
 import { usePaywall } from './usePaywall';
 
 /**
- * `loading` — первый fetch ещё в полёте (или Provider не готов).
- * `ready` — есть свежий ответ; `result` гарантированно non-null.
+ * `loading` — the first fetch is still in flight (or the Provider isn't ready).
+ * `ready` — there's a fresh answer; `result` is guaranteed non-null.
  *
- * Сделано discriminated union'ом, чтобы хост мог сужать тип одним if-ом:
+ * Made a discriminated union so the host can narrow the type with a single if:
  *
  *   `if (access.status === 'ready') access.result.access === 'granted'`
  */
@@ -20,16 +20,17 @@ export type PaywallAccessState =
 const LOADING_STATE: PaywallAccessState = { status: 'loading', result: null };
 
 /**
- * Главный хук для гейтинга фич: «нужно ли блокировать фичу для этого юзера?».
+ * The main hook for feature gating: "should this feature be blocked for this
+ * user?".
  *
- * Под капотом — `paywall.getAccess(opts)` без side-effect'ов (модалка не
- * монтируется, trial-storage не двигается). На каждый `userChange` событие
- * автоматически рефетчится — после успешной покупки `has_subscription`
- * сработает мгновенно, и хост перерендерит UI без feature-lock'а.
+ * Under the hood — `paywall.getAccess(opts)` without side-effects (the modal
+ * isn't mounted, the trial-storage isn't moved). On every `userChange` event it
+ * auto-refetches — after a successful purchase `has_subscription` fires
+ * instantly, and the host re-renders the UI without a feature-lock.
  *
- * Bootstrap кешируется в BillingClient, так что usePaywallAccess можно дёргать
- * в любом компоненте дерева — сетевой запрос будет ровно один (или ни одного,
- * если кеш свежий).
+ * The bootstrap is cached in BillingClient, so usePaywallAccess can be called
+ * in any component of the tree — there will be exactly one network request (or
+ * none, if the cache is fresh).
  *
  * ```tsx
  * const access = usePaywallAccess();
@@ -42,11 +43,11 @@ const LOADING_STATE: PaywallAccessState = { status: 'loading', result: null };
  * return <PremiumFeature />;
  * ```
  *
- * Опции `opts` десериализуются по `skipTrial`/`skipVisibility` — стабильность
- * ссылки `opts` не требуется, эффект перезапустится только при реальном
- * изменении этих флагов. `signal` мы дропаем из deps (на каждый рендер у него
- * новый ref) — отмена inflight-запроса делается локально через AbortController
- * в cleanup-эффекте.
+ * The `opts` are deserialized by `skipTrial`/`skipVisibility` — a stable `opts`
+ * reference isn't required, the effect restarts only when these flags actually
+ * change. We drop `signal` from the deps (it has a new ref on each render) —
+ * cancellation of the inflight request is done locally via AbortController in
+ * the cleanup effect.
  */
 export function usePaywallAccess(opts: GetAccessOptions = {}): PaywallAccessState {
   const paywall = usePaywall();
@@ -57,9 +58,9 @@ export function usePaywallAccess(opts: GetAccessOptions = {}): PaywallAccessStat
 
   useEffect(() => {
     if (!paywall) {
-      // Инстанс ушёл (Provider unmount / StrictMode cleanup) — честно
-      // вернуть loading, чтобы хост не показывал устаревший result от
-      // прошлого инстанса.
+      // The instance is gone (Provider unmount / StrictMode cleanup) — honestly
+      // return loading so the host doesn't show a stale result from the
+      // previous instance.
       setState(LOADING_STATE);
       return;
     }
@@ -72,27 +73,27 @@ export function usePaywallAccess(opts: GetAccessOptions = {}): PaywallAccessStat
         .getAccess({ skipTrial, skipVisibility, signal: ctrl.signal })
         .then((result) => {
           if (cancelled || ctrl.signal.aborted) return;
-          // Каждый refresh даёт новый объект — useState увидит !== и
-          // ререндерит. Это ок: для гейтинга интерес представляет именно
-          // `access` поле, остальное (visibility/trial snapshot'ы) — auxiliary
-          // данные, которые не должны бы менять решение хоста на тех же входах.
+          // Each refresh gives a new object — useState will see !== and
+          // re-render. That's fine: for gating the `access` field is what
+          // matters, the rest (visibility/trial snapshots) are auxiliary data
+          // that shouldn't change the host's decision on the same inputs.
           setState({ status: 'ready', result });
         })
         .catch(() => {
-          // getAccess() имеет собственный offline-fallback и не throw'ит на
-          // failed network'е — сюда мы попадаем только при abort'е, который
-          // прилетает в cleanup-эффекте. Молча игнорим.
+          // getAccess() has its own offline-fallback and doesn't throw on a
+          // failed network — we only land here on an abort, which comes from
+          // the cleanup effect. Silently ignore.
         });
     };
 
     refresh();
 
-    // userChange покрывает оба источника обновления decision'а:
-    //  - после-checkout watcher эмит'ит userChange когда has_subscription=true
-    //  - manual /me refresh из хоста (paywall.billing.getUser())
-    // Дополнительно слушаем purchase_completed для symmetric'ности — на
-    // некоторых платежных провайдерах userChange может задержаться, а
-    // purchase_completed летит мгновенно по URL-маркеру/postMessage.
+    // userChange covers both sources of a decision update:
+    //  - the post-checkout watcher emits userChange when has_subscription=true
+    //  - a manual /me refresh from the host (paywall.billing.getUser())
+    // We additionally listen to purchase_completed for symmetry — on some
+    // payment providers userChange may be delayed, whereas purchase_completed
+    // flies instantly via a URL marker / postMessage.
     const unsubUser = paywall.on('userChange', refresh);
     const unsubPurchase = paywall.on('purchase_completed', refresh);
 

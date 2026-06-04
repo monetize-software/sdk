@@ -1,7 +1,8 @@
-// Offscreen page entry. Owns real BillingClient (и в Phase 4+ — AuthClient,
-// EventTracker) — единственный source of truth для всего расширения.
+// Offscreen page entry. Owns the real BillingClient (and in Phase 4+ —
+// AuthClient, EventTracker) — the single source of truth for the whole
+// extension.
 //
-// Импортируется в `offscreen.html`:
+// Imported in `offscreen.html`:
 //   <script type="module">
 //     import { startOffscreenServer } from '@monetize.software/sdk-extension/offscreen';
 //     startOffscreenServer({ paywallId: '123', apiOrigin: 'https://...' });
@@ -12,14 +13,14 @@ import { OffscreenServer } from './server';
 export interface OffscreenServerOptions {
   paywallId: string;
   apiOrigin?: string;
-  /** Если true — offscreen-server создаёт собственный AuthClient и
-   *  подключает его к BillingClient для Bearer-авторизации. Сессия
-   *  хранится в offscreen'овском localStorage и шарится между всеми
-   *  surface'ами расширения через broadcast authChange. */
+  /** If true — the offscreen-server creates its own AuthClient and connects it
+   *  to BillingClient for Bearer authorization. The session is stored in the
+   *  offscreen localStorage and shared across all surfaces of the extension via
+   *  the authChange broadcast. */
   auth?: boolean;
-  /** Аналитика. По умолчанию включена; передай false чтобы отключить
-   *  целиком. Объект — кастомные параметры (endpoint, batch). EventTracker
-   *  один на расширение, все content track() forward'ятся в него. */
+  /** Analytics. Enabled by default; pass false to disable entirely. An object —
+   *  custom parameters (endpoint, batch). There's one EventTracker per
+   *  extension, all content track() calls are forwarded to it. */
   analytics?:
     | boolean
     | {
@@ -36,9 +37,9 @@ export function startOffscreenServer(opts: OffscreenServerOptions): OffscreenSer
     throw new Error('@monetize.software/sdk-extension/offscreen requires chrome.runtime');
   }
   if (active) {
-    // Двойной запуск — может случиться, если host подгружает offscreen-bootstrap
-    // дважды (HMR в dev, или ошибка с двойным <script>). Возвращаем существующий
-    // инстанс — re-creating дёрнул бы повторный listener на runtime.onConnect.
+    // Double start — can happen if the host loads the offscreen-bootstrap twice
+    // (HMR in dev, or a bug with a duplicate <script>). We return the existing
+    // instance — re-creating would register a second listener on runtime.onConnect.
     return active;
   }
   active = new OffscreenServer(opts);

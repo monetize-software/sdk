@@ -1,7 +1,7 @@
-// Отдельный билд для content-script'а: MV3 manifest НЕ поддерживает
-// "type": "module" в content_scripts, поэтому content.js должен быть
-// IIFE-самодостаточным (никаких import statement'ов в готовом файле).
-// SW/offscreen/popup билдятся отдельно как ESM (см. vite.config.ts).
+// A separate build for the content-script: the MV3 manifest does NOT support
+// "type": "module" in content_scripts, so content.js must be a self-contained
+// IIFE (no import statements in the final file). SW/offscreen/popup are built
+// separately as ESM (see vite.config.ts).
 
 import { defineConfig } from 'vite';
 import { resolve } from 'node:path';
@@ -10,7 +10,7 @@ import tailwindcss from '@tailwindcss/vite';
 const root = __dirname;
 
 export default defineConfig({
-  // Tailwind для модалки внутри Shadow DOM (см. vite.config.ts комментарий).
+  // Tailwind for the modal inside the Shadow DOM (see the vite.config.ts comment).
   plugins: [tailwindcss()],
   resolve: {
     alias: {
@@ -29,7 +29,7 @@ export default defineConfig({
     minify: 'esbuild',
     sourcemap: true,
     outDir: resolve(root, 'dist'),
-    // emptyOutDir: false — не стираем артефакты основного builda (sw/offscreen/popup).
+    // emptyOutDir: false — don't wipe the main build's artifacts (sw/offscreen/popup).
     emptyOutDir: false,
     lib: {
       entry: resolve(root, 'content.ts'),
@@ -40,7 +40,7 @@ export default defineConfig({
     rollupOptions: {
       external: [],
       output: {
-        // content.js — единственный файл, никаких extra chunks.
+        // content.js — a single file, no extra chunks.
         inlineDynamicImports: true
       }
     }

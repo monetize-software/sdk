@@ -1,7 +1,7 @@
 import { PaywallUI } from '../../../src';
 import type { PaywallBootstrap } from '../../../src/core/types';
 
-// Детерминированный моки бэка — e2e тесты не зависят от сети.
+// Deterministic backend mock — e2e tests don't depend on the network.
 const bootstrap: PaywallBootstrap = {
   settings: {
     id: 'ext_test',
@@ -67,9 +67,9 @@ const paywall = new PaywallUI({
   fetch: mockFetch
 });
 
-// Экспонируем инстанс для Playwright-тестов через page.evaluate.
-// В popup-странице page-world и extension-world совпадают (нет content script boundary),
-// так что window.__paywall доступен напрямую из evaluate.
+// Expose the instance for Playwright tests via page.evaluate.
+// On the popup page the page-world and extension-world coincide (no content script boundary),
+// so window.__paywall is accessible directly from evaluate.
 (globalThis as unknown as { __paywall: PaywallUI }).__paywall = paywall;
 
 const log = document.getElementById('log');

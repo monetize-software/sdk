@@ -7,13 +7,13 @@ import { RemoteBillingClient } from '../src/content/RemoteBillingClient';
 import { BillingClient } from '@sdk/core/BillingClient';
 import '../src/shared/messages';
 
-// E2E-стиль тест: дёргаем тот же handler-граф, что в проде — RemoteBillingClient
+// E2E-style test: we exercise the same handler graph as in prod — RemoteBillingClient
 // (content-side) → TransportClient → in-memory channel → TransportServer →
 // real BillingClient (offscreen-side, mock fetch).
 //
-// Не покрывает SW forwarder и chrome.runtime layer (это в Phase 6 e2e через
-// playwright + загруженное расширение). Здесь — что billing-граф работает
-// при реальной сериализации запросов через wire-protocol.
+// Does not cover the SW forwarder and the chrome.runtime layer (that's in Phase 6 e2e via
+// playwright + a loaded extension). Here — that the billing graph works
+// with real request serialization over the wire-protocol.
 
 function pairChannels(): [MessageChannel, MessageChannel] {
   const aIn = new Set<(env: Envelope) => void>();
@@ -103,23 +103,23 @@ describe('bootstrap end-to-end (content ↔ in-memory ↔ offscreen)', () => {
       apiOrigin: 'https://test.local'
     });
 
-    // Перед bootstrap'ом cached === null — как в обычном BillingClient.
+    // Before bootstrap cached === null — as in a regular BillingClient.
     expect(remote.getCachedBootstrap()).toBeNull();
 
     const result = await remote.bootstrap();
 
-    // Получили payload, fetch дёрнулся ровно один раз.
+    // Got the payload, fetch was called exactly once.
     expect(result.settings.id).toBe('demo');
     expect(fetch).toHaveBeenCalledTimes(1);
 
-    // Sync-cache на content-стороне — теперь заполнен (mirror server-side).
+    // The sync-cache on the content side — now populated (mirror of server-side).
     expect(remote.getCachedBootstrap()?.settings.id).toBe('demo');
 
-    // Повторный bootstrap без force — server отдаёт из cache, fetch не растёт.
+    // A repeat bootstrap without force — the server serves from cache, fetch doesn't grow.
     await remote.bootstrap();
     expect(fetch).toHaveBeenCalledTimes(1);
 
-    // С force=true — server ходит в сеть.
+    // With force=true — the server goes to the network.
     await remote.bootstrap({ force: true });
     expect(fetch).toHaveBeenCalledTimes(2);
   });
@@ -143,8 +143,8 @@ describe('bootstrap end-to-end (content ↔ in-memory ↔ offscreen)', () => {
     });
     const server = setupOffscreenSide(billing);
 
-    // Симулируем две вкладки — каждая со своим content transport, но один
-    // server (один offscreen, один BillingClient).
+    // Simulate two tabs — each with its own content transport, but a single
+    // server (one offscreen, one BillingClient).
     const [c1, s1] = pairChannels();
     const [c2, s2] = pairChannels();
     server.accept(s1);
@@ -157,13 +157,13 @@ describe('bootstrap end-to-end (content ↔ in-memory ↔ offscreen)', () => {
       paywallId: 'shared'
     });
 
-    // Первый bootstrap из вкладки 1 — fetch отрабатывает.
+    // The first bootstrap from tab 1 — fetch runs.
     await remote1.bootstrap();
     expect(fetch).toHaveBeenCalledTimes(1);
 
-    // Второй bootstrap из вкладки 2 — должен подхватить тот же cached
-    // BillingClient.cachedBootstrap, БЕЗ повторного сетевого запроса.
-    // Это и есть главная победа архитектуры: один offscreen-источник правды.
+    // The second bootstrap from tab 2 — should pick up the same cached
+    // BillingClient.cachedBootstrap, WITHOUT a repeat network request.
+    // This is the architecture's main win: a single offscreen source of truth.
     await remote2.bootstrap();
     expect(fetch).toHaveBeenCalledTimes(1);
   });

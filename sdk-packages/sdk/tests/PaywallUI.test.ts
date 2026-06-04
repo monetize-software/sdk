@@ -4,8 +4,8 @@ import { PaywallUI } from '../src/ui/PaywallUI';
 
 const TEST_API_ORIGIN = 'https://test.example.com';
 
-// Минимальный stub fetch — PaywallUI не ходит в сеть без open(), но конструктор
-// BillingClient внутри всё равно настраивает ApiClient.
+// Minimal fetch stub — PaywallUI does not hit the network without open(), but
+// the BillingClient constructor still sets up an ApiClient internally.
 const noopFetch: typeof fetch = async () =>
   new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } });
 
@@ -86,7 +86,7 @@ describe('PaywallUI.checkReturn (URL sniffer)', () => {
     ui.checkReturn();
 
     expect(handler).toHaveBeenCalledWith({ priceId: '8365', sessionId: 'sess_1' });
-    // Маркеры удалены, client-specific query сохранён.
+    // Markers removed, client-specific query preserved.
     expect(window.location.search).toBe('?keep=me');
   });
 
@@ -161,7 +161,7 @@ describe('PaywallUI.checkReturn (URL sniffer)', () => {
     window.history.replaceState(null, '', '/?paywall_status=paid');
     const ui = new PaywallUI({ apiOrigin: TEST_API_ORIGIN, paywallId: 'pw_1', fetch: noopFetch });
     const handler = vi.fn();
-    // Подписка синхронно после конструктора — успевает до microtask.
+    // Subscribing synchronously right after the constructor — makes it in before the microtask.
     ui.on('purchase_completed', handler);
 
     await Promise.resolve();
@@ -305,12 +305,12 @@ describe('PaywallUI.getAccess', () => {
   });
 });
 
-// Phase 7 — mount-then-load. Цель: при холодном bootstrap'е модалка должна
-// mount'иться немедленно (snappy UX), gates применяться async когда придут
-// данные. Если gate блокирует — модалка закрывается и эмитится *_blocked.
+// Phase 7 — mount-then-load. Goal: on a cold bootstrap the modal should mount
+// immediately (snappy UX), with gates applied async once the data arrives. If a
+// gate blocks — the modal closes and *_blocked is emitted.
 //
-// Default `mountThenLoad: true` — основной путь. `false` — legacy для
-// случаев где flicker «открылась → закрылась» хуже воспринимаемой латентности.
+// Default `mountThenLoad: true` is the main path. `false` is legacy for cases
+// where the "opened → closed" flicker is worse than perceived latency.
 describe('PaywallUI mount-then-load (Phase 7)', () => {
   function makeBootstrap(settingsOverrides: Record<string, unknown> = {}) {
     return {
@@ -352,13 +352,13 @@ describe('PaywallUI mount-then-load (Phase 7)', () => {
     ui.on('open', onOpen);
 
     ui.open();
-    // Bootstrap ещё в полёте — но open уже отстрелял (mount произошёл синхронно).
+    // Bootstrap is still in flight — but open already fired (mount happened synchronously).
     expect(onOpen).toHaveBeenCalledTimes(1);
 
     resolve();
     await new Promise((r) => setTimeout(r, 0));
-    // После резолва bootstrap'а — gates прошли (нет visibility/trial),
-    // модалка открыта, повторного 'open' нет.
+    // After the bootstrap resolves — gates passed (no visibility/trial), the
+    // modal is open, and there is no second 'open'.
     expect(onOpen).toHaveBeenCalledTimes(1);
   });
 
@@ -379,7 +379,7 @@ describe('PaywallUI mount-then-load (Phase 7)', () => {
 
     resolve();
     await new Promise((r) => setTimeout(r, 0));
-    // Gate отработал: модалка закрылась + visibility_blocked эмитнут.
+    // Gate ran: the modal closed + visibility_blocked was emitted.
     expect(events).toEqual(['open', 'close', 'blocked']);
   });
 
@@ -397,7 +397,7 @@ describe('PaywallUI mount-then-load (Phase 7)', () => {
     expect(events).toEqual(['open']);
 
     resolve();
-    // Trial check async (storage); даём ему шанс пройти.
+    // Trial check is async (storage); give it a chance to run.
     await new Promise((r) => setTimeout(r, 10));
     expect(events).toEqual(['open', 'close', 'blocked']);
   });
@@ -415,12 +415,12 @@ describe('PaywallUI mount-then-load (Phase 7)', () => {
     ui.on('open', onOpen);
 
     ui.open();
-    // Bootstrap ещё не пришёл — модалка не mount'илась.
+    // Bootstrap has not arrived yet — the modal did not mount.
     expect(onOpen).not.toHaveBeenCalled();
 
     resolve();
     await new Promise((r) => setTimeout(r, 0));
-    // Bootstrap прошёл, gates пропустили — теперь mountAndShow.
+    // Bootstrap resolved, gates passed — now mountAndShow.
     expect(onOpen).toHaveBeenCalledTimes(1);
   });
 
@@ -447,12 +447,12 @@ describe('PaywallUI mount-then-load (Phase 7)', () => {
 
     resolve();
     await new Promise((r) => setTimeout(r, 0));
-    // Legacy: gate отработал ДО mount'а, никакого 'open'/'close' flicker'а.
+    // Legacy: the gate ran BEFORE mount, no 'open'/'close' flicker.
     expect(events).toEqual(['blocked']);
   });
 
   it('cached bootstrap: skips mount-then-load path entirely (sync gates)', async () => {
-    // Первый open() прогревает кеш, второй идёт по cached-path.
+    // The first open() warms the cache, the second goes through the cached path.
     const ui = new PaywallUI({
       apiOrigin: TEST_API_ORIGIN,
       paywallId: 'pw_1',
@@ -469,7 +469,7 @@ describe('PaywallUI mount-then-load (Phase 7)', () => {
     const events: string[] = [];
     ui.on('open', () => events.push('open'));
     ui.open();
-    // Cached path — sync, никаких задержек.
+    // Cached path — sync, no delays.
     expect(events).toEqual(['open']);
   });
 });

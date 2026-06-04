@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
-// Phase 4 surface coverage. Доказываем что:
-//  1. signInWithEmail в одной вкладке → broadcast authChange во все остальные
-//  2. signOut в одной вкладке → broadcast в остальные
-//  3. getCachedSession sync mirror работает после ready()
+// Phase 4 surface coverage. We prove that:
+//  1. signInWithEmail in one tab → broadcasts authChange to all the others
+//  2. signOut in one tab → broadcasts to the others
+//  3. the getCachedSession sync mirror works after ready()
 //
-// Mock'аем только auth-эндпоинты; AuthClient остальное — это его настоящая
-// реализация из @sdk/core/auth.
+// We mock only the auth endpoints; the rest of AuthClient is its real
+// implementation from @sdk/core/auth.
 
 import { describe, it, expect, vi } from 'vitest';
 import { AuthClient } from '@sdk/core/auth';
@@ -50,8 +50,8 @@ function setupAuthServer(auth: AuthClient): TransportServer {
   server.on('auth.signOut', async () => auth.signOut());
   server.on('auth.refresh', async () => auth.refresh());
   server.on('auth.getCachedSession', () => auth.getCachedSession());
-  // INITIAL_SESSION НЕ broadcast'им — каждый RemoteAuthClient выдаёт его
-  // сам через свой microtask (см. реальный offscreen bridge в server.ts).
+  // We do NOT broadcast INITIAL_SESSION — each RemoteAuthClient emits it
+  // itself via its own microtask (see the real offscreen bridge in server.ts).
   auth.onAuthChange((event, session) => {
     if (event === 'INITIAL_SESSION') return;
     server.broadcast('authChange', { event, session });
@@ -100,11 +100,11 @@ describe('signInWithEmail — single source of truth', () => {
     const session = await tab1.signInWithEmail({ email: 'u@x.io', password: 'pw' });
     expect(session.access_token).toBe('at-1');
 
-    // Дать microtask'ам docrunать broadcast.
+    // Let the microtasks finish running the broadcast.
     await new Promise((r) => setTimeout(r, 0));
 
     expect(tab2Sessions).toContain('at-1');
-    // Sync getter в tab2 теперь выдаёт session — single source of truth.
+    // The sync getter in tab2 now returns the session — single source of truth.
     expect(tab2.getCachedSession()?.access_token).toBe('at-1');
   });
 
@@ -161,14 +161,14 @@ describe('signInWithEmail — single source of truth', () => {
   });
 });
 
-// OAuth split-API end-to-end (Phase 4.5). Симулируем полный flow:
-//  1. content зовёт signInWithOAuth → transport.request('auth.oauthStart')
-//  2. offscreen.AuthClient.startOAuthFlow → /init request → возвращает {url, state}
-//  3. content делает window.open (мок), отдаёт fake popup
-//  4. waitForOAuthCode подписывается на postMessage; мы шлём fake code
-//  5. content зовёт transport.request('auth.oauthExchange') с code
-//  6. offscreen.AuthClient.completeOAuthFlow → /exchange request → возвращает session
-//  7. Server broadcast'ит authChange → tab2 видит session
+// OAuth split-API end-to-end (Phase 4.5). We simulate the full flow:
+//  1. content calls signInWithOAuth → transport.request('auth.oauthStart')
+//  2. offscreen.AuthClient.startOAuthFlow → /init request → returns {url, state}
+//  3. content does window.open (mocked), returns a fake popup
+//  4. waitForOAuthCode subscribes to postMessage; we send a fake code
+//  5. content calls transport.request('auth.oauthExchange') with the code
+//  6. offscreen.AuthClient.completeOAuthFlow → /exchange request → returns the session
+//  7. The server broadcasts authChange → tab2 sees the session
 describe('OAuth — full split-API flow', () => {
   function makeOAuthFetch(): {
     fetch: typeof globalThis.fetch;
@@ -217,7 +217,7 @@ describe('OAuth — full split-API flow', () => {
       fetch: fetchSpy.fetch
     });
     const server = setupAuthServer(auth);
-    // Add OAuth handlers (setupAuthServer был только для email surface).
+    // Add OAuth handlers (setupAuthServer was only for the email surface).
     server.on('auth.oauthStart', async (params) => {
       const r = await auth.startOAuthFlow(params);
       return { authorizeUrl: r.authorize_url, state: r.state };
@@ -237,9 +237,9 @@ describe('OAuth — full split-API flow', () => {
     const tab2Sessions: (string | null)[] = [];
     tab2.onAuthChange((_event, s) => tab2Sessions.push(s?.access_token ?? null));
 
-    // Mock window.open — возвращает fake popup. Sync-open с about:blank +
-    // tempName, RemoteAuthClient переписывает popup.name = pw-oauth-<state>
-    // после получения state из transport.request.
+    // Mock window.open — returns a fake popup. Sync-open with about:blank +
+    // tempName, RemoteAuthClient rewrites popup.name = pw-oauth-<state>
+    // after receiving the state from transport.request.
     let popupRef: { name: string; closed: boolean; close: () => void; location: { replace: (url: string) => void } } | null = null;
     const realOpen = window.open;
     window.open = vi.fn((_url, name) => {
@@ -253,21 +253,21 @@ describe('OAuth — full split-API flow', () => {
     }) as typeof window.open;
 
     try {
-      // Запускаем signin и в параллели «эмулируем» callback page'у.
+      // Start signin and in parallel «emulate» the callback page.
       const signinPromise = tab1.signInWithOAuth({ provider: 'google' });
 
-      // Дать popup открыться, RPC отстреляться, name переписаться, и
-      // waitForOAuthCode подписаться на 'message'. 50мс вместо 5мс —
-      // под параллельной нагрузкой (`pnpm test` запускает sdk-extension и
-      // sdk-react vitest concurrently) 5мс не хватало, тест flaked.
+      // Let the popup open, the RPC fire, the name get rewritten, and
+      // waitForOAuthCode subscribe to 'message'. 50ms instead of 5ms —
+      // under parallel load (`pnpm test` runs sdk-extension and
+      // sdk-react vitest concurrently) 5ms wasn't enough, the test flaked.
       await new Promise((r) => setTimeout(r, 50));
 
-      // Извлекаем state из popup.name (RemoteAuthClient выставил pw-oauth-<state>).
+      // Extract the state from popup.name (RemoteAuthClient set pw-oauth-<state>).
       expect(popupRef).not.toBeNull();
       const state = popupRef!.name.replace(/^pw-oauth-/, '');
       expect(state.length).toBeGreaterThan(0);
 
-      // Симулируем postMessage от callback page'и: успешный code-redirect.
+      // Simulate a postMessage from the callback page: a successful code-redirect.
       window.postMessage(
         {
           type: 'pw-oauth',
@@ -318,9 +318,9 @@ describe('OAuth — full split-API flow', () => {
 
     try {
       await expect(tab.signInWithOAuth({ provider: 'google' })).rejects.toThrow(/popup/i);
-      // Popup blocked СИНХРОННО — мы даже не успеваем дёрнуть oauthStart.
-      // В отличие от старого варианта (где init шёл первым), новый порядок
-      // sync popup → async RPC → redirect требует popup до RPC.
+      // Popup blocked SYNCHRONOUSLY — we don't even get to call oauthStart.
+      // Unlike the old variant (where init went first), the new order
+      // sync popup → async RPC → redirect requires the popup before the RPC.
       expect(fetchSpy.initCalls).toBe(0);
       expect(fetchSpy.exchangeCalls).toBe(0);
     } finally {

@@ -22,11 +22,11 @@ function providerLabel(provider: OAuthProvider, t: TFn): string {
   }
 }
 
-// `err.message` из ApiClient на ошибках бэка без `message`-поля = HTTP statusText
-// ("Unauthorized", "Bad Request") — англоязычный и сырой. Маппим стабильные
-// `err.code` на i18n-ключи; для всего непонятного — generic fallback вместо
-// statusText. `code` приходит из тела ответа (`payload.code`) либо
-// `http_<status>`, либо `network_error` (см. api.ts).
+// `err.message` from ApiClient on backend errors without a `message` field = HTTP statusText
+// ("Unauthorized", "Bad Request") — English and raw. We map stable
+// `err.code` values to i18n keys; for anything unrecognized — a generic fallback instead of
+// statusText. `code` comes from the response body (`payload.code`), or
+// `http_<status>`, or `network_error` (see api.ts).
 function authErrorMessage(
   err: unknown,
   mode: 'signin' | 'signup' | 'otp' | 'reset',
@@ -83,8 +83,8 @@ export function AuthPanel({ block, ctx }: BlockProps<AuthPanelBlock>) {
     return null;
   }
 
-  // Анон-сессия — это «нет авторизации»: анон годится только для api-gateway,
-  // покупка/restore требуют реального signin.
+  // An anonymous session means "not authenticated": anon is only good for the api-gateway,
+  // purchase/restore require a real signin.
   const realSession = session && !session.user.is_anonymous ? session : null;
   if (realSession && hideWhenAuthed) return null;
 
@@ -135,9 +135,9 @@ function AuthForm({ block, allowSignup, allowReset, ctx }: FormProps) {
   const auth = ctx.auth!;
   const providers = block.providers ?? [];
 
-  // initialAuthMode из ctx — host вызвал openSignup() / openSignin().
-  // Если admin отключил signup (allow_signup=false), 'signup' игнорируем
-  // и стартуем с 'signin' — соблюдаем admin-настройку.
+  // initialAuthMode from ctx — the host called openSignup() / openSignin().
+  // If the admin disabled signup (allow_signup=false), we ignore 'signup'
+  // and start with 'signin' — respecting the admin setting.
   const initial: Mode =
     ctx.initialAuthMode === 'signup' && allowSignup ? 'signup' : 'signin';
   const [mode, setMode] = useState<Mode>(initial);
@@ -146,27 +146,27 @@ function AuthForm({ block, allowSignup, allowReset, ctx }: FormProps) {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [otpCode, setOtpCode] = useState('');
   const [busy, setBusy] = useState<null | OAuthProvider | 'email' | 'reset'>(null);
-  // Синхронный guard для double-submit: setBusy — асинхронный setState,
-  // и два form-submit события в одном tick'е (Enter+click, двойной mount
-  // в demo-ext, transport race) оба проходили `if (busy) return`, дёргая
-  // requestPasswordReset/signIn дважды. useRef обновляется синхронно.
+  // Synchronous guard against double-submit: setBusy is an async setState,
+  // and two form-submit events in the same tick (Enter+click, double mount
+  // in demo-ext, transport race) would both pass `if (busy) return`, firing
+  // requestPasswordReset/signIn twice. useRef updates synchronously.
   const submittingRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
-  // Sign up — progressive disclosure: первый клик «Sign Up» только раскрывает
-  // password+confirm; второй клик с заполненными полями делает реальный signUp.
-  // По смене mode сбрасываем — переход signin↔signup всегда начинается с
-  // collapsed формы.
+  // Sign up — progressive disclosure: the first "Sign Up" click only reveals
+  // password+confirm; the second click with filled fields does the real signUp.
+  // We reset on mode change — the signin↔signup transition always starts from
+  // the collapsed form.
   const [signupExpanded, setSignupExpanded] = useState(false);
 
-  // Last-used auth метод и email (per-paywall). Async-load из storage на mount,
-  // пока null — UI просто рендерится без бейджа. Pre-fill email только если
-  // юзер ещё ничего не вводил — иначе перезапишем то, что он печатает.
+  // Last-used auth method and email (per-paywall). Async-loaded from storage on mount,
+  // while null — the UI just renders without the badge. Pre-fill email only if
+  // the user hasn't typed anything yet — otherwise we'd overwrite what they're typing.
   //
-  // Defensive: старые билды @monetize.software/sdk-extension (≤ 3.0.0-alpha.4)
-  // не реализовали getLastLogin в RemoteAuthClient — без guard'а consumer
-  // получал бы `auth.getLastLogin is not a function` в консоли. Бейдж в этом
-  // случае просто не показывается, signin продолжает работать.
+  // Defensive: old builds of @monetize.software/sdk-extension (≤ 3.0.0-alpha.4)
+  // didn't implement getLastLogin in RemoteAuthClient — without the guard the consumer
+  // would get `auth.getLastLogin is not a function` in the console. In that case the badge
+  // simply isn't shown, and signin keeps working.
   const [lastLogin, setLastLogin] = useState<LastLogin | null>(null);
   useEffect(() => {
     if (typeof auth.getLastLogin !== 'function') return;
@@ -180,7 +180,7 @@ function AuthForm({ block, allowSignup, allowReset, ctx }: FormProps) {
         }
       },
       () => {
-        /* storage недоступен — UI без бейджа, signin работает */
+        /* storage unavailable — UI without the badge, signin works */
       }
     );
     return () => {
@@ -203,9 +203,9 @@ function AuthForm({ block, allowSignup, allowReset, ctx }: FormProps) {
       setError(null);
       setInfo(null);
 
-      // Sign up shortcut: первый сабмит просто раскрывает password-поля,
-      // без сетевого запроса. Email обязателен на этом шаге, иначе HTML5
-      // validation сама пометит поле required.
+      // Sign up shortcut: the first submit just reveals the password fields,
+      // without a network request. Email is required at this step, otherwise HTML5
+      // validation marks the field as required itself.
       if (mode === 'signup' && !signupExpanded) {
         if (!email.trim()) return;
         setSignupExpanded(true);
@@ -224,11 +224,11 @@ function AuthForm({ block, allowSignup, allowReset, ctx }: FormProps) {
         } else if (mode === 'signup') {
           const res = await auth.signUp({ email, password });
           if (res.kind === 'confirmation_required') {
-            // Link-флоу (как recovery): прод-шаблон шлёт confirmation-ссылку,
-            // не код. Показываем «проверьте email → кликните ссылку» вместо
-            // dead-end экрана ввода кода. Подтверждение завершается на
-            // /paywall/v3/auth/confirm, сессия прилетает cross-tab → гейт сам
-            // продвигается. Чистим password, чтобы не висел в state.
+            // Link flow (like recovery): the prod template sends a confirmation link,
+            // not a code. We show "check your email → click the link" instead of
+            // a dead-end code-entry screen. Confirmation completes at
+            // /paywall/v3/auth/confirm, the session arrives cross-tab → the gate advances
+            // by itself. We clear the password so it doesn't linger in state.
             setPassword('');
             setMode('signup_sent');
           }
@@ -414,11 +414,11 @@ function Header({
   customSubheading?: string | null;
 }) {
   const { t } = useI18n();
-  // customHeading/customSubheading override'ят default для signin+signup mode'ов.
-  // Restore/preauth intent ставит свой heading, но когда юзер кликает
-  // "Forgot password?" — view меняется на forgot и должен показать
-  // дефолтный "Forgot password?" заголовок, а не intent-specific строку.
-  // Reset views (forgot/reset_sent/reset_verify) всегда используют дефолты.
+  // customHeading/customSubheading override the default for the signin+signup modes.
+  // A restore/preauth intent sets its own heading, but when the user clicks
+  // "Forgot password?" — the view changes to forgot and must show
+  // the default "Forgot password?" title, not the intent-specific string.
+  // Reset views (forgot/reset_sent/reset_verify) always use the defaults.
   const defaults = defaultHeader(mode, t);
   const useCustom = mode === 'signin' || mode === 'signup';
   const title = useCustom && customHeading ? customHeading : defaults.title;
@@ -479,9 +479,9 @@ function submitLabel(
   customHeading: string | undefined,
   t: TFn
 ): string {
-  // Если задан customHeading — он используется и как submit-лейбл для signin
-  // ("Restore Purchases" → button "Restore Purchases"). Для остальных mode'ов
-  // submit-лейбл фиксированный (Sign Up / Send Reset Email / Verify).
+  // If customHeading is set — it's also used as the submit label for signin
+  // ("Restore Purchases" → button "Restore Purchases"). For the other modes
+  // the submit label is fixed (Sign Up / Send Reset Email / Verify).
   if (mode === 'signin' && customHeading) return customHeading;
   switch (mode) {
     case 'signin':
@@ -620,8 +620,8 @@ function PasswordField({ placeholder, value, onInput, autocomplete, required }: 
   const { t } = useI18n();
   const [visible, setVisible] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  // Chrome/Safari при смене type между password↔text стирают .value (autofill-guard).
-  // Preact видит ту же value-prop и не ре-сетит DOM — поле остаётся пустым.
+  // Chrome/Safari clear .value when the type switches between password↔text (autofill-guard).
+  // Preact sees the same value prop and doesn't re-set the DOM — the field stays empty.
   useEffect(() => {
     const el = inputRef.current;
     if (el && el.value !== value) el.value = value;
@@ -691,9 +691,9 @@ function EyeOffIcon() {
 
 function LastUsedBadge({ email }: { email: string | null }) {
   const { t } = useI18n();
-  // Pill в правом верхнем углу кнопки. truncate + max-w защищают от длинного
-  // email'а (выйдет за края кнопки). pointer-events-none — чтобы клик попадал
-  // в саму кнопку, а не в бейдж сверху.
+  // A pill in the top-right corner of the button. truncate + max-w guard against a long
+  // email (which would overflow the button edges). pointer-events-none — so the click lands
+  // on the button itself, not on the badge on top.
   const label = email
     ? t('auth.last_used', 'Last · {email}', { email: maskEmail(email) })
     : t('auth.last_used_no_email', 'Last');
@@ -704,9 +704,9 @@ function LastUsedBadge({ email }: { email: string | null }) {
   );
 }
 
-// alex@example.com → ale*****@example.com. Маскируем local-part (видны
-// первые 3 символа), domain оставляем как есть — он публичен и помогает
-// юзеру опознать аккаунт.
+// alex@example.com → ale*****@example.com. We mask the local part (the
+// first 3 characters are visible) and leave the domain as is — it's public and helps
+// the user recognize the account.
 function maskEmail(email: string): string {
   const [local, domain] = email.split('@');
   if (!domain) return email;
@@ -738,9 +738,9 @@ function ProviderIcon({ provider }: { provider: OAuthProvider }) {
   }
   if (provider === 'apple') {
     return (
-      // viewBox 0 0 24 24 даёт воздух сверху/снизу пути, поэтому визуально
-      // Apple-яблоко выглядит меньше Google. Компенсируем увеличенным
-      // width/height — 26×26 даёт примерно equal optical size с Google 20×20.
+      // viewBox 0 0 24 24 leaves whitespace above/below the path, so visually
+      // the Apple logo looks smaller than Google. We compensate with a larger
+      // width/height — 26×26 gives roughly equal optical size to Google's 20×20.
       <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
         <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z" />
       </svg>
@@ -760,11 +760,11 @@ function ProviderIcon({ provider }: { provider: OAuthProvider }) {
   );
 }
 
-// Link-флоу подтверждения signup'а — зеркало ResetSentView. Прод email-шаблон
-// «Confirm signup» шлёт ссылку (redirect_to → /paywall/v3/auth/confirm), не код.
-// После клика по ссылке юзер подтверждается на v3-странице, сессия синкается
-// cross-tab → auth-гейт сам продвигается. Этот экран — «ожидание подтверждения»
-// + fallback «Back to Login» (email уже подтверждён → можно зайти паролем).
+// The signup confirmation link flow — a mirror of ResetSentView. The prod "Confirm signup"
+// email template sends a link (redirect_to → /paywall/v3/auth/confirm), not a code.
+// After clicking the link the user is confirmed on the v3 page, the session syncs
+// cross-tab → the auth gate advances by itself. This screen is "awaiting confirmation"
+// + a "Back to Login" fallback (email already confirmed → can sign in with a password).
 function SignupSentView({
   email,
   onBack,

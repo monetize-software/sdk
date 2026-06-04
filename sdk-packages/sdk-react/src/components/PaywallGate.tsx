@@ -4,31 +4,31 @@ import { usePaywall } from '../hooks/usePaywall';
 import { usePaywallAccess } from '../hooks/usePaywallAccess';
 
 export interface PaywallGateProps {
-  /** Что показать, пока `getAccess()` не вернул ответ (initial fetch / Provider mount). */
+  /** What to show until `getAccess()` returns an answer (initial fetch / Provider mount). */
   loading?: ReactNode;
   /**
-   * Fallback для `blocked` ответа — обычно CTA «Upgrade». Принимает либо
-   * статичный ReactNode, либо render-функцию, получающую callback
-   * `open()` — удобно, чтобы кастомная кнопка сама дёргала модалку:
+   * Fallback for a `blocked` answer — usually an "Upgrade" CTA. Accepts either
+   * a static ReactNode or a render function that receives an `open()` callback
+   * — handy so a custom button can trigger the modal itself:
    *
    * ```tsx
    * fallback={({ open }) => <MyCTA onClick={open}>Upgrade</MyCTA>}
    * ```
    *
-   * Если не передан — компонент рендерит `null` для blocked (host
-   * полагается на `openOnBlocked` или ловит open() сам через `usePaywall`).
+   * If not provided — the component renders `null` for blocked (the host relies
+   * on `openOnBlocked` or catches open() itself via `usePaywall`).
    */
   fallback?: ReactNode | ((args: BlockedRenderArgs) => ReactNode);
   /**
-   * Автоматически дёргать `paywall.open()` сразу как только access перешёл в
-   * blocked. Удобно для feature-разделителей вида «нажми и попадёшь на
-   * paywall»: компонент сам открывает модалку, не нужно писать onClick.
+   * Automatically trigger `paywall.open()` as soon as access turns to blocked.
+   * Handy for feature dividers like "click and you land on the paywall": the
+   * component opens the modal itself, no need to write onClick.
    *
-   * По умолчанию `false` — большинство хостов хотят сначала показать
-   * объясняющий CTA, а модалку открывать по клику. Включать осознанно.
+   * Defaults to `false` — most hosts want to first show an explanatory CTA and
+   * open the modal on click. Enable deliberately.
    */
   openOnBlocked?: boolean;
-  /** Премиум-контент. Рендерится только когда access=granted. */
+  /** Premium content. Rendered only when access=granted. */
   children: ReactNode;
 }
 
@@ -38,13 +38,13 @@ export interface BlockedRenderArgs {
 }
 
 /**
- * Декларативная обёртка над {@link usePaywallAccess} + {@link usePaywall}.open().
+ * A declarative wrapper over {@link usePaywallAccess} + {@link usePaywall}.open().
  *
- * Три состояния:
- *  - `loading` (первый fetch / Provider не готов) — рендерим `props.loading`;
- *  - `granted` (есть подписка / visibility / trial) — рендерим `children`;
- *  - `blocked` — рендерим `fallback` (если задан) и опционально дёргаем
- *    `paywall.open()` при `openOnBlocked={true}`.
+ * Three states:
+ *  - `loading` (first fetch / Provider not ready) — render `props.loading`;
+ *  - `granted` (has subscription / visibility / trial) — render `children`;
+ *  - `blocked` — render `fallback` (if provided) and optionally trigger
+ *    `paywall.open()` when `openOnBlocked={true}`.
  *
  * ```tsx
  * <PaywallGate
@@ -55,18 +55,19 @@ export interface BlockedRenderArgs {
  * </PaywallGate>
  * ```
  *
- * Для нестандартных сценариев (показать "Try free trial" вместо upgrade,
- * комбинировать с собственным auth-flow'ом) использовать
- * {@link usePaywallAccess} напрямую — gate решает 80% кейсов, не пытаясь
- * стать конфигурируемым на каждый чих.
+ * For non-standard scenarios (show "Try free trial" instead of upgrade,
+ * combine with your own auth flow) use {@link usePaywallAccess} directly — the
+ * gate handles 80% of cases without trying to become configurable for every
+ * little thing.
  */
 export function PaywallGate(props: PaywallGateProps): JSX.Element | null {
   const paywall = usePaywall();
   const access = usePaywallAccess();
 
-  // `openOnBlocked` — side-effect, поэтому в useEffect. Зависим от access
-  // через идентификатор `result.access`, а не от объекта целиком, чтобы
-  // не дёргать open() на каждом refresh-е getAccess'а с тем же blocked-итогом.
+  // `openOnBlocked` is a side-effect, hence in useEffect. We depend on access
+  // through the `result.access` discriminator, not the whole object, so we
+  // don't trigger open() on every getAccess refresh with the same blocked
+  // result.
   const isBlocked =
     access.status === 'ready' && access.result.access === 'blocked';
   const shouldAutoOpen = props.openOnBlocked === true && isBlocked;

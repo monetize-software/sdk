@@ -1,28 +1,29 @@
-// Wire-protocol для коммуникации content-script ↔ service worker ↔ offscreen.
+// Wire protocol for communication between content-script ↔ service worker ↔
+// offscreen.
 //
-// Дизайн-цели:
-//  1. Типизированный request/response — каждый метод BillingClient/AuthClient
-//     имеет свой `kind` с JSON-сериализуемыми params и result.
-//  2. Push-события (broadcast) — onUserChange/onAuthChange/track-результаты
-//     летят от offscreen ко всем подключённым content-script'ам без request'а.
-//  3. Reconnection-friendly — каждое сообщение самодостаточно (нет shared state
-//     в port'е, который ломается при смерти SW). Только request_id для match'а.
-//  4. Errors как данные — PaywallError сериализуется в плоский JSON, content
-//     reconstruct'ит на своей стороне (instanceof работает).
+// Design goals:
+//  1. Typed request/response — each BillingClient/AuthClient method has its own
+//     `kind` with JSON-serializable params and result.
+//  2. Push events (broadcast) — onUserChange/onAuthChange/track results fly from
+//     offscreen to all connected content-scripts without a request.
+//  3. Reconnection-friendly — every message is self-contained (no shared state
+//     in the port that breaks when the SW dies). Only request_id for matching.
+//  4. Errors as data — PaywallError is serialized to flat JSON, content
+//     reconstructs it on its side (instanceof works).
 //
-// Транспорт под капотом — chrome.runtime.connect (long-lived port). Маршрут:
-// content_script → SW (forwarder) → offscreen. SW не хранит state, только
-// мапит port'ы content↔offscreen и поднимает offscreen если тот мёртв.
+// The transport under the hood is chrome.runtime.connect (a long-lived port).
+// Route: content_script → SW (forwarder) → offscreen. The SW holds no state, it
+// only maps the content↔offscreen ports and spins up offscreen if it's dead.
 
-/** Версия протокола — bump'аем при breaking changes wire-формата. SW сравнивает
- *  версии при handshake'е и отказывается маршрутить, если версии разъехались
- *  (extension и SDK обновлены не одновременно). */
+/** Protocol version — bumped on breaking changes to the wire format. The SW
+ *  compares versions during the handshake and refuses to route if they diverge
+ *  (the extension and SDK weren't updated at the same time). */
 export const PROTOCOL_VERSION = 1 as const;
 
 // === Request/Response ===
 
-/** Сообщение отмены: клиент послал cancel(id), сервер ищет соответствующий
- *  AbortController в активных запросах и abort'ит его. Не имеет ответа —
+/** Cancel message: the client sent cancel(id), the server looks up the matching
+ *  AbortController among the active requests and aborts it. Has no response —
  *  fire-and-forget. */
 export interface CancelEnvelope {
   type: 'cancel';
@@ -63,15 +64,15 @@ export type RequestKind =
   | 'auth.getLastLogin'
   // EventTracker
   | 'tracker.track'
-  // Storage proxy — для consumer'ов, которые через `billing.getStorage()`
-  // хотят single-source-of-truth storage. Offscreen'овский localStorage
-  // шарится между всеми content-script'ами.
+  // Storage proxy — for consumers that want single-source-of-truth storage
+  // through `billing.getStorage()`. The offscreen localStorage is shared across
+  // all content-scripts.
   | 'storage.get'
   | 'storage.set'
   | 'storage.remove'
-  // Trial-store — read-modify-write атомарно в offscreen (через navigator.locks).
-  // Альтернативный путь к storage-proxy: вместо двух независимых операций
-  // get+set, recordBlock делает их атомарно за один RPC.
+  // Trial-store — atomic read-modify-write in offscreen (via navigator.locks).
+  // An alternative path to the storage-proxy: instead of two independent get+set
+  // operations, recordBlock does them atomically in a single RPC.
   | 'trial.check'
   | 'trial.recordBlock'
   | 'trial.reset'
@@ -118,15 +119,15 @@ export interface EventEnvelope<P = unknown> {
 
 // === Errors as data ===
 
-/** Плоский снепшот PaywallError, который переживает structured cloning.
- *  Reconstruct происходит в RemoteBillingClient'е через `new PaywallError(...)` —
- *  чтобы у host'а `error instanceof PaywallError` работал как обычно. */
+/** A flat snapshot of PaywallError that survives structured cloning. The
+ *  reconstruct happens in RemoteBillingClient via `new PaywallError(...)` — so
+ *  that the host's `error instanceof PaywallError` works as usual. */
 export interface SerializedError {
   name: string;
   code: string;
   message: string;
   status?: number;
-  /** Stack из offscreen'а — для отладки в DevTools content-script'а. */
+  /** Stack from offscreen — for debugging in the content-script's DevTools. */
   stack?: string;
 }
 
@@ -149,10 +150,10 @@ export type RequestResult<K extends RequestKind> =
 export type EventPayload<K extends EventKind> =
   K extends keyof EventPayloadMap ? EventPayloadMap[K] : unknown;
 
-// Карты params/result/payload для каждого RequestKind/EventKind заполняются
-// в messages.ts — там они привязаны к конкретным типам из @sdk/core/types
-// (PaywallBootstrap и т.д.). Здесь только generic-каркас, без import-cycle
-// на UI-пакет.
+// The params/result/payload maps for each RequestKind/EventKind are filled in
+// in messages.ts — there they're bound to concrete types from @sdk/core/types
+// (PaywallBootstrap, etc.). Here is only the generic skeleton, without an
+// import-cycle on the UI package.
 export interface RequestParamsMap {}
 export interface RequestResultMap {}
 export interface EventPayloadMap {}

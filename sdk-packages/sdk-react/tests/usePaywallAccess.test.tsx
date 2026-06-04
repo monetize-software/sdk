@@ -48,7 +48,7 @@ describe('usePaywallAccess', () => {
     await waitFor(() => expect(result.current.status).toBe('ready'));
     expect(fake.getAccessCalls).toBeGreaterThanOrEqual(1);
 
-    // Юзер купил подписку — следующий getAccess() должен вернуть granted.
+    // The user bought a subscription — the next getAccess() should return granted.
     fake.setAccess(GRANTED);
     act(() => {
       fake.emit('userChange', { has_active_subscription: true });

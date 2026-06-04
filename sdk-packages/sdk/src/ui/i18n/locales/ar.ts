@@ -1,10 +1,10 @@
 /**
- * Static-translations для ar. Сгенерировано из:
- *  - `online/lang/static-translations.ts` (legacy, через KEY_MAP)
- *  - `tools/sdk-translations.mjs` (SDK-specific строки)
+ * Static-translations for ar. Generated from:
+ *  - `online/lang/static-translations.ts` (legacy, via KEY_MAP)
+ *  - `tools/sdk-translations.mjs` (SDK-specific strings)
  *
- * Не править вручную — изменения теряются при следующем `node tools/gen-locales.mjs`.
- * Чтобы исправить перевод — править legacy/sdk-translations.mjs и регенерить.
+ * Do not edit by hand — changes are lost on the next `node tools/gen-locales.mjs`.
+ * To fix a translation, edit legacy/sdk-translations.mjs and regenerate.
  */
 const ar = {
   'anon.heading_default': 'متابعة كضيف',
@@ -47,7 +47,6 @@ const ar = {
   'auth.reset_password_title': 'إعادة تعيين كلمة المرور',
   'auth.reset_sent_message': 'إذا كان هذا البريد موجودًا، فقد تم إرسال رمز إعادة التعيين.',
   'auth.reset_sent_subtitle': 'أرسلنا رابط إعادة تعيين كلمة المرور. اتبع التعليمات في البريد الإلكتروني.',
-  'auth.signup_sent_subtitle': 'أرسلنا رابط تأكيد إلى بريدك الإلكتروني. انقر عليه لتفعيل حسابك، ثم سجّل الدخول.',
   'auth.restore_purchases_heading': 'استعادة المشتريات',
   'auth.restore_purchases_subheading': 'يُرجى تسجيل الدخول لاستعادة مشترياتك.',
   'auth.send_reset': 'إرسال بريد إعادة التعيين',
@@ -79,9 +78,9 @@ const ar = {
   'modal.continue': 'متابعة',
   'modal.error_generic': 'حدث خطأ ما',
   'modal.loading': 'جارٍ التحميل…',
-  'modal.purchase_restored_subtitle': 'مرحبًا بعودتك — اشتراكك نشط بالفعل.',
-  'modal.purchase_restored_title': 'تمت استعادة الاشتراك',
-  'modal.purchase_success_subtitle': 'اشتراكك نشط الآن.',
+  'modal.purchase_restored_subtitle': 'كل شيء جاهز — استمتع!',
+  'modal.purchase_restored_title': 'مرحبًا بعودتك',
+  'modal.purchase_success_subtitle': 'كل شيء جاهز — استمتع!',
   'modal.purchase_success_title': 'تم استلام الدفع',
   'modal.verifying_subscription': 'جارٍ التحقق من اشتراكك…',
   'nav.back': '→ رجوع',

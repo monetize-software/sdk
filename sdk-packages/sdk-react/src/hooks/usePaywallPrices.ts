@@ -3,15 +3,16 @@ import type { PaywallPrice } from '@monetize.software/sdk';
 import { usePaywall } from './usePaywall';
 
 /**
- * `prices` — кешированный snapshot bootstrap.prices (`null` до первого fetch'а
- * или когда инстанс ещё не готов).
- * `loading` — true пока первый запрос в полёте, после первого ответа всегда false.
- * `error` — последняя ошибка fetch'а (`null` если успешный или ещё не падал).
+ * `prices` — the cached snapshot of bootstrap.prices (`null` before the first
+ * fetch or when the instance isn't ready yet).
+ * `loading` — true while the first request is in flight, always false after the
+ * first response.
+ * `error` — the last fetch error (`null` if successful or not yet failed).
  *
- * Намеренно нет дискриминирующего поля типа `status: 'loading'|'ready'|'error'`
- * как в `usePaywallAccess`, потому что для прайсингов хосту обычно нужны три
- * независимые величины одновременно (показать предыдущий список + skeleton +
- * сообщение об ошибке поверх) — discriminated union тут только усложняет.
+ * Deliberately no discriminating field like `status: 'loading'|'ready'|'error'`
+ * as in `usePaywallAccess`, because for pricing the host usually needs three
+ * independent values at once (show the previous list + skeleton + an error
+ * message on top) — a discriminated union here only complicates things.
  */
 export interface PaywallPricesState {
   prices: PaywallPrice[] | null;
@@ -20,17 +21,17 @@ export interface PaywallPricesState {
 }
 
 /**
- * Загружает и подписывается на цены пейвола. Подходит для отдельной
- * прайсинг-страницы / pricing-карточек, где host хочет показать те же цены,
- * что и в модалке, без открытия paywall'а.
+ * Loads and subscribes to the paywall's prices. Suitable for a standalone
+ * pricing page / pricing cards, where the host wants to show the same prices
+ * as in the modal without opening the paywall.
  *
- * Реализация:
- *  - initial sync read через `getCachedPrices()` (если bootstrap уже в кеше
- *    BillingClient'а — например, после `paywall.preload()` или предыдущего
- *    open'а — цены доступны мгновенно);
- *  - `useEffect` дёргает `getPrices()` для гарантированной загрузки;
- *  - subscription на `ready` event — рефетч bootstrap'а на новом open()
- *    может принести обновлённые цены, мы обновляем snapshot.
+ * Implementation:
+ *  - an initial sync read via `getCachedPrices()` (if the bootstrap is already
+ *    in BillingClient's cache — for example, after `paywall.preload()` or a
+ *    previous open — prices are available instantly);
+ *  - `useEffect` calls `getPrices()` to guarantee loading;
+ *  - a subscription to the `ready` event — refetching the bootstrap on a new
+ *    open() can bring updated prices, and we refresh the snapshot.
  *
  * ```tsx
  * const { prices, loading } = usePaywallPrices();
@@ -52,8 +53,8 @@ export function usePaywallPrices(): PaywallPricesState {
       return;
     }
 
-    // Sync-доступ через cached snapshot — если bootstrap уже загружен,
-    // показываем цены немедленно (без флеша «loading → ready»).
+    // Sync access via the cached snapshot — if the bootstrap is already loaded,
+    // show prices immediately (without a "loading → ready" flash).
     const cached = paywall.getCachedPrices();
     setState({ prices: cached, loading: cached === null, error: null });
 
@@ -79,10 +80,10 @@ export function usePaywallPrices(): PaywallPricesState {
 
     refresh();
 
-    // `ready` event фаерится из открытого paywall'а с финальным bootstrap'ом —
-    // если хост открыл/закрыл модалку, цены могли обновиться через
-    // stale-while-revalidate. Слушаем чтобы в pricing-странице цифры не
-    // расходились с тем, что юзер увидит в модалке.
+    // The `ready` event fires from an opened paywall with the final bootstrap —
+    // if the host opened/closed the modal, the prices may have updated via
+    // stale-while-revalidate. We listen so the numbers on the pricing page
+    // don't diverge from what the user will see in the modal.
     const unsub = paywall.on('ready', () => {
       const fresh = paywall.getCachedPrices();
       if (fresh) setState({ prices: fresh, loading: false, error: null });

@@ -1,15 +1,15 @@
-// Стабильный e2e smoke без реальной оплаты на Stripe Checkout. Гоняется в CI и
-// как pre-commit sanity: проверяет, что `/bootstrap` отдаёт `is_test_mode`,
-// SDK рисует плашку «Test mode — no real charge», UI на клик CTA сам зовёт
-// `createCheckout` и эмитит `checkout_started` с Stripe `cs_test_*` URL,
-// а cancel_url с hash-маркерами доходит до Stripe (проверяем через DOM).
+// A stable e2e smoke without a real payment on Stripe Checkout. Runs in CI and
+// as a pre-commit sanity check: verifies that `/bootstrap` returns `is_test_mode`,
+// the SDK draws the "Test mode — no real charge" badge, the UI on a CTA click itself calls
+// `createCheckout` and emits `checkout_started` with a Stripe `cs_test_*` URL,
+// and the cancel_url with hash markers reaches Stripe (checked via the DOM).
 //
-// Препросы:
-//   1. dev-online на http://152.42.143.9:3000 доступен (тест-БД, paywall id=3
-//      настроен на Stripe в test-mode).
-//   2. SDK dev на http://localhost:5070 — поднимается webServer'ом в
-//      playwright.config.ts с VITE_API_TARGET=dev-online.
-//   3. sdk/.env.local с VITE_PAYWALL_API_KEY (ключ от тест-БД).
+// Prerequisites:
+//   1. dev-online at http://152.42.143.9:3000 is reachable (test DB, paywall id=3
+//      configured for Stripe in test-mode).
+//   2. SDK dev at http://localhost:5070 — started by the webServer in
+//      playwright.config.ts with VITE_API_TARGET=dev-online.
+//   3. sdk/.env.local with VITE_PAYWALL_API_KEY (the test DB key).
 
 import { test, expect } from '@playwright/test';
 
@@ -21,35 +21,35 @@ test('paywall id=3 (Stripe) bootstraps with test-mode badge and emits Stripe cs_
 }) => {
   await page.goto(DEMO);
 
-  // Уникальный email — иначе бэк отдаст 409 «active purchase» из-за подписок
-  // от предыдущих прогонов.
+  // A unique email — otherwise the backend returns 409 "active purchase" because of subscriptions
+  // from previous runs.
   const email = `e2e-${Date.now()}-${Math.random().toString(36).slice(2)}@example.com`;
   await page.evaluate((e) => {
-    // @ts-expect-error — __paywall экспонируется в demo/main.ts
+    // @ts-expect-error — __paywall is exposed in demo/main.ts
     window.__paywall.billing.setIdentity({ email: e, userId: e });
   }, email);
 
-  // Кладём `checkout_started` в window.__checkoutStarted ДО клика, чтобы
-  // зафиксировать payload (priceId выбирается дефолтно из bootstrap, ID не
-  // хардкодим — провайдер прайсов может их перегенерить).
+  // We put `checkout_started` into window.__checkoutStarted BEFORE the click, to
+  // capture the payload (priceId is chosen by default from bootstrap, we don't
+  // hardcode the ID — the price provider may regenerate them).
   await page.evaluate(() => {
     (window as unknown as { __checkoutStarted?: Promise<unknown> }).__checkoutStarted =
       new Promise((resolve) => {
-        // @ts-expect-error — __paywall с типизированными событиями
+        // @ts-expect-error — __paywall with typed events
         window.__paywall.on('checkout_started', resolve);
       });
   });
 
   await page.getByRole('button', { name: 'Open paywall' }).click();
 
-  // Shadow-режим open → Playwright видит модалку через accessibility-дерево.
+  // Shadow-mode open → Playwright sees the modal through the accessibility tree.
   await expect(page.getByRole('status')).toContainText('Test mode — no real charge');
 
-  // is_test_mode пришёл из /bootstrap и попал в лог demo (JSON.stringify).
+  // is_test_mode came from /bootstrap and landed in the demo log (JSON.stringify).
   await expect(page.locator('#log')).toContainText('"is_test_mode":true');
 
-  // CTA из дефолтного layout — кнопка «Continue». На клике SDK сам вызывает
-  // createCheckout(selectedPriceId) и открывает URL в новом табе.
+  // The CTA from the default layout is the "Continue" button. On click the SDK itself calls
+  // createCheckout(selectedPriceId) and opens the URL in a new tab.
   const stripeTabPromise = context.waitForEvent('page');
   await page.getByRole('button', { name: 'Continue' }).click();
 
@@ -62,8 +62,8 @@ test('paywall id=3 (Stripe) bootstraps with test-mode badge and emits Stripe cs_
   const stripeTab = await stripeTabPromise;
   await stripeTab.waitForLoadState('domcontentloaded');
 
-  // «Back»-линк на Stripe ведёт на cancel_url, который online собрал с
-  // нашими hash-маркерами (paywall-return-url.ts). Проверяем end-to-end.
+  // The "Back" link on Stripe points to the cancel_url that online assembled with
+  // our hash markers (paywall-return-url.ts). We check this end-to-end.
   const backHref = await stripeTab.evaluate<string | undefined>(
     () => document.querySelector<HTMLAnchorElement>('a[href*="paywall_status"]')?.href
   );

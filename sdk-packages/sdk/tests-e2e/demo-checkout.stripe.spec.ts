@@ -1,16 +1,16 @@
-// Полный сквозной Stripe test-mode flow: оплата картой 4242 → редирект
-// с hash-маркерами → `purchase_completed`. Хрупче, чем demo-bootstrap:
-// зависит от вёрстки Stripe Checkout и доступности Sandbox. Держим вне
-// основного test:e2e, запускаем вручную через `pnpm test:e2e:checkout:stripe`
-// перед релизом или когда меняем return-URL контракт.
+// A full end-to-end Stripe test-mode flow: payment with card 4242 → redirect
+// with hash markers → `purchase_completed`. More fragile than demo-bootstrap:
+// depends on the Stripe Checkout markup and Sandbox availability. We keep it out of
+// the main test:e2e and run it manually via `pnpm test:e2e:checkout:stripe`
+// before a release or when we change the return-URL contract.
 //
-// Препросы те же, что у demo-bootstrap.stripe.spec.ts (paywall id=3, dev-online).
+// Prerequisites are the same as demo-bootstrap.stripe.spec.ts (paywall id=3, dev-online).
 
 import { test, expect } from '@playwright/test';
 
 const DEMO = 'http://localhost:5070/demo/?id=3';
 
-// Stripe Checkout иногда грузится дольше 30s, плюс форма + редирект.
+// Stripe Checkout sometimes loads longer than 30s, plus the form + redirect.
 test.setTimeout(120_000);
 
 test('paywall id=3 (Stripe) full test-mode checkout → purchase_completed', async ({
@@ -19,27 +19,27 @@ test('paywall id=3 (Stripe) full test-mode checkout → purchase_completed', asy
 }) => {
   await page.goto(DEMO);
 
-  // Уникальный email — иначе 409 «active purchase» от предыдущих прогонов.
+  // A unique email — otherwise 409 "active purchase" from previous runs.
   const email = `e2e-${Date.now()}-${Math.random().toString(36).slice(2)}@example.com`;
   await page.evaluate((e) => {
-    // @ts-expect-error — __paywall экспонируется в demo/main.ts
+    // @ts-expect-error — __paywall is exposed in demo/main.ts
     window.__paywall.billing.setIdentity({ email: e, userId: e });
   }, email);
 
-  // Подписываемся на checkout_started ДО клика, чтобы взять priceId без хардкода
-  // (он же дальше прилетит в #paywall_price_id success-маркера).
+  // We subscribe to checkout_started BEFORE the click to grab priceId without hardcoding it
+  // (it will also arrive later in the #paywall_price_id success marker).
   await page.evaluate(() => {
     (window as unknown as { __checkoutStarted?: Promise<unknown> }).__checkoutStarted =
       new Promise((resolve) => {
-        // @ts-expect-error — __paywall с типизированными событиями
+        // @ts-expect-error — __paywall with typed events
         window.__paywall.on('checkout_started', resolve);
       });
   });
 
   await page.getByRole('button', { name: 'Open paywall' }).click();
 
-  // CTA из дефолтного layout. SDK на клик зовёт createCheckout(selectedPriceId)
-  // и открывает Stripe URL в новом табе.
+  // The CTA from the default layout. On click the SDK calls createCheckout(selectedPriceId)
+  // and opens the Stripe URL in a new tab.
   const stripeTabPromise = context.waitForEvent('page');
   await page.getByRole('button', { name: 'Continue' }).click();
   const stripeTab = await stripeTabPromise;
@@ -50,7 +50,7 @@ test('paywall id=3 (Stripe) full test-mode checkout → purchase_completed', asy
   );
   expect(url).toContain('cs_test_');
 
-  // Если Stripe показал accordion выбора метода — раскрываем карточный.
+  // If Stripe showed a method-selection accordion, we expand the card one.
   const cardAccordion = stripeTab.getByTestId('card-accordion-item');
   if (await cardAccordion.isVisible().catch(() => false)) {
     await cardAccordion.click();
@@ -63,18 +63,18 @@ test('paywall id=3 (Stripe) full test-mode checkout → purchase_completed', asy
 
   await stripeTab.getByTestId('hosted-payment-submit-button').click();
 
-  // Stripe редиректит на success_url. Ждём, что в той же вкладке откроется demo
-  // c hash-маркером paid.
+  // Stripe redirects to success_url. We wait for the demo to open in the same tab
+  // with the paid hash marker.
   await stripeTab.waitForURL(/localhost:5070\/demo\/.*paywall_status=paid/, { timeout: 60_000 });
 
-  // SDK на onload инстанцирует PaywallUI, а конструктор через microtask вызывает
-  // checkReturn → emit purchase_completed → demo пишет в #log.
+  // On onload the SDK instantiates PaywallUI, and the constructor via a microtask calls
+  // checkReturn → emit purchase_completed → demo writes to #log.
   const log = stripeTab.locator('#log');
   await expect(log).toContainText(
     `purchase_completed {"priceId":"${priceId}","sessionId":null}`,
     { timeout: 10_000 }
   );
 
-  // И маркеры подтёрты history.replaceState.
+  // And the markers are wiped by history.replaceState.
   await expect.poll(async () => stripeTab.evaluate(() => location.hash)).toBe('');
 });

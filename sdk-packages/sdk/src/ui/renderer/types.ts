@@ -7,15 +7,15 @@ export interface BlockContext {
   selectedPriceId: string | null;
   setSelectedPriceId: (id: string) => void;
   onAction: (action: string, payload?: unknown) => void;
-  /** AuthClient, если PaywallUI был сконфигурирован с managed-auth. Без него
-   *  auth_panel-блок рендерит fallback ("auth not configured"). */
+  /** AuthClient, if PaywallUI was configured with managed-auth. Without it
+   *  the auth_panel block renders a fallback ("auth not configured"). */
   auth?: AuthClient;
-  /** Текущая auth-session (snapshot из AuthClient). null = разлогинен. PaywallRoot
-   *  подписан на onAuthChange и пробрасывает свежий snapshot сюда. */
+  /** Current auth session (snapshot from AuthClient). null = signed out. PaywallRoot
+   *  subscribes to onAuthChange and forwards a fresh snapshot here. */
   authSession: AuthSession | null;
-  /** Стартовый mode для AuthPanel — переопределяет дефолт 'signin'.
-   *  Выставляется AuthGate'ом когда host вызвал openSignup()/openSignin().
-   *  Остальные блоки игнорируют. */
+  /** Initial mode for AuthPanel — overrides the default 'signin'.
+   *  Set by AuthGate when the host calls openSignup()/openSignin().
+   *  Other blocks ignore it. */
   initialAuthMode?: 'signin' | 'signup';
 }
 

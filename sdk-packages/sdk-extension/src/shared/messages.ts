@@ -1,9 +1,9 @@
-// Привязка RequestKind → params/result типов из @sdk/core/types.
-// Module augmentation на RequestParamsMap/RequestResultMap из protocol.ts —
-// чтобы wire-протокол знал, что 'billing.bootstrap' возвращает PaywallBootstrap,
-// и TypeScript отлавливал расхождения на стороне content и offscreen.
+// Binding of RequestKind → params/result types from @sdk/core/types. Module
+// augmentation of RequestParamsMap/RequestResultMap from protocol.ts — so the
+// wire protocol knows that 'billing.bootstrap' returns a PaywallBootstrap, and
+// TypeScript catches mismatches on the content and offscreen sides.
 //
-// Если завтра в @sdk/core/types меняется shape — здесь сразу красное.
+// If the shape in @sdk/core/types changes tomorrow — it goes red here right away.
 
 import type {
   Balance,
@@ -51,10 +51,10 @@ declare module './protocol' {
     'billing.getIdentity': void;
     'billing.setIdentity': { identity: Identity | null };
     'billing.getVisitorId': void;
-    /** File-объекты переживают chrome.runtime structured-clone через port'ы
-     *  (SW forward'ит as-is). Лимиты на размер (10MB/файл, 5 файлов) валидирует
-     *  SDK перед отправкой и backend ещё раз — оба чтобы не зашибить SW heap'ом
-     *  при злоупотреблении. */
+    /** File objects survive chrome.runtime structured-clone through the ports
+     *  (the SW forwards them as-is). Size limits (10MB/file, 5 files) are
+     *  validated by the SDK before sending and by the backend again — both to
+     *  avoid blowing up the SW heap under abuse. */
     'billing.createSupportTicket': {
       subject: string;
       content: string;
@@ -85,34 +85,34 @@ declare module './protocol' {
     };
     'auth.resendConfirmation': { email: string };
     'auth.revokeAllSessions': void;
-    /** OAuth split: content делает /init через offscreen, получает
-     *  authorize_url и state. State (вместе с PKCE verifier'ом) живёт в
-     *  offscreen'е до второго запроса. */
+    /** OAuth split: content does /init through offscreen, gets the
+     *  authorize_url and state. The state (together with the PKCE verifier)
+     *  lives in offscreen until the second request. */
     'auth.oauthStart': {
       provider: OAuthProvider;
       scopes?: string;
       userMeta?: Record<string, string>;
     };
-    /** Обмен code'а на session. State из oauthStart resolution идёт сюда —
-     *  offscreen lookup'ит сохранённый verifier по state. */
+    /** Exchange the code for a session. The state from the oauthStart resolution
+     *  comes here — offscreen looks up the stored verifier by state. */
     'auth.oauthExchange': { state: string; code: string };
-    /** Текущий access token (lazy-refreshable). content/popup вызывает для
-     *  передачи Bearer'а в внешние fetch'и (например, ApiGatewayClient в
-     *  content-script). Возвращает null если разлогинен или refresh упал. */
+    /** The current access token (lazy-refreshable). content/popup calls this to
+     *  pass the Bearer into external fetches (for example, ApiGatewayClient in
+     *  the content-script). Returns null if logged out or the refresh failed. */
     'auth.getAccessToken': void;
-    /** Анонимный sign-in через offscreen AuthClient. `captchaToken`
-     *  опциональный — bootloaded на будущее (когда сервер вернёт
-     *  challenge_required и потребует proof-of-something). Сейчас сервер
-     *  его не проверяет, поле резерв на forward-compat. `forceNewAnon`
-     *  обходит idempotent + resume шаги и сразу делает /signin (создаёт
-     *  нового anon-user'а — нужно при switch-account flow'е). */
+    /** Anonymous sign-in through the offscreen AuthClient. `captchaToken` is
+     *  optional — bootloaded for the future (when the server returns
+     *  challenge_required and demands proof-of-something). The server doesn't
+     *  check it yet, the field is reserved for forward-compat. `forceNewAnon`
+     *  skips the idempotent + resume steps and goes straight to /signin (creates
+     *  a new anon user — needed in the switch-account flow). */
     'auth.signInAnonymously': {
       captchaToken?: string;
       userMeta?: Record<string, string>;
       forceNewAnon?: boolean;
     };
-    /** Last-used auth method + email per-paywall — для UI бейджа «Last used»
-     *  в AuthPanel. Storage живёт в offscreen'е, читаем через transport. */
+    /** Last-used auth method + email per-paywall — for the "Last used" UI badge
+     *  in AuthPanel. Storage lives in offscreen, read through transport. */
     'auth.getLastLogin': void;
 
     'tracker.track': { name: string; props?: Record<string, unknown> };
@@ -184,14 +184,14 @@ declare module './protocol' {
 declare module './protocol' {
   interface EventPayloadMap {
     userChange: PaywallUser;
-    // INITIAL_SESSION в broadcast НЕ ходит: каждый RemoteAuthClient выдаёт
-    // его сам через свой microtask поверх getCachedSession. Через wire летят
-    // только реальные переходы (SIGNED_IN/SIGNED_OUT/TOKEN_REFRESHED/...).
+    // INITIAL_SESSION does NOT travel in the broadcast: each RemoteAuthClient
+    // emits it itself via its own microtask on top of getCachedSession. Only
+    // real transitions (SIGNED_IN/SIGNED_OUT/TOKEN_REFRESHED/...) go over the wire.
     authChange: { event: AuthChangeEvent; session: AuthSession | null };
     balancesChange: ReadonlyArray<Balance>;
   }
 }
 
-// Suppress unused — этот тип существует чтобы зафиксировать контракт wire-протокола
-// для consumer'ов из content/offscreen, не для прямого импорта здесь.
+// Suppress unused — this type exists to pin down the wire-protocol contract for
+// consumers from content/offscreen, not for direct import here.
 export type _PriceUnused = PaywallPrice;

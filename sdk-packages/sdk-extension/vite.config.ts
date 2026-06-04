@@ -16,15 +16,16 @@ export default defineConfig(({ command }) => ({
       dts({
         entryRoot: 'src',
         include: ['src/**/*.ts', 'src/**/*.tsx'],
-        // rollupTypes отключён: api-extractor спотыкается о sibling-package
-        // ../sdk при попытке найти project root. Per-file .d.ts работает
-        // нормально, при публикации можно вернуться к bundling позже.
+        // rollupTypes is disabled: api-extractor stumbles over the sibling
+        // package ../sdk when trying to find the project root. Per-file .d.ts
+        // works fine; we can return to bundling later when publishing.
         tsconfigPath: './tsconfig.json',
-        // Tsconfig paths alias `@sdk → ../sdk/src` запекается vite-plugin-dts
-        // в emitted .d.ts как относительный путь типа `from '../../../sdk/src/core/...'`.
-        // В монорепо это работает, в опубликованном npm-пакете папки sdk/src
-        // нет — TS молча резолвит типы в any, потребители видят сломанные
-        // сигнатуры PaywallUI/BillingClient. Зеркало фикса в sdk-react/vite.config.ts.
+        // The tsconfig paths alias `@sdk → ../sdk/src` is baked by vite-plugin-dts
+        // into the emitted .d.ts as a relative path like `from '../../../sdk/src/core/...'`.
+        // In the monorepo this works, but in the published npm package the sdk/src
+        // folder doesn't exist — TS silently resolves the types to any, and
+        // consumers see broken PaywallUI/BillingClient signatures. The fix is
+        // mirrored in sdk-react/vite.config.ts.
         beforeWriteFile(filePath, content) {
           const rewritten = content.replace(
             /from\s+(['"])(?:\.\.\/){2,}sdk\/src(?:\/[^'"]+)?\1/g,

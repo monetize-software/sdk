@@ -84,14 +84,14 @@ export default defineConfig(({ command, mode }) => ({
       ],
       output: {
         chunkFileNames: 'chunks/[name]-[hash].js',
-        // 'use client' в src/index.ts добавлена как директива для bundler'ов
-        // RSC-aware фреймворков (Next.js App Router, Remix RSC). Но esbuild
-        // в lib-mode стрипает её как unused string-literal-expression, поэтому
-        // инжектим обратно через rollup output.banner.
+        // 'use client' in src/index.ts is added as a directive for the
+        // bundlers of RSC-aware frameworks (Next.js App Router, Remix RSC).
+        // But esbuild in lib-mode strips it as an unused string-literal-
+        // expression, so we inject it back via rollup output.banner.
         //
-        // Альтернатива — rollup-plugin-preserve-directives (TanStack, SWR
-        // используют его), но он добавляет dep ради одной строки. Banner-
-        // подход проще пока у нас один entry.
+        // The alternative is rollup-plugin-preserve-directives (TanStack and
+        // SWR use it), but it adds a dep for the sake of a single line. The
+        // banner approach is simpler while we have a single entry.
         banner: "'use client';"
       }
     }

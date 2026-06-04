@@ -5,11 +5,11 @@ import { useI18n, type TFn } from '../../i18n';
 
 type CtaBlock = Extract<LayoutBlock, { type: 'cta_button' }>;
 
-// Плановые ключи для "Get X Plan". Если interval — известная константа,
-// берём dedicated-ключ (даёт переводчику правильный род/падёж для каждого
-// интервала). Для экзотики вроде day/half-year fallback'имся на generic с
-// {interval}-подстановкой — выглядит чуть хуже грамматически в RU/DE, но
-// мы не теряем интервал в UI.
+// Plan keys for "Get X Plan". If the interval is a known constant,
+// we take the dedicated key (which gives the translator the correct gender/case for each
+// interval). For exotic ones like day/half-year we fall back to the generic with
+// {interval} substitution — it looks slightly worse grammatically in RU/DE, but
+// we don't lose the interval in the UI.
 const INTERVAL_PLAN_KEY: Record<string, string> = {
   day: 'cta.get_plan_daily',
   week: 'cta.get_plan_weekly',
@@ -23,14 +23,14 @@ const INTERVAL_PLAN_FALLBACK: Record<string, string> = {
   year: 'Get Yearly Plan'
 };
 
-// Plan-aware label по легаси-логике из online/PaywallPricing.tsx:
-//   - trial_days > 0, interval !== 'lifetime', юзер ещё не брал trial →
+// Plan-aware label following the legacy logic from online/PaywallPricing.tsx:
+//   - trial_days > 0, interval !== 'lifetime', user hasn't taken a trial yet →
 //     "Start N-Day Free Trial"
 //   - interval === 'lifetime' → "Get Lifetime Access"
-//   - иначе → "Get {Interval} Plan"
-// `hadPreviousTrial` гасит trial-ветку — anti-abuse: один юзер может взять
-// trial по пейволу только один раз. Серверный enforcement в
-// /start-checkout (utils/checkout-with-acquiring.ts) дублирует.
+//   - otherwise → "Get {Interval} Plan"
+// `hadPreviousTrial` suppresses the trial branch — anti-abuse: a user can take a
+// trial on a paywall only once. Server-side enforcement in
+// /start-checkout (utils/checkout-with-acquiring.ts) duplicates this.
 function dynamicLabel(
   price: PaywallPrice | null,
   action: CtaBlock['action'],
@@ -72,11 +72,11 @@ export function CtaButton({ block, ctx }: BlockProps<CtaBlock>) {
   const selectedPrice = priceId
     ? ctx.bootstrap.prices.find((p) => p.id === priceId) ?? null
     : null;
-  // `had_previous_trial` берём из bootstrap.user snapshot'а. Это значит, что
-  // после signin'а через preauth flow (юзер был гостем на момент bootstrap'а)
-  // флаг останется false до следующего bootstrap-revalidate; UI коротко
-  // покажет "Start Free Trial", но серверный enforcement в /start-checkout
-  // всё равно создаст checkout без trial — анти-abuse не нарушится.
+  // `had_previous_trial` comes from the bootstrap.user snapshot. This means that
+  // after signin via the preauth flow (the user was a guest at bootstrap time)
+  // the flag stays false until the next bootstrap-revalidate; the UI will briefly
+  // show "Start Free Trial", but the server-side enforcement in /start-checkout
+  // will still create a checkout without a trial — anti-abuse isn't violated.
   const hadPreviousTrial = ctx.bootstrap.user?.had_previous_trial ?? false;
   const label =
     block.label ?? dynamicLabel(selectedPrice, block.action, hadPreviousTrial, t);

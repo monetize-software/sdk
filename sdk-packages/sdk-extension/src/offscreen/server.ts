@@ -1,17 +1,16 @@
-// Offscreen-side server. Owns the real BillingClient + AuthClient (если
-// включён) — единственный source of truth для всего расширения. Регистрирует
-// handler'ы на TransportServer'е, принимает port'ы от SW через
-// chrome.runtime.onConnect, broadcast'ит userChange/authChange/balancesChange
-// при изменении состояния.
+// Offscreen-side server. Owns the real BillingClient + AuthClient (if enabled)
+// — the single source of truth for the whole extension. Registers handlers on
+// the TransportServer, accepts ports from the SW via chrome.runtime.onConnect,
+// broadcasts userChange/authChange/balancesChange on state changes.
 //
-// Жизненный цикл: server создаётся один раз через startOffscreenServer().
-// Если SW рестартует — он пере-create'ит offscreen (если документ умер) или
-// откроет новый port (если документ жив). Server в обоих случаях accept'ит
-// новый канал, state переживает.
+// Lifecycle: the server is created once via startOffscreenServer(). If the SW
+// restarts, it re-creates offscreen (if the document died) or opens a new port
+// (if the document is alive). In both cases the server accepts the new channel,
+// and the state survives.
 //
-// OAuth flows. PKCE verifier хранится в offscreen'е между oauthStart и
-// oauthExchange request'ами. Content только открывает popup и ждёт code'а
-// (нативно, в своём frame'е) — verifier через runtime-границу не уходит.
+// OAuth flows. The PKCE verifier is held in offscreen between the oauthStart and
+// oauthExchange requests. Content only opens the popup and waits for the code
+// (natively, in its own frame) — the verifier never crosses the runtime boundary.
 
 import { BillingClient } from '@sdk/core/BillingClient';
 import { AuthClient } from '@sdk/core/auth';
@@ -62,9 +61,10 @@ export class OffscreenServer {
   }
 
   private registerBillingHandlers(): void {
-    // ctx.signal пробрасывается в underlying fetch — отмена с content-стороны
-    // (юзер закрыл модалку) реально кенселит сетевой запрос в offscreen'е,
-    // не оставляя «зомби-fetch» висеть до timeout'а.
+    // ctx.signal is forwarded into the underlying fetch — cancellation from the
+    // content side (the user closed the modal) actually cancels the network
+    // request in offscreen, instead of leaving a "zombie fetch" hanging until
+    // timeout.
     this.transport.on('billing.bootstrap', async (params, ctx) =>
       this.billing.bootstrap({ force: params.force, signal: ctx.signal })
     );
@@ -104,8 +104,8 @@ export class OffscreenServer {
       this.billing.setIdentity(params.identity ?? undefined);
     });
 
-    // Storage proxy. Любой consumer через `billing.getStorage()` ходит сюда;
-    // state живёт в offscreen'овском localStorage = single source of truth.
+    // Storage proxy. Any consumer going through `billing.getStorage()` ends up
+    // here; the state lives in the offscreen localStorage = single source of truth.
     const storage = this.billing.getStorage();
     this.transport.on('storage.get', async (params) => storage.getItem(params.key));
     this.transport.on('storage.set', async (params) => {
@@ -115,10 +115,10 @@ export class OffscreenServer {
       await storage.removeItem(params.key);
     });
 
-    // Trial-store с атомарным recordBlock через navigator.locks. Каждый
-    // вызов recordBlock сериализуется по ключу `trial:<paywallId>` —
-    // две вкладки одновременно не могут получить одинаковый snapshot и
-    // оба записать decrement, drift'а нет.
+    // Trial-store with an atomic recordBlock via navigator.locks. Each
+    // recordBlock call is serialized by the key `trial:<paywallId>` — two tabs
+    // can't grab the same snapshot at once and both write a decrement, so
+    // there's no drift.
     this.transport.on('trial.check', async (params) =>
       withTrialLock(params.paywallId, () =>
         this.makeTrialStore(params.paywallId, params.config).check()
@@ -136,8 +136,8 @@ export class OffscreenServer {
     );
   }
 
-  /** Каждый trial-handler создаёт свежий store — он stateless, читает
-   *  state из storage. Кешировать инстансы смысла нет (storage = SoT). */
+  /** Each trial handler creates a fresh store — it's stateless and reads state
+   *  from storage. There's no point caching instances (storage = SoT). */
   private makeTrialStore(paywallId: string, config: TrialConfig) {
     return createTrialStore(this.billing.getStorage(), paywallId, config);
   }
@@ -164,10 +164,10 @@ export class OffscreenServer {
     this.transport.on('auth.revokeAllSessions', async () => auth.revokeAllSessions());
     this.transport.on('auth.getLastLogin', async () => auth.getLastLogin());
 
-    // OAuth split-API (Phase 4.5). Verifier живёт внутри AuthClient'а
-    // между двумя этими request'ами, content только открывает popup и
-    // ждёт code'а. Никакого state в SDK-extension'овском offscreen-server —
-    // всё в самом AuthClient'е.
+    // OAuth split-API (Phase 4.5). The verifier lives inside AuthClient between
+    // these two requests; content only opens the popup and waits for the code.
+    // No state in the SDK-extension offscreen-server — it's all in AuthClient
+    // itself.
     this.transport.on('auth.oauthStart', async (params) => {
       const { authorize_url, state } = await auth.startOAuthFlow({
         provider: params.provider,
@@ -200,11 +200,11 @@ export class OffscreenServer {
       { immediate: 'none' }
     );
     if (this.auth) {
-      // INITIAL_SESSION НЕ broadcast'им: это per-subscriber synthetic event,
-      // RemoteAuthClient на content-side выдаёт его сам сразу после resolve
-      // своего hydrate-promise'а (через getCachedSession-запрос). Иначе один
-      // ре-connect content'а породит дубль INITIAL_SESSION'а на каждого
-      // listener'а в нём.
+      // We do NOT broadcast INITIAL_SESSION: it's a per-subscriber synthetic
+      // event; the content-side RemoteAuthClient emits it itself right after
+      // resolving its hydrate promise (via a getCachedSession request).
+      // Otherwise one content re-connect would spawn a duplicate INITIAL_SESSION
+      // for every listener in it.
       this.authUnsub = this.auth.onAuthChange((event, session) => {
         if (event === 'INITIAL_SESSION') return;
         this.transport.broadcast('authChange', { event, session });
@@ -212,17 +212,17 @@ export class OffscreenServer {
     }
   }
 
-  /** Старт listener'а на chrome.runtime.onConnect. */
+  /** Start the listener on chrome.runtime.onConnect. */
   start(): void {
     if (this.connectListener) return;
-    // Принимаем только SW relay-port (RELAY_PORT_NAME). chrome.runtime.connect
-    // от popup/content/side-panel доставляется во ВСЕ extension contexts с
-    // onConnect listener'ом — включая offscreen напрямую, минуя SW. Если бы
-    // мы принимали PORT_NAME, на одно popup.connect() в offscreen прилетало
-    // бы ДВА port'а (SW relay + direct popup), и один send из popup
-    // дублировался: SW relay постит msg → handler #1, direct popup port
-    // получает тот же msg → handler #2. SW же использует отдельное имя
-    // RELAY_PORT_NAME для своего connect к offscreen.
+    // We accept only the SW relay-port (RELAY_PORT_NAME). chrome.runtime.connect
+    // from popup/content/side-panel is delivered to ALL extension contexts with
+    // an onConnect listener — including offscreen directly, bypassing the SW. If
+    // we accepted PORT_NAME, a single popup.connect() would deliver TWO ports to
+    // offscreen (SW relay + direct popup), and one send from the popup would be
+    // duplicated: the SW relay posts the msg → handler #1, the direct popup port
+    // receives the same msg → handler #2. The SW therefore uses a separate name,
+    // RELAY_PORT_NAME, for its own connect to offscreen.
     this.connectListener = (port) => {
       if (port.name !== RELAY_PORT_NAME) return;
       this.transport.accept(portToChannel(port));
@@ -245,10 +245,10 @@ export class OffscreenServer {
   }
 }
 
-/** Сериализует операции trial по ключу — atomically read-modify-write
- *  внутри offscreen. navigator.locks доступен в offscreen-контексте (Chrome
- *  69+), для browsers без него — fallback на прямой call (race возможна,
- *  но это совсем legacy-кейс). */
+/** Serializes trial operations by key — atomic read-modify-write inside
+ *  offscreen. navigator.locks is available in the offscreen context (Chrome
+ *  69+); for browsers without it — fallback to a direct call (a race is
+ *  possible, but that's a deep legacy case). */
 async function withTrialLock<T>(paywallId: string, fn: () => Promise<T>): Promise<T> {
   if (typeof navigator !== 'undefined' && navigator.locks?.request) {
     return navigator.locks.request(`@monetize.software/sdk-extension:trial:${paywallId}`, fn);

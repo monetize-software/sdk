@@ -3,16 +3,16 @@ import { PaywallUI, type PaywallUIOptions } from '@monetize.software/sdk';
 import { PaywallContext, PaywallProviderMarker } from './context';
 
 /**
- * Два взаимоисключающих режима использования:
+ * Two mutually exclusive usage modes:
  *
- *  - `options` — Provider сам конструирует `PaywallUI` в useEffect и
- *     прибирает в cleanup. Самый частый кейс — обычный сайт.
- *  - `instance` — хост создаёт PaywallUI сам и передаёт готовым. Нужно для
- *     extension'ов (`@monetize.software/sdk-extension` поставляет structurally
- *     compatible PaywallUI с RemoteBillingClient), для shared-инстанса между
- *     несколькими React-деревьями и для тестов.
+ *  - `options` — the Provider constructs `PaywallUI` itself in useEffect and
+ *     tears it down in cleanup. The most common case — a regular website.
+ *  - `instance` — the host creates PaywallUI itself and passes it in ready.
+ *     Needed for extensions (`@monetize.software/sdk-extension` ships a
+ *     structurally compatible PaywallUI with RemoteBillingClient), for a
+ *     shared instance across several React trees, and for tests.
  *
- * Discriminated union на уровне типов — TS не даст передать оба сразу.
+ * A discriminated union at the type level — TS won't let you pass both at once.
  */
 export type PaywallProviderProps =
   | {
@@ -27,58 +27,58 @@ export type PaywallProviderProps =
     };
 
 /**
- * Корневой Provider для всех React-биндингов SDK.
+ * Root Provider for all of the SDK's React bindings.
  *
  * ```tsx
- * // вариант 1: Provider сам создаёт инстанс
+ * // option 1: the Provider creates the instance itself
  * <PaywallProvider options={{ paywallId: '...', auth: true }}>
  *   <App />
  * </PaywallProvider>
  *
- * // вариант 2: готовый инстанс снаружи (extension / shared)
+ * // option 2: a ready instance from the outside (extension / shared)
  * const paywall = createPaywallUI({ paywallId: '...' });
  * <PaywallProvider instance={paywall}>
  *   <App />
  * </PaywallProvider>
  * ```
  *
- * SSR: инстанс создаётся в useEffect, на сервере context value=null. Все
- * хуки делают graceful fallback (`null` / `{ status: 'loading' }`), так что
- * Provider можно безопасно рендерить в Next.js / Remix без `'use client'`-
- * ограничений на дерево потомков.
+ * SSR: the instance is created in useEffect, on the server context value=null.
+ * All hooks do a graceful fallback (`null` / `{ status: 'loading' }`), so the
+ * Provider can be safely rendered in Next.js / Remix without `'use client'`
+ * restrictions on the descendant tree.
  *
- * StrictMode: cleanup-эффект зовёт `destroy()`, чтобы dev double-mount не
- * оставлял утечек listener'ов и подписок. Микротик-эффекты PaywallUI-
- * конструктора (`autoDetectReturn`) на первом инстансе становятся no-op
- * после destroy.
+ * StrictMode: the cleanup effect calls `destroy()` so that a dev double-mount
+ * doesn't leak listeners and subscriptions. The microtask effects of the
+ * PaywallUI constructor (`autoDetectReturn`) on the first instance become a
+ * no-op after destroy.
  *
- * Смена `options` между рендерами: не реактивна — Provider создаёт инстанс
- * один раз. Если хосту реально нужно пересоздать (поменялся `paywallId`),
- * следует менять `key` у Provider'а — это идиоматичный React-способ форсить
- * пересоздание. Делать «умное» сравнение опций мы намеренно не пытаемся:
- * структурный equality глубоких options всегда ломается на функциях-колбеках
- * и live-обновлениях storage'а.
+ * Changing `options` between renders: not reactive — the Provider creates the
+ * instance once. If the host genuinely needs to recreate it (`paywallId`
+ * changed), it should change the Provider's `key` — that's the idiomatic React
+ * way to force a recreate. We deliberately don't attempt "smart" comparison of
+ * the options: structural equality of deep options always breaks on callback
+ * functions and live storage updates.
  */
 export function PaywallProvider(props: PaywallProviderProps): JSX.Element {
   const externalInstance = 'instance' in props ? props.instance : undefined;
   const options = 'options' in props ? props.options : undefined;
 
-  // Внешний инстанс → синхронно кладём его в state, чтобы первый render
-  // потомков уже видел реальный PaywallUI (хосту он доступен мгновенно после
-  // вызова createPaywallUI). Свой инстанс → null до useEffect, потому что
-  // конструктор PaywallUI трогает window/queueMicrotask и не должен крутиться
-  // на сервере.
+  // External instance → put it into state synchronously so the first render
+  // of descendants already sees the real PaywallUI (the host has it available
+  // instantly after calling createPaywallUI). Own instance → null until
+  // useEffect, because the PaywallUI constructor touches window/queueMicrotask
+  // and must not run on the server.
   const [paywall, setPaywall] = useState<PaywallUI | null>(
     externalInstance ?? null
   );
 
-  // Сам инстанс создаём в useEffect (только клиент). Если хост даёт готовый —
-  // useEffect просто sync'ит state на случай, если ref поменялся между
-  // рендерами без unmount'а.
+  // We create the instance itself in useEffect (client only). If the host
+  // gives a ready one, useEffect just syncs state in case the ref changed
+  // between renders without an unmount.
   useEffect(() => {
     if (externalInstance) {
       setPaywall(externalInstance);
-      // Externally-owned lifecycle — destroy() не наш.
+      // Externally-owned lifecycle — destroy() isn't ours to call.
       return;
     }
 
@@ -88,15 +88,15 @@ export function PaywallProvider(props: PaywallProviderProps): JSX.Element {
     setPaywall(created);
     return () => {
       created.destroy();
-      // null на cleanup — потомки на следующем render'е увидят «инстанс ещё
-      // не готов» вместо обращения к destroyed-объекту. В обычной жизни
-      // unmount Provider'а сразу размонтирует и потомков, поэтому это
-      // подстраховка для редких manual-remount-сценариев и StrictMode'а.
+      // null on cleanup — on the next render descendants will see "instance
+      // not ready yet" instead of touching a destroyed object. In normal life
+      // unmounting the Provider immediately unmounts the descendants too, so
+      // this is a safeguard for rare manual-remount scenarios and StrictMode.
       setPaywall(null);
     };
-    // options/instance меняются по reference. Реактивная пересборка инстанса
-    // на каждый ре-рендер хост-компонента — не то, что нужно (см. JSDoc выше).
-    // Для пересоздания используется React `key`.
+    // options/instance change by reference. Reactively rebuilding the instance
+    // on every re-render of the host component isn't what we want (see JSDoc
+    // above). To recreate it, use React `key`.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [externalInstance]);
 

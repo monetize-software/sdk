@@ -130,8 +130,8 @@ describe('ApiGatewayClient.call', () => {
     fd.set('a', '1');
     await gw.call({ providerId: 'p', body: fd });
     const headers = new Headers(fetchMock.mock.calls[0][1]!.headers);
-    // FormData → браузер сам ставит multipart/form-data с boundary; SDK
-    // не должен подсовывать application/json.
+    // FormData → the browser sets multipart/form-data with a boundary itself; the SDK
+    // must not slip in application/json.
     expect(headers.get('Content-Type')).toBe(null);
     expect(fetchMock.mock.calls[0][1]!.body).toBe(fd);
   });
@@ -205,8 +205,8 @@ describe('BillingClient.balances', () => {
     });
   }
 
-  // Минимальный fake AuthClient — getAccessToken даёт строку, остальные
-  // методы не нужны для balances flow.
+  // Minimal fake AuthClient — getAccessToken returns a string, the other
+  // methods aren't needed for the balances flow.
   function fakeAuth(token: string | null = 'tok') {
     return {
       getAccessToken: vi.fn(async () => token),
@@ -227,8 +227,8 @@ describe('BillingClient.balances', () => {
 
     const b = await client.getBalances();
     expect(b).toEqual([]);
-    // Без auth /balances не вызывается — fetchMock мог быть дёрнут только
-    // другими роутами (но тестируем именно balances flow).
+    // Without auth /balances isn't called — fetchMock could only have been hit by
+    // other routes (but we're testing the balances flow specifically).
     const balanceCalls = fetchMock.mock.calls.filter(([u]) => String(u).includes('/balances'));
     expect(balanceCalls.length).toBe(0);
   });
@@ -277,7 +277,7 @@ describe('BillingClient.balances', () => {
 
     const events: Balance[][] = [];
     const off = client.onBalanceChange((b) => events.push(b));
-    // onBalanceChange шлёт snapshot через microtask.
+    // onBalanceChange emits a snapshot via a microtask.
     await Promise.resolve();
     expect(events.length).toBe(1);
 
@@ -288,7 +288,7 @@ describe('BillingClient.balances', () => {
     ]);
 
     client.decrementBalanceLocal('unknown');
-    // Несуществующий queryType — no-op, listener не дёргается повторно.
+    // Non-existent queryType — no-op, the listener isn't fired again.
     expect(events.length).toBe(2);
     off();
   });
@@ -308,7 +308,7 @@ describe('BillingClient.balances', () => {
     await client.getBalances();
 
     client.decrementBalanceLocal(undefined);
-    // Дать promise'у getBalances({force}) проиграться.
+    // Let the getBalances({force}) promise play out.
     await vi.advanceTimersByTimeAsync(0);
     await Promise.resolve();
     await Promise.resolve();
@@ -363,7 +363,7 @@ describe('BillingClient.balances', () => {
     await expect(gw.call({ providerId: 'prov_quota', body: {} })).rejects.toBeInstanceOf(
       QuotaExceededError
     );
-    // refresh уходит через void; даём ему завершиться.
+    // refresh fires via void; let it complete.
     await vi.advanceTimersByTimeAsync(0);
     await Promise.resolve();
     await Promise.resolve();

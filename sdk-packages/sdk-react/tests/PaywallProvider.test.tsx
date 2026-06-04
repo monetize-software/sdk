@@ -15,9 +15,10 @@ describe('<PaywallProvider>', () => {
   });
 
   it('бросает понятную ошибку, если usePaywall() вне Provider', () => {
-    // React 18 при throw'е в render логит boundary-сообщение в console.error —
-    // тест-вывод от этого шумит, само поведение корректно. Мьютим только этот
-    // log на длительность теста, чтобы остальные тесты не теряли диагностику.
+    // On a throw during render, React 18 logs a boundary message to
+    // console.error — this makes the test output noisy, but the behavior itself
+    // is correct. We mute only this log for the duration of the test so the
+    // other tests don't lose their diagnostics.
     const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     expect(() => renderHook(() => usePaywall())).toThrow(
       /usePaywall.*outside.*PaywallProvider/i

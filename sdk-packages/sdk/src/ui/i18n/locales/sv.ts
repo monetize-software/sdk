@@ -1,10 +1,10 @@
 /**
- * Static-translations для sv. Сгенерировано из:
- *  - `online/lang/static-translations.ts` (legacy, через KEY_MAP)
- *  - `tools/sdk-translations.mjs` (SDK-specific строки)
+ * Static-translations for sv. Generated from:
+ *  - `online/lang/static-translations.ts` (legacy, via KEY_MAP)
+ *  - `tools/sdk-translations.mjs` (SDK-specific strings)
  *
- * Не править вручную — изменения теряются при следующем `node tools/gen-locales.mjs`.
- * Чтобы исправить перевод — править legacy/sdk-translations.mjs и регенерить.
+ * Do not edit by hand — changes are lost on the next `node tools/gen-locales.mjs`.
+ * To fix a translation, edit legacy/sdk-translations.mjs and regenerate.
  */
 const sv = {
   'anon.heading_default': 'Fortsätt som gäst',
@@ -47,7 +47,6 @@ const sv = {
   'auth.reset_password_title': 'Återställ lösenord',
   'auth.reset_sent_message': 'Om e-postadressen finns har en återställningskod skickats.',
   'auth.reset_sent_subtitle': 'Vi har skickat en länk för att återställa lösenordet. Följ instruktionerna i e-postmeddelandet.',
-  'auth.signup_sent_subtitle': 'Vi har skickat en bekräftelselänk till din e-post. Klicka på den för att aktivera ditt konto och logga sedan in.',
   'auth.restore_purchases_heading': 'Återställ Köp',
   'auth.restore_purchases_subheading': 'Logga in för att återställa dina köp.',
   'auth.send_reset': 'Skicka Återställningsmail',
@@ -75,9 +74,9 @@ const sv = {
   'modal.continue': 'Fortsätt',
   'modal.error_generic': 'Något gick fel',
   'modal.loading': 'Laddar…',
-  'modal.purchase_restored_subtitle': 'Välkommen tillbaka — din prenumeration är redan aktiv.',
-  'modal.purchase_restored_title': 'Prenumeration återställd',
-  'modal.purchase_success_subtitle': 'Din prenumeration är nu aktiv.',
+  'modal.purchase_restored_subtitle': 'Allt är klart — ha så kul!',
+  'modal.purchase_restored_title': 'Välkommen tillbaka',
+  'modal.purchase_success_subtitle': 'Allt är klart — ha så kul!',
   'modal.purchase_success_title': 'Betalning mottagen',
   'modal.verifying_subscription': 'Kontrollerar prenumeration…',
   'nav.back': '← Tillbaka',

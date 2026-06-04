@@ -5,9 +5,9 @@ import { test as base, chromium, type BrowserContext } from '@playwright/test';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const EXTENSION_PATH = path.resolve(__dirname, '../playgrounds/extension/dist');
 
-// Persistent context с загруженным MV3 extension. Headless у Playwright для
-// extensions — через `chromium` (не `chromium_headless_shell`). В CI можно
-// оставить headless: true, локально имеет смысл запускать с headed для отладки.
+// Persistent context with the MV3 extension loaded. Headless mode in Playwright for
+// extensions runs through `chromium` (not `chromium_headless_shell`). In CI you can
+// keep headless: true; locally it makes sense to run headed for debugging.
 export const test = base.extend<{
   context: BrowserContext;
   extensionId: string;
@@ -26,8 +26,8 @@ export const test = base.extend<{
     await context.close();
   },
   extensionId: async ({ context }, use) => {
-    // Service worker стартует сразу после install — ждём его и парсим id из URL
-    // вида `chrome-extension://<id>/background.js`.
+    // The service worker starts right after install — we wait for it and parse the id
+    // from a URL like `chrome-extension://<id>/background.js`.
     let [sw] = context.serviceWorkers();
     if (!sw) sw = await context.waitForEvent('serviceworker');
     const id = sw.url().split('/')[2];

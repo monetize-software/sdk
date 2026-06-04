@@ -23,14 +23,14 @@ describe('findLiveOffer', () => {
 
   it('режет просроченный expires_at-оффер (а findApplicableOffer — нет)', () => {
     const offers = [offer({ expires_at: '2026-05-30T11:00:00.000Z' })];
-    // сырой подбор всё ещё отдаёт оффер — отсюда и был баг в PriceGrid
+    // the raw lookup still returns the offer — which is where the PriceGrid bug came from
     expect(findApplicableOffer(offers, 'p1')?.id).toBe('o1');
     expect(findLiveOffer(offers, 'p1', { now: NOW })).toBeNull();
   });
 
   it('режет просроченный duration_minutes-оффер по записанному старту', () => {
     const offers = [offer({ duration_minutes: 30 })];
-    const expiredStart = () => '2026-05-30T11:00:00.000Z'; // 60 мин назад > 30 мин
+    const expiredStart = () => '2026-05-30T11:00:00.000Z'; // 60 min ago > 30 min
     expect(
       findLiveOffer(offers, 'p1', { now: NOW, readStart: expiredStart })
     ).toBeNull();
@@ -38,7 +38,7 @@ describe('findLiveOffer', () => {
 
   it('держит живой duration_minutes-оффер пока окно не вышло', () => {
     const offers = [offer({ duration_minutes: 30 })];
-    const freshStart = () => '2026-05-30T11:50:00.000Z'; // 10 мин назад < 30 мин
+    const freshStart = () => '2026-05-30T11:50:00.000Z'; // 10 min ago < 30 min
     expect(
       findLiveOffer(offers, 'p1', { now: NOW, readStart: freshStart })?.id
     ).toBe('o1');

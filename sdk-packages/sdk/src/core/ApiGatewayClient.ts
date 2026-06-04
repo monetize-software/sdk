@@ -6,57 +6,57 @@ import {
   QuotaExceededError
 } from './types';
 
-// ApiGatewayClient — клиент SDK 3.0 для метированного AI-прокси
+// ApiGatewayClient — the SDK 3.0 client for the metered AI proxy
 // `/api/v1/api-gateway/<provider_id>[/<path>]?paywall_id=<id>`.
 //
-// Ответственность узкая:
-//   - проксировать запрос с правильными хедерами (Bearer, X-Paywall-Id);
-//   - на 402 распарсить детали и бросить QuotaExceededError;
-//   - на success триггернуть колбек (BillingClient декрементит локальный балланс);
-//   - вернуть СЫРОЙ Response, чтобы caller сам решал — JSON, SSE, multipart.
+// Its responsibility is narrow:
+//   - proxy the request with the correct headers (Bearer, X-Paywall-Id);
+//   - on 402, parse the details and throw QuotaExceededError;
+//   - on success, trigger the callback (BillingClient decrements the local balance);
+//   - return the RAW Response so the caller decides — JSON, SSE, multipart.
 //
-// SSE-парсера и JSON-обёрток сознательно нет — они тащат байты в bundle.
-// Caller использует `res.body.getReader()` или `for await (const c of res.body)`
-// для стрима, `res.json()`/`res.text()` для остального. Это совпадает с тем,
-// как работает fetch — никакого кастомного API учить не надо.
+// There is deliberately no SSE parser or JSON wrappers — they would drag bytes
+// into the bundle. The caller uses `res.body.getReader()` or
+// `for await (const c of res.body)` for streaming, `res.json()`/`res.text()`
+// for the rest. This matches how fetch works — no custom API to learn.
 
 export interface ApiGatewayClientOptions {
   paywallId: string;
-  /** Origin серверного API SDK — обязательное поле, тот же `custom_domain`, что
-   *  у BillingClient/AuthClient. См. {@link BillingClientOptions.apiOrigin}. */
+  /** Origin of the SDK server API — required, the same `custom_domain` as in
+   *  BillingClient/AuthClient. See {@link BillingClientOptions.apiOrigin}. */
   apiOrigin: string;
-  /** AuthClient — Bearer добавляется автоматически. На 401 от gateway клиент
-   *  не делает refresh: AuthClient уже сделал lazy-refresh в getAccessToken. */
+  /** AuthClient — Bearer is added automatically. On a 401 from the gateway the
+   *  client does not refresh: AuthClient already did a lazy refresh in getAccessToken. */
   auth?: AuthClient;
-  /** Headless-сценарий или legacy-флоу: явный userId вместо Bearer.
-   *  Передаётся как `X-User-ID`. Если задан и `auth` — Bearer выигрывает. */
+  /** Headless scenario or legacy flow: explicit userId instead of Bearer.
+   *  Sent as `X-User-ID`. If both this and `auth` are set, Bearer wins. */
   userId?: string;
   capabilities?: string[];
   fetch?: typeof fetch;
-  /** Хук для оптимистичного декремента балансов в BillingClient.
-   *  ApiGatewayClient его дёргает на 200 (success), передавая queryType из
-   *  ответа (если бэк его прислал в `X-Query-Type`) или undefined.
-   *  Парсить body для извлечения queryType ApiGatewayClient НЕ умеет — это
-   *  было бы лишним чтением body, а главное — body может быть стримом. */
+  /** Hook for the optimistic balance decrement in BillingClient.
+   *  ApiGatewayClient calls it on 200 (success), passing the queryType from the
+   *  response (if the backend sent it in `X-Query-Type`) or undefined.
+   *  ApiGatewayClient can NOT parse the body to extract queryType — that would
+   *  be an extra read of the body, and crucially the body may be a stream. */
   onChargeSuccess?: (queryType: string | undefined) => void;
-  /** Хук для рефетча балансов после 402. BillingClient ходит к /balances
-   *  и обновляет state, чтобы UI показал актуальный счётчик. */
+  /** Hook for refetching balances after a 402. BillingClient hits /balances
+   *  and updates state so the UI shows the current counter. */
   onQuotaExceeded?: (err: QuotaExceededError) => void;
 }
 
 export interface ApiGatewayCallParams {
-  /** UUID api-провайдера из платформы (`paywall_internal_api_providers.id`). */
+  /** UUID of the api provider from the platform (`paywall_internal_api_providers.id`). */
   providerId: string;
-  /** Путь после провайдера: `v1/chat/completions`, `messages`, и т.д.
-   *  Конкатенируется через `/`. Пустая строка/undefined = root провайдера. */
+  /** Path after the provider: `v1/chat/completions`, `messages`, etc.
+   *  Concatenated with `/`. Empty string/undefined = provider root. */
   path?: string;
   method?: 'GET' | 'POST';
-  /** JSON-сериализуемый объект → application/json. FormData → multipart с
-   *  авто-boundary. ReadableStream/Blob/string — пробрасываются как есть.
-   *  Если undefined и method='POST' — отправляется пустое тело. */
+  /** A JSON-serializable object → application/json. FormData → multipart with
+   *  an auto-boundary. ReadableStream/Blob/string — passed through as-is.
+   *  If undefined and method='POST' — an empty body is sent. */
   body?: unknown;
-  /** Дополнительные хедеры. Перетирают наши, кроме Authorization (его всегда
-   *  ставим из auth) и X-Paywall-Id. */
+  /** Additional headers. They override ours, except Authorization (always set
+   *  from auth) and X-Paywall-Id. */
   headers?: Record<string, string>;
   signal?: AbortSignal;
 }
@@ -89,10 +89,10 @@ export class ApiGatewayClient {
     this.customFetch = opts.fetch;
     this.onChargeSuccess = opts.onChargeSuccess;
     this.onQuotaExceeded = opts.onQuotaExceeded;
-    // Безопасность: в браузере userId должен приходить из Bearer (бэк
-    // резолвит через GoTrue), а не передаваться явно — иначе host может
-    // подсунуть чужой ID. `auth` без `userId` — норма; `userId` без `auth`
-    // в браузере — потенциальная уязвимость, предупреждаем.
+    // Security: in the browser userId must come from Bearer (the backend
+    // resolves it via GoTrue), not be passed explicitly — otherwise the host
+    // could slip in someone else's ID. `auth` without `userId` is normal;
+    // `userId` without `auth` in the browser is a potential vulnerability, so we warn.
     if (
       opts.userId &&
       !opts.auth &&
@@ -112,8 +112,8 @@ export class ApiGatewayClient {
       `/api/v1/api-gateway/${encodeURIComponent(params.providerId)}${path ? `/${path}` : ''}`,
       this.apiOrigin
     );
-    // paywall_id шлём и в query (legacy v2 контракт), и в X-Paywall-Id хедере
-    // (SDK 3.0 контракт). Бэк-route после патча принимает оба.
+    // We send paywall_id both in the query (legacy v2 contract) and in the
+    // X-Paywall-Id header (SDK 3.0 contract). The backend route accepts both after the patch.
     url.searchParams.set('paywall_id', this.paywallId);
 
     const headers = new Headers(params.headers);
@@ -130,8 +130,8 @@ export class ApiGatewayClient {
       headers.set('X-User-ID', this.userId);
     }
 
-    // Content-Type: тот же подход, что в ApiClient. FormData — браузер сам.
-    // unknown body, не строка/FormData/Blob — JSON.stringify.
+    // Content-Type: same approach as in ApiClient. FormData — the browser sets it.
+    // unknown body, not string/FormData/Blob — JSON.stringify.
     const isFormData = typeof FormData !== 'undefined' && params.body instanceof FormData;
     const isBlob = typeof Blob !== 'undefined' && params.body instanceof Blob;
     const isStream =
@@ -148,9 +148,9 @@ export class ApiGatewayClient {
       if (!headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
     }
 
-    // Локальная переменная вместо `this.fetchImpl(...)` — нативный fetch
-    // требует this=globalThis, а вызов через поле объекта связывает this с
-    // ApiGatewayClient и Chrome бросает 'Illegal invocation'.
+    // Local variable instead of `this.fetchImpl(...)` — native fetch requires
+    // this=globalThis, and calling through an object field binds this to
+    // ApiGatewayClient, making Chrome throw 'Illegal invocation'.
     const fetchImpl = this.customFetch ?? fetch;
     let response: Response;
     try {
@@ -173,9 +173,9 @@ export class ApiGatewayClient {
     }
 
     if (!response.ok) {
-      // Не дренируем body — caller может попытаться `res.text()` сам, либо
-      // мы клонируем для парсинга. Парсим клон, чтобы вернуть оригинал нетронутым
-      // (важно для стримовых ответов; для JSON ошибок — clone() дешёвый).
+      // We don't drain the body — the caller may try `res.text()` itself, or
+      // we clone for parsing. We parse the clone to return the original untouched
+      // (important for streaming responses; for JSON errors clone() is cheap).
       const code = await tryReadErrorCode(response.clone());
       throw new PaywallError(
         code ?? `http_${response.status}`,
@@ -184,10 +184,10 @@ export class ApiGatewayClient {
       );
     }
 
-    // Charge произошёл на бэке (см. /api-gateway/route.ts: `if (queryType !== 'free')`).
-    // Бэк не возвращает обновлённый баланс в хедерах — оптимистично декрементим
-    // на клиенте. queryType приходит из X-Query-Type, если бэк его проставил;
-    // иначе хук получит undefined, и BillingClient уйдёт в re-fetch /balances.
+    // The charge happened on the backend (see /api-gateway/route.ts: `if (queryType !== 'free')`).
+    // The backend doesn't return an updated balance in the headers — we decrement
+    // optimistically on the client. queryType comes from X-Query-Type if the backend set it;
+    // otherwise the hook gets undefined and BillingClient re-fetches /balances.
     const queryType = response.headers.get('X-Query-Type') ?? undefined;
     this.onChargeSuccess?.(queryType);
 
@@ -209,11 +209,11 @@ async function parseQuotaError(response: Response): Promise<QuotaExceededError> 
   try {
     body = (await response.json()) as QuotaErrorBody;
   } catch {
-    /* malformed — отдадим пустые поля */
+    /* malformed — we'll return empty fields */
   }
 
-  // Бэк отдаёт `details.balances` как массив строк paywall_balances:
-  // [{ balances: Balance[] }] (см. supabase select). Извлекаем плоский массив.
+  // The backend returns `details.balances` as an array of paywall_balances rows:
+  // [{ balances: Balance[] }] (see the supabase select). We extract the flat array.
   const rawBalances = body.details?.balances;
   let balances: Balance[] = [];
   if (Array.isArray(rawBalances)) {

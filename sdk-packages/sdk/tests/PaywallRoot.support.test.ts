@@ -7,13 +7,13 @@ import type { BillingClient } from '../src/core/BillingClient';
 import type { AuthClient, AuthSession } from '../src/core/auth';
 import type { LayoutBlock, PaywallBootstrap } from '../src/core/types';
 
-// Render-тесты на support-flow в PaywallRoot:
-// 1. Contact Support из current_session-блока — открывает SupportGate с Back в layout.
-// 2. initialView='support' (paywall.openSupport()) — открывает SupportGate сразу,
-//    Back закрывает модалку (origin='standalone').
-// 3. Submit success → "Request submitted" с email.
-// 4. Submit error → inline-error остаётся в форме.
-// 5. Залогиненный юзер видит "Sending as <email>" вместо input.
+// Render tests for the support flow in PaywallRoot:
+// 1. Contact Support from the current_session block — opens SupportGate with Back to the layout.
+// 2. initialView='support' (paywall.openSupport()) — opens SupportGate immediately,
+//    Back closes the modal (origin='standalone').
+// 3. Submit success → "Request submitted" with the email.
+// 4. Submit error → the inline error stays in the form.
+// 5. A logged-in user sees "Sending as <email>" instead of an input.
 
 function makeSession(email = 'logged@in.com'): AuthSession {
   return {
@@ -149,8 +149,8 @@ function clickByText(container: HTMLElement, text: string): void {
 }
 
 function fillInput(container: HTMLElement, placeholder: string, value: string): void {
-  // SupportGate теперь использует placeholders вместо отдельных label'ов
-  // (filled-input стиль). Ищем input/textarea по placeholder substring.
+  // SupportGate now uses placeholders instead of separate labels
+  // (filled-input style). We find the input/textarea by a placeholder substring.
   const candidates = Array.from(
     container.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('input, textarea')
   );
@@ -163,7 +163,7 @@ function fillInput(container: HTMLElement, placeholder: string, value: string): 
 }
 
 function clickBack(container: HTMLElement): void {
-  // Back/Close button теперь curved-arrow icon без текста, ищем по aria-label.
+  // The Back/Close button is now a curved-arrow icon with no text; we find it by aria-label.
   const btn = container.querySelector<HTMLButtonElement>('button[aria-label="Back"]');
   if (!btn) throw new Error('Back button not found');
   act(() => {
@@ -190,8 +190,8 @@ describe('PaywallRoot support flow', () => {
     clickByText(container, 'Contact Support');
     await flush();
 
-    // Заголовок Support + placeholders Enter your subject/message доказывают,
-    // что SupportGate отрендерился (новый layout: filled inputs, no labels).
+    // The Support heading + the Enter your subject/message placeholders prove
+    // that SupportGate rendered (new layout: filled inputs, no labels).
     expect(container.textContent).toContain('Support');
     expect(
       container.querySelector<HTMLInputElement>('input[placeholder*="Enter your subject"]')
@@ -200,7 +200,7 @@ describe('PaywallRoot support flow', () => {
       container.querySelector<HTMLTextAreaElement>('textarea[placeholder*="Enter your message"]')
     ).toBeTruthy();
 
-    // Back возвращает в layout (Continue снова виден, support-форма пропадает).
+    // Back returns to the layout (Continue is visible again, the support form disappears).
     clickBack(container);
     await flush();
     expect(findButton(container, 'Continue')).toBeTruthy();
@@ -210,14 +210,14 @@ describe('PaywallRoot support flow', () => {
   it('initialView=support: opens SupportGate immediately, Close button closes modal', async () => {
     const { client } = makeClient();
     const handle = mount(client, 'support');
-    // Не зависим от bootstrap — форма уже на экране.
+    // Independent of bootstrap — the form is already on screen.
     expect(
       handle.container.querySelector('input[placeholder*="Enter your subject"]')
     ).toBeTruthy();
     expect(
       handle.container.querySelector('textarea[placeholder*="Enter your message"]')
     ).toBeTruthy();
-    // Back-button (aria-label="Back") теперь curved-arrow icon без текста.
+    // The Back button (aria-label="Back") is now a curved-arrow icon with no text.
     expect(handle.container.querySelector('button[aria-label="Back"]')).toBeTruthy();
 
     clickBack(handle.container);
@@ -236,7 +236,7 @@ describe('PaywallRoot support flow', () => {
 
     expect(container.textContent).toContain('Sending as');
     expect(container.textContent).toContain('me@me.com');
-    // input email не рендерится для залогиненного (placeholder "Enter your email" отсутствует).
+    // the email input isn't rendered for a logged-in user (the "Enter your email" placeholder is absent).
     const emailInput = Array.from(container.querySelectorAll<HTMLInputElement>('input')).find(
       (el) => (el.placeholder ?? '').includes('Enter your email')
     );
@@ -302,14 +302,14 @@ describe('PaywallRoot support flow', () => {
     await flush();
     await flush();
 
-    // Форма не схлопнулась в success-screen.
+    // The form didn't collapse into the success screen.
     expect(container.textContent).not.toContain('Request submitted');
     expect(container.textContent).toMatch(/Failed to send|rate_limited|Something went wrong/);
     unmount();
   });
 
   it('Back from standalone closes modal even when bootstrap not loaded yet', async () => {
-    // Делаем bootstrap, который никогда не резолвится (имитация "ещё грузится").
+    // Make a bootstrap that never resolves (simulating "still loading").
     const client = {
       auth: undefined,
       bootstrap: vi.fn((): Promise<PaywallBootstrap> => new Promise(() => undefined)),
@@ -318,7 +318,7 @@ describe('PaywallRoot support flow', () => {
     } as unknown as BillingClient;
 
     const handle = mount(client, 'support');
-    // bootstrap не должен мешать — support виден.
+    // bootstrap must not get in the way — support is visible.
     expect(handle.container.textContent).toContain('Support');
     clickBack(handle.container);
     expect(handle.closes).toBe(1);

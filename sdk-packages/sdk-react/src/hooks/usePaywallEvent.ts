@@ -2,25 +2,26 @@ import { useEffect, useRef } from 'react';
 import type { PaywallEvent, PaywallEventHandler } from '@monetize.software/sdk';
 import { usePaywall } from './usePaywall';
 
-// Payload-тип конкретного события достаём через `Parameters<PaywallEventHandler<E>>[0]`,
-// потому что сам `PaywallEventPayloads` в SDK объявлен локально и не экспортируется.
-// Подход через `Parameters<>` устойчив к этому: пока `PaywallEventHandler` есть в
-// public surface, payload-тип SDK мы выводим корректно — TS-сборка sdk-react
-// упадёт, если сигнатура `PaywallEventHandler` поедет.
+// We get a specific event's payload type via `Parameters<PaywallEventHandler<E>>[0]`,
+// because `PaywallEventPayloads` itself is declared locally in the SDK and not
+// exported. The `Parameters<>` approach is resilient to this: as long as
+// `PaywallEventHandler` is in the public surface, we infer the SDK payload type
+// correctly — the sdk-react TS build fails if the `PaywallEventHandler` signature drifts.
 type EventPayload<E extends PaywallEvent> = Parameters<PaywallEventHandler<E>>[0];
 
 /**
- * Декларативная подписка на событие PaywallUI. Обёртка над `paywall.on(event, cb)`
- * с двумя важными отличиями от ручного useEffect:
+ * A declarative subscription to a PaywallUI event. A wrapper over
+ * `paywall.on(event, cb)` with two important differences from a manual
+ * useEffect:
  *
- * 1. handler не нужно мемоизировать через `useCallback` — внутри храним
- *    последнюю версию в `useRef`, само subscription пересоздаётся только
- *    при смене `event` или инстанса paywall'а. Это убирает класс багов с
- *    «забыл useCallback → подписка отписывается-переподписывается на каждый
- *    рендер → события теряются».
+ * 1. The handler doesn't need to be memoized via `useCallback` — internally we
+ *    keep the latest version in `useRef`, and the subscription itself is
+ *    recreated only when `event` or the paywall instance changes. This
+ *    eliminates a class of bugs around "forgot useCallback → the subscription
+ *    unsubscribes-resubscribes on every render → events get lost".
  *
- * 2. Корректно обрабатывает `paywall === null` (SSR / до Provider mount-а):
- *    подписка просто не создаётся, ждёт пока инстанс появится.
+ * 2. Correctly handles `paywall === null` (SSR / before Provider mount): the
+ *    subscription just isn't created, it waits until the instance appears.
  *
  * ```tsx
  * usePaywallEvent('purchase_completed', (payload) => {
@@ -29,9 +30,10 @@ type EventPayload<E extends PaywallEvent> = Parameters<PaywallEventHandler<E>>[0
  * });
  * ```
  *
- * Для self-cleaning логики (host эмит'а аналитики, инвалидаций кешей, гидрации
- * локального стейта) это самый прямой паттерн — компонент гарантированно
- * отпишется при unmount'е, и не нужно держать unsub-ref'ы вручную.
+ * For self-cleaning logic (the host emitting analytics, invalidating caches,
+ * hydrating local state) this is the most direct pattern — the component is
+ * guaranteed to unsubscribe on unmount, and there's no need to keep
+ * unsub-refs by hand.
  */
 export function usePaywallEvent<E extends PaywallEvent>(
   event: E,
@@ -40,17 +42,17 @@ export function usePaywallEvent<E extends PaywallEvent>(
   const paywall = usePaywall();
   const handlerRef = useRef(handler);
 
-  // Обновляем ref на каждом render'е — следующее срабатывание события
-  // подхватит свежий handler. Без отдельного useEffect, потому что синхронный
-  // assign в render-фазе для ref'а корректен и не нарушает rules-of-hooks.
+  // Update the ref on every render — the next event firing will pick up the
+  // fresh handler. No separate useEffect, because a synchronous assign in the
+  // render phase is correct for a ref and doesn't violate the rules-of-hooks.
   handlerRef.current = handler;
 
   useEffect(() => {
     if (!paywall) return;
     return paywall.on(event, (payload) => {
-      // Cast необходим, потому что общий вариант `PaywallEventHandler` теряет
-      // narrowing по `E`. handlerRef.current типизирован под конкретный E,
-      // но `on()` принимает union — рантайм-shape гарантирован SDK'шным emit'ом.
+      // The cast is necessary because the generic `PaywallEventHandler` loses
+      // narrowing by `E`. handlerRef.current is typed for the concrete E, but
+      // `on()` accepts a union — the runtime shape is guaranteed by the SDK's emit.
       (handlerRef.current as (p: EventPayload<E>) => void)(payload);
     });
   }, [paywall, event]);

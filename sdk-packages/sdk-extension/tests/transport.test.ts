@@ -3,11 +3,11 @@ import { TransportClient } from '../src/shared/transport-client';
 import { TransportServer } from '../src/shared/transport-server';
 import type { MessageChannel } from '../src/shared/channel';
 import type { Envelope } from '../src/shared/protocol';
-// Подгружаем module augmentation для RequestParamsMap/RequestResultMap/EventPayloadMap.
+// Load the module augmentation for RequestParamsMap/RequestResultMap/EventPayloadMap.
 import '../src/shared/messages';
 
-// In-memory дуплекс для тестов: пара каналов, всё что одна сторона отправляет —
-// доходит до другой. Имитирует port между двумя контекстами.
+// In-memory duplex for tests: a pair of channels, everything one side sends
+// reaches the other. Imitates a port between two contexts.
 function pairChannels(): [MessageChannel, MessageChannel] {
   const aIn = new Set<(env: Envelope) => void>();
   const bIn = new Set<(env: Envelope) => void>();
@@ -88,8 +88,8 @@ describe('Transport request/response', () => {
       client.request('billing.getVisitorId', undefined)
     ]);
 
-    // Второй handler tick дёрнется первым (5ms < 30ms), но id'шники должны
-    // соответствовать своим request'ам — без cross-talk'а.
+    // The second handler tick fires first (5ms < 30ms), but the ids must
+    // match their requests — without cross-talk.
     expect(a).toBe('v1');
     expect(b).toBe('v2');
   });
@@ -182,9 +182,9 @@ describe('Transport request/response', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 
     const client = new TransportClient(() => clientCh);
-    // Тригерим ensureChannel через любой request.
+    // Trigger ensureChannel via any request.
     await client.request('billing.getVisitorId', undefined);
-    // Дать handshake-promise дотечь.
+    // Let the handshake promise settle.
     await new Promise((r) => setTimeout(r, 5));
 
     expect(warnSpy).toHaveBeenCalledWith(
@@ -205,8 +205,8 @@ describe('Transport request/response', () => {
     await client.request('billing.getVisitorId', undefined);
     await new Promise((r) => setTimeout(r, 5));
 
-    // Default handshake handler в TransportServer возвращает текущую версию —
-    // matching. Никаких warning'ов.
+    // The default handshake handler in TransportServer returns the current
+    // version — matching. No warnings.
     const protocolWarnings = warnSpy.mock.calls.filter((call) =>
       String(call[0]).includes('protocol version mismatch')
     );
@@ -232,11 +232,11 @@ describe('Transport request/response', () => {
     const client = new TransportClient(() => clientCh);
     const ctrl = new AbortController();
     const promise = client.request('billing.bootstrap', {}, { signal: ctrl.signal });
-    await new Promise((r) => setTimeout(r, 0)); // даём request долететь
+    await new Promise((r) => setTimeout(r, 0)); // let the request arrive
     ctrl.abort();
 
     await expect(promise).rejects.toThrow(/abort/i);
-    // Дать cancel-envelope долететь до server-side handler'а.
+    // Let the cancel envelope reach the server-side handler.
     await new Promise((r) => setTimeout(r, 0));
     expect(serverAborted).toBe(true);
   });
@@ -256,17 +256,17 @@ describe('Transport request/response', () => {
       clients.push(new TransportClient(() => clientCh));
     }
 
-    // Все клиенты делают request параллельно — никаких race'ов между id'шниками
-    // (request_id уникален per client).
+    // All clients make a request in parallel — no races between ids
+    // (request_id is unique per client).
     const results = await Promise.all(
       clients.map((c) => c.request('billing.getVisitorId', undefined))
     );
     expect(results).toEqual(Array(N).fill('shared-v'));
 
-    // Server видит все N подключений.
+    // The server sees all N connections.
     expect(server.connectionCount).toBe(N);
 
-    // Broadcast достигает всех.
+    // Broadcast reaches everyone.
     const received: number[] = [];
     clients.forEach((c, i) => {
       c.on('userChange', () => received.push(i));
@@ -275,14 +275,14 @@ describe('Transport request/response', () => {
     await new Promise((r) => setTimeout(r, 0));
     expect(received).toHaveLength(N);
 
-    // Закрываем половину каналов — server должен почистить connectionCount.
+    // Close half the channels — the server should clean up connectionCount.
     for (let i = 0; i < N / 2; i++) {
       channels[i].close();
     }
     await new Promise((r) => setTimeout(r, 0));
     expect(server.connectionCount).toBe(N / 2);
 
-    // Оставшиеся ещё работают.
+    // The remaining ones still work.
     const stillAlive = await clients[N - 1].request('billing.getVisitorId', undefined);
     expect(stillAlive).toBe('shared-v');
   });
@@ -291,7 +291,7 @@ describe('Transport request/response', () => {
     let factoryCalls = 0;
     const server = new TransportServer();
 
-    // Каждый раз factory выдаёт свежую пару, server.accept ловит свою половину.
+    // Each time the factory hands out a fresh pair, server.accept grabs its half.
     const factory = (): MessageChannel => {
       factoryCalls++;
       const [clientCh, serverCh] = pairChannels();
@@ -303,20 +303,20 @@ describe('Transport request/response', () => {
 
     const client = new TransportClient(factory);
 
-    // Первый запрос — factory зовётся, канал поднимается.
+    // First request — the factory is called, the channel comes up.
     const r1 = await client.request('billing.getVisitorId', undefined);
     expect(r1).toBe('v-1');
     expect(factoryCalls).toBe(1);
 
-    // Disconnect: эмулируем смерть SW — закрываем сервер-сторону всех
-    // активных каналов через broadcast destroy. Простой путь — найти клиент
-    // канал и закрыть его (это вызовет onDisconnect у TransportClient).
-    // В этой in-memory имплементации canale.close() закроет обе стороны.
-    // Дёргаем close через приватку — публичной нет, но destroy не подходит
-    // (он блокирует следующие request'ы).
+    // Disconnect: we emulate the death of the SW — closing the server side of
+    // all active channels via broadcast destroy. The simple path is to find the
+    // client channel and close it (this triggers onDisconnect on TransportClient).
+    // In this in-memory implementation channel.close() closes both sides.
+    // We call close via the private field — there's no public one, but destroy
+    // doesn't fit (it blocks subsequent requests).
     (client as unknown as { channel: MessageChannel | null }).channel?.close();
 
-    // Pending in-flight нет; следующий запрос должен поднять новый канал.
+    // No pending in-flight; the next request should bring up a new channel.
     const r2 = await client.request('billing.getVisitorId', undefined);
     expect(r2).toBe('v-2');
     expect(factoryCalls).toBe(2);

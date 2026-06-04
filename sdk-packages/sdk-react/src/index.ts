@@ -2,16 +2,16 @@
 
 // Public surface of @monetize.software/sdk-react.
 //
-// Директива `'use client'` сверху файла маркирует весь package как
-// client-only для bundler'ов RSC-aware фреймворков (Next.js App Router,
-// Remix RSC). Хост может импортировать `PaywallProvider`/хуки прямо в
-// server component — bundler сам пересечёт client-boundary без обёртки
-// «'use client'»-файлом.
+// The `'use client'` directive at the top of the file marks the whole package
+// as client-only for the bundlers of RSC-aware frameworks (Next.js App Router,
+// Remix RSC). The host can import `PaywallProvider`/hooks directly into a
+// server component — the bundler crosses the client boundary itself without a
+// wrapping 'use client' file.
 //
-// Без директивы Next.js App Router потребовал бы от консьюмера обернуть
-// провайдер в собственный 'use client'-компонент. С ней — нет.
-// Эта директива игнорируется Vite/CRA-бандлерами и не ломает non-Next.js
-// сценарии.
+// Without the directive, Next.js App Router would require the consumer to wrap
+// the provider in their own 'use client' component. With it — they don't.
+// This directive is ignored by Vite/CRA bundlers and does not break non-Next.js
+// scenarios.
 
 export { PaywallProvider, type PaywallProviderProps } from './PaywallProvider';
 export { usePaywall } from './hooks/usePaywall';
@@ -51,7 +51,7 @@ export {
 
 // Type re-exports for ergonomics — host code can `import type { ... } from
 // '@monetize.software/sdk-react'` without a second import from the core SDK.
-// Single source of truth остаётся `@monetize.software/sdk` — здесь только
+// The single source of truth remains `@monetize.software/sdk` — this is only a
 // pass-through.
 export type {
   PaywallUI,

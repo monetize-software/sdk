@@ -1,6 +1,6 @@
-// Realistic bootstrap fixture для e2e и integration тестов. Mirror'ит
-// shape, который реально приходит от prod-paywall'а (id=3 Stripe-test'а),
-// чтобы тесты ходили по тем же code-path'ам что и юзер.
+// Realistic bootstrap fixture for e2e and integration tests. Mirrors the
+// shape that actually comes from the prod paywall (id=3 Stripe-test),
+// so tests exercise the same code-paths as a real user.
 
 export interface RealisticBootstrapOptions {
   withTrial?: boolean;
@@ -19,7 +19,7 @@ export function buildRealisticBootstrap(opts: RealisticBootstrapOptions = {}): u
     { type: 'heading', text: 'Get a plan to continue using our service', level: 2 },
     {
       type: 'price_grid',
-      // Минимально для рендера.
+      // Minimal for rendering.
       groups: [
         { id: 'monthly', label: 'per month' },
         { id: 'yearly', label: 'per year' }
@@ -28,7 +28,7 @@ export function buildRealisticBootstrap(opts: RealisticBootstrapOptions = {}): u
   ];
 
   if (opts.withCurrentSession) {
-    // Этот блок выводит Restore purchases / Contact Support ссылки.
+    // This block renders the Restore purchases / Contact Support links.
     blocks.push({ type: 'current_session' });
   }
   if (opts.withAuthPanel) {

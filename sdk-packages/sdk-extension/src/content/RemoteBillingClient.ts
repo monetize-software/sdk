@@ -1,9 +1,9 @@
-// RemoteBillingClient — структурный совместимец BillingClient, который
-// проксирует все методы в offscreen через TransportClient. Public API
-// идентичен (host пишет тот же код, что для @monetize.software/sdk), реализация
-// другая. Sync-getCached* остаются sync — ходят в локальный mirror, который
-// обновляется (a) ответами на async-методы и (b) broadcast-событиями
-// userChange/balancesChange.
+// RemoteBillingClient — a structural twin of BillingClient that proxies all
+// methods to offscreen through TransportClient. The public API is identical
+// (the host writes the same code as for @monetize.software/sdk), only the
+// implementation differs. Sync getCached* methods stay sync — they read from a
+// local mirror that is updated by (a) responses to async methods and (b) the
+// userChange/balancesChange broadcast events.
 
 import type {
   Balance,
@@ -34,23 +34,23 @@ export class RemoteBillingClient {
   readonly paywallId: string;
   readonly apiOrigin: string | undefined;
 
-  // Локальные mirror'ы. Источник правды — offscreen; mirror нужен только
-  // чтобы getCached* оставались sync. Updated после каждого async-ответа +
-  // на каждом broadcast-событии.
+  // Local mirrors. The source of truth is offscreen; the mirror exists only so
+  // that getCached* methods stay sync. Updated after every async response and
+  // on every broadcast event.
   private cachedBootstrap: PaywallBootstrap | null = null;
   private cachedUser: PaywallUser | null = null;
   private cachedBalances: Balance[] | null = null;
   private identity: Identity | null = null;
-  /** Storage proxy через transport: get/set/remove идут в offscreen'овский
-   *  StorageAdapter (single source of truth для всех вкладок). Trial-state
-   *  PaywallUI пишет сюда — все табы видят один и тот же counter, не
-   *  drift'ит между вкладками.
+  /** Storage proxy over transport: get/set/remove go to the offscreen
+   *  StorageAdapter (single source of truth for all tabs). PaywallUI writes
+   *  trial state here — all tabs see the same counter and it doesn't drift
+   *  between them.
    *
-   *  Race-окно read-modify-write всё ещё существует (две вкладки одновременно
-   *  читают N → пишут N-1, drift 1). Для exact atomicity нужен Phase 9:
-   *  TrialStore целиком переехать в offscreen и делать recordBlock как
-   *  single-handler с одной atomic-операцией. Это редкий edge case
-   *  (одновременное открытие пейвола в нескольких вкладках в рамках мс). */
+   *  A read-modify-write race window still exists (two tabs simultaneously read
+   *  N → write N-1, drift of 1). Exact atomicity requires Phase 9: move the
+   *  entire TrialStore into offscreen and do recordBlock as a single handler
+   *  with one atomic operation. This is a rare edge case (opening the paywall
+   *  in multiple tabs within milliseconds). */
   private remoteStorageAdapter: StorageAdapter;
 
   private userListeners = new Set<UserListener>();
@@ -74,9 +74,9 @@ export class RemoteBillingClient {
       removeItem: async (key) => {
         await this.transport.request('storage.remove', { key });
       }
-      // watch не реализуем — для cross-context уведомлений consumer'ы (AuthClient,
-      // TrialStore) подписываются на broadcast-events напрямую через transport.
-      // Если когда-то понадобится — добавим storage.watch broadcast.
+      // We don't implement watch — for cross-context notifications consumers
+      // (AuthClient, TrialStore) subscribe to broadcast events directly through
+      // transport. If it's ever needed, we'll add a storage.watch broadcast.
     };
 
     this.unsubUserBroadcast = this.transport.on('userChange', (user) => {
@@ -105,14 +105,14 @@ export class RemoteBillingClient {
     return this.cachedBootstrap;
   }
 
-  /** Подписка на bootstrap-state. Структурно совместима с
-   *  `BillingClient.onBootstrapChange` — те же микротаск-семантики для initial
-   *  snapshot. В extension-режиме offscreen пока не broadcast'ит bootstrapChange,
-   *  поэтому listener срабатывает только на self-инициированные `bootstrap()`
-   *  внутри этого RemoteBillingClient'а (popup перезапрашивает bootstrap → mirror
-   *  обновляется → listener вызывается). Cross-surface revalidate (другая вкладка
-   *  обновила bootstrap) не доезжает до popup'а — для этого нужен отдельный
-   *  bootstrapChange-broadcast в protocol.ts/server.ts. */
+  /** Subscribe to bootstrap state. Structurally compatible with
+   *  `BillingClient.onBootstrapChange` — same microtask semantics for the
+   *  initial snapshot. In extension mode offscreen does not yet broadcast
+   *  bootstrapChange, so the listener fires only on self-initiated `bootstrap()`
+   *  calls within this RemoteBillingClient (popup re-fetches bootstrap → mirror
+   *  updates → listener fires). A cross-surface revalidate (another tab updated
+   *  bootstrap) does not reach the popup — that would require a separate
+   *  bootstrapChange broadcast in protocol.ts/server.ts. */
   onBootstrapChange(
     cb: BootstrapListener,
     opts: { immediate?: 'microtask' | 'sync' | 'none' } = {}
@@ -138,21 +138,21 @@ export class RemoteBillingClient {
     };
   }
 
-  /** Шорткат над `bootstrap()` — возвращает цены пейвола (locale-оверрайды
-   *  уже применены в offscreen'е). Те же кэш-семантики, что у `bootstrap()`. */
+  /** Shortcut over `bootstrap()` — returns the paywall prices (locale overrides
+   *  already applied in offscreen). Same caching semantics as `bootstrap()`. */
   async getPrices(opts: { force?: boolean; signal?: AbortSignal } = {}): Promise<PaywallPrice[]> {
     const b = await this.bootstrap(opts);
     return b.prices;
   }
 
-  /** Sync-снимок цен из локального mirror'а bootstrap'а. null = ещё не грузили. */
+  /** Sync snapshot of prices from the local bootstrap mirror. null = not loaded yet. */
   getCachedPrices(): PaywallPrice[] | null {
     return this.cachedBootstrap?.prices ?? null;
   }
 
-  /** Sync-снимок офферов. null = bootstrap не загружали, [] = пейвол без офферов.
-   *  Серверный таргетинг (страны/email/режим) уже применён бэком — наружу
-   *  выезжает только то, что применимо к текущему юзеру. */
+  /** Sync snapshot of offers. null = bootstrap not loaded, [] = paywall has no
+   *  offers. Server-side targeting (countries/email/mode) is already applied by
+   *  the backend — only what's applicable to the current user is exposed. */
   getCachedOffers(): PaywallOffer[] | null {
     return this.cachedBootstrap?.offers ?? null;
   }
@@ -179,9 +179,9 @@ export class RemoteBillingClient {
     return this.cachedUser;
   }
 
-  /** Подписка на user-state. Mirror'имся на broadcast'ы offscreen'а; initial
-   *  snapshot отдаётся через microtask из локального cache (если есть) —
-   *  ровно как в BillingClient.onUserChange. Возвращает функцию отписки. */
+  /** Subscribe to user state. We mirror the offscreen broadcasts; the initial
+   *  snapshot is delivered via microtask from the local cache (if present) —
+   *  exactly like in BillingClient.onUserChange. Returns an unsubscribe function. */
   onUserChange(
     cb: UserListener,
     opts: { immediate?: 'microtask' | 'sync' | 'none' } = {}
@@ -267,10 +267,10 @@ export class RemoteBillingClient {
 
   // === Customer portal: list/cancel purchases ===
 
-  /** Rich-shape список покупок юзера (с ценой, валютой, interval, discount,
-   *  cancel-метаданными). Через offscreen — там настоящий BillingClient
-   *  ходит на `/api/v1/paywall/[id]/user` с Bearer'ом. Полезно для
-   *  customer-portal UI: cards + Cancel/Renew кнопки. */
+  /** Rich-shape list of the user's purchases (with price, currency, interval,
+   *  discount, cancel metadata). Through offscreen — there the real BillingClient
+   *  hits `/api/v1/paywall/[id]/user` with a Bearer token. Useful for the
+   *  customer-portal UI: cards + Cancel/Renew buttons. */
   async listPurchases(opts: { signal?: AbortSignal } = {}): Promise<PaywallPurchaseDetailed[]> {
     const result = await this.transport.request('billing.listPurchases', undefined, {
       signal: opts.signal
@@ -278,9 +278,9 @@ export class RemoteBillingClient {
     return [...result];
   }
 
-  /** Саппорт-тикет через offscreen'овский BillingClient. File-объекты
-   *  переживают chrome.runtime structured-clone (port forward'ит as-is) —
-   *  Bearer-токен/email-substitution делает offscreen, как в обычном
+  /** Support ticket through the offscreen BillingClient. File objects survive
+   *  chrome.runtime structured-clone (the port forwards them as-is) — the
+   *  Bearer token / email substitution is done by offscreen, as in the regular
    *  BillingClient. */
   async createSupportTicket(payload: {
     subject: string;
@@ -291,9 +291,10 @@ export class RemoteBillingClient {
     return this.transport.request('billing.createSupportTicket', payload);
   }
 
-  /** Отменить подписку через бэк. По умолчанию cancel в конце текущего
-   *  периода (юзер сохраняет access до renewal date'ы). reason обязательна
-   *  (валидируется бэком) — собирается через select причин в host-UI. */
+  /** Cancel a subscription through the backend. By default cancels at the end
+   *  of the current period (the user keeps access until the renewal date).
+   *  reason is required (validated by the backend) — collected via a reason
+   *  selector in the host UI. */
   async cancelSubscription(params: {
     subscriptionId: string;
     reason: string;
@@ -312,18 +313,18 @@ export class RemoteBillingClient {
 
   // === Storage ===
 
-  /** PaywallUI просит storage у billing-клиента для TrialStore и других
-   *  consumer'ов. Возвращает proxy: get/set/remove идут через transport
-   *  в offscreen'овский storage = single source of truth для всех вкладок. */
+  /** PaywallUI asks the billing client for storage for TrialStore and other
+   *  consumers. Returns a proxy: get/set/remove go through transport to the
+   *  offscreen storage = single source of truth for all tabs. */
   getStorage(): StorageAdapter {
     return this.remoteStorageAdapter;
   }
 
-  /** Factory-метод для PaywallUI: вместо локального createTrialStore'а на
-   *  storage-proxy, возвращаем RemoteTrialStore — он шлёт каждую операцию
-   *  одним атомарным RPC в offscreen, где navigator.locks сериализуют
-   *  read-modify-write. PaywallUI duck-types этот метод и предпочитает его
-   *  локальной фабрике, если он есть. */
+  /** Factory method for PaywallUI: instead of a local createTrialStore over the
+   *  storage proxy, we return a RemoteTrialStore — it sends each operation as
+   *  one atomic RPC to offscreen, where navigator.locks serializes the
+   *  read-modify-write. PaywallUI duck-types this method and prefers it over the
+   *  local factory when present. */
   createTrialStore(config: TrialConfig): TrialStore {
     return new RemoteTrialStore(this.transport, this.paywallId, config);
   }
@@ -339,9 +340,9 @@ export class RemoteBillingClient {
     await this.transport.request('billing.setIdentity', { identity });
   }
 
-  /** Подгрузить identity с offscreen'а. Используется при первом подключении
-   *  content-script'а — если другая вкладка уже залогинила юзера, текущая
-   *  тут же подхватит identity без ожидания authChange. */
+  /** Load identity from offscreen. Used on the first connection of a
+   *  content-script — if another tab has already logged the user in, the current
+   *  one immediately picks up the identity without waiting for authChange. */
   async syncIdentity(): Promise<Identity | null> {
     const result = await this.transport.request('billing.getIdentity', undefined);
     this.identity = result;
@@ -373,10 +374,10 @@ export class RemoteBillingClient {
     }
   }
 
-  /** Обновить mirror user'а и эмитнуть listener'ам если он реально изменился.
-   *  Используется и для self-инициированных RPC (bootstrap/getUser), и для
-   *  broadcast'ов от offscreen — чтобы host'овский onUserChange handler
-   *  получил signal независимо от того, кто триггернул обновление. */
+  /** Update the user mirror and emit to listeners if it actually changed. Used
+   *  both for self-initiated RPCs (bootstrap/getUser) and for broadcasts from
+   *  offscreen — so the host's onUserChange handler gets a signal regardless of
+   *  who triggered the update. */
   private applyUser(user: PaywallUser): void {
     if (sameUser(this.cachedUser, user)) return;
     this.cachedUser = user;

@@ -1,10 +1,10 @@
 /**
- * Static-translations для it. Сгенерировано из:
- *  - `online/lang/static-translations.ts` (legacy, через KEY_MAP)
- *  - `tools/sdk-translations.mjs` (SDK-specific строки)
+ * Static-translations for it. Generated from:
+ *  - `online/lang/static-translations.ts` (legacy, via KEY_MAP)
+ *  - `tools/sdk-translations.mjs` (SDK-specific strings)
  *
- * Не править вручную — изменения теряются при следующем `node tools/gen-locales.mjs`.
- * Чтобы исправить перевод — править legacy/sdk-translations.mjs и регенерить.
+ * Do not edit by hand — changes are lost on the next `node tools/gen-locales.mjs`.
+ * To fix a translation, edit legacy/sdk-translations.mjs and regenerate.
  */
 const it = {
   'anon.description_default': 'Configurazione della sessione ospite…',
@@ -52,7 +52,6 @@ const it = {
   'auth.reset_password_title': 'Reimposta password',
   'auth.reset_sent_message': 'Se l\'email esiste, è stato inviato un codice di reimpostazione.',
   'auth.reset_sent_subtitle': 'Abbiamo inviato un link per reimpostare la password. Segui le istruzioni nell\'email.',
-  'auth.signup_sent_subtitle': 'Ti abbiamo inviato un link di conferma via email. Cliccalo per attivare il tuo account, poi accedi.',
   'auth.restore_purchases_heading': 'Ripristina Acquisti',
   'auth.restore_purchases_subheading': 'La preghiamo di accedere per ripristinare i suoi acquisti.',
   'auth.send_reset': 'Invia E-mail di Ripristino',
@@ -81,9 +80,9 @@ const it = {
   'modal.continue': 'Continua',
   'modal.error_generic': 'Qualcosa è andato storto',
   'modal.loading': 'Caricamento…',
-  'modal.purchase_restored_subtitle': 'Bentornato — il tuo abbonamento è già attivo.',
-  'modal.purchase_restored_title': 'Abbonamento ripristinato',
-  'modal.purchase_success_subtitle': 'Il tuo abbonamento è ora attivo.',
+  'modal.purchase_restored_subtitle': 'Tutto pronto — buon divertimento!',
+  'modal.purchase_restored_title': 'Bentornato',
+  'modal.purchase_success_subtitle': 'Tutto pronto — buon divertimento!',
   'modal.purchase_success_title': 'Pagamento ricevuto',
   'modal.verifying_subscription': 'Verifica dell\'abbonamento…',
   'nav.back': '← Indietro',

@@ -6,14 +6,14 @@ import { useI18n } from '../../i18n';
 
 type CurrentSessionBlock = Extract<LayoutBlock, { type: 'current_session' }>;
 
-// Footer под cta_button. Зеркалит legacy v2 PaywallCurrentSession:
-//   - залогинен → "Signed in as <email>" + Sign out (вызывает auth.signOut())
+// Footer below cta_button. Mirrors legacy v2 PaywallCurrentSession:
+//   - signed in → "Signed in as <email>" + Sign out (calls auth.signOut())
 //                + Contact Support
-//   - гость    → "Restore purchases" + Contact Support
-// Без AuthClient в managed-режиме — рендерим только Restore + Support
-// (sign out нечему делать, restore без auth-клиента no-op'нет в handleAction).
-// Анон-сессия (is_anonymous=true) трактуется как «нет логина»: анон существует
-// только ради api-gateway-токена, у юзера нет email и UX-смысла «Signed in».
+//   - guest     → "Restore purchases" + Contact Support
+// Without an AuthClient in managed mode we render only Restore + Support
+// (there is nothing to sign out, and restore without an auth client is a no-op in handleAction).
+// An anonymous session (is_anonymous=true) is treated as "not signed in": the anon
+// exists only for the api-gateway token, the user has no email and "Signed in" makes no UX sense.
 export function CurrentSession({ ctx }: BlockProps<CurrentSessionBlock>) {
   const { t } = useI18n();
   const session = ctx.authSession;
@@ -29,15 +29,15 @@ export function CurrentSession({ ctx }: BlockProps<CurrentSessionBlock>) {
       try {
         await auth.signOut();
       } catch {
-        /* signOut ошибки безшумные — onAuthChange всё равно отработает на refresh-fail */
+        /* signOut errors are silent — onAuthChange will fire anyway on refresh-fail */
       } finally {
         setSigningOut(false);
       }
     };
 
-    // "Signed in as <email>" — рендерим вручную из двух частей, чтобы email
-    // оставался в bold-вёрстке. {email} placeholder в локали игнорируется —
-    // строка показывается до email, b-тег c email-ом идёт после.
+    // "Signed in as <email>" — rendered manually from two parts so the email
+    // stays in bold markup. The {email} placeholder in the locale is ignored —
+    // the string is shown before the email, and the b-tag with the email comes after.
     return (
       <div class="-mt-3 flex flex-col items-center gap-1.5 pt-1 text-center text-[13px] text-gray-500">
         <span>

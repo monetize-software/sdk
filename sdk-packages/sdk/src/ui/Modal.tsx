@@ -10,22 +10,23 @@ export interface ModalProps {
   onClose: () => void;
   labelledBy?: string;
   brandColor?: string | null;
-  /** Контент, который приклеивается сверху dialog'а внутри overlay (rounded-top,
-   *  с лёгким negative-margin для визуального overlap). Используется для
-   *  offer-countdown баннера (PaywallRoot решает рисовать его, если в
-   *  bootstrap.offers есть активный таймер). */
+  /** Content that sticks to the top of the dialog inside the overlay
+   *  (rounded-top, with a slight negative margin for a visual overlap). Used
+   *  for the offer-countdown banner (PaywallRoot decides to draw it if
+   *  bootstrap.offers has an active timer). */
   topBanner?: ComponentChildren;
-  /** Можно ли закрыть модалку: ESC, клик по overlay, крестик. По умолчанию true.
-   *  false — модалка остаётся открытой до явного host-close() / success-purchase. */
+  /** Whether the modal can be closed: ESC, overlay click, X button. Defaults to
+   *  true. false — the modal stays open until an explicit host-close() /
+   *  success-purchase. */
   allowClose?: boolean;
-  /** Скрыть X-крестик (но оставить ESC/overlay рабочими). Используется когда
-   *  view внутри модалки рисует свою Back-кнопку (AuthGate, SupportGate) —
-   *  две одновременные кнопки в правом верхнем углу путают и визуально
-   *  накладываются. */
+  /** Hide the X button (but keep ESC/overlay working). Used when a view inside
+   *  the modal draws its own Back button (AuthGate, SupportGate) — two
+   *  simultaneous buttons in the top-right corner confuse the user and overlap
+   *  visually. */
   hideCloseButton?: boolean;
-  /** Inline-режим: overlay позиционируется `absolute inset:0` относительно host'а
-   *  (вместо `fixed` относительно viewport'а), не лочит body-scroll. Для live-
-   *  preview редактора админки. */
+  /** Inline mode: the overlay is positioned `absolute inset:0` relative to the
+   *  host (instead of `fixed` relative to the viewport) and doesn't lock
+   *  body-scroll. For the admin panel editor's live-preview. */
   inline?: boolean;
   children: ComponentChildren;
 }
@@ -83,8 +84,8 @@ export function Modal({
     };
 
     document.addEventListener('keydown', onKey, true);
-    // Inline-preview не лочит body-scroll: host-страница (редактор) должна
-    // оставаться кликабельной/скроллабельной, пока модалка живёт inline.
+    // Inline-preview doesn't lock body-scroll: the host page (editor) must stay
+    // clickable/scrollable while the modal lives inline.
     const prevOverflow = document.body.style.overflow;
     if (!inline) document.body.style.overflow = 'hidden';
 
@@ -104,8 +105,9 @@ export function Modal({
 
   const accent = brandColor ?? '#3b82f6';
 
-  // Inline: overlay сидит в `absolute inset-0` host'а (host сам absolute в parent'е,
-  // см. mount.ts). Production: `fixed inset-0` относительно viewport'а.
+  // Inline: the overlay sits in the host's `absolute inset-0` (the host is
+  // itself absolute in its parent, see mount.ts). Production: `fixed inset-0`
+  // relative to the viewport.
   const overlayClass = `${inline ? 'absolute z-[1]' : 'fixed z-[2147483647]'} inset-0 flex items-center justify-center bg-slate-950/50 p-2 sm:p-4 backdrop-blur-md animate-[pw-fade-in_180ms_ease-out]`;
 
   return (
@@ -114,13 +116,14 @@ export function Modal({
       onClick={onBackdrop}
       data-pw-root
     >
-      {/* Wrapper над dialog'ом. topBanner (если передан) рендерится тут же,
-          приклеивается к верху dialog'а через `-mb-2 pb-5 rounded-t-xl
-          rounded-b-none` — даёт визуальный overlap (rounded-top банера и
-          rounded-top dialog'а скрыты под банером), как в легаси PaywallModal. */}
-      {/* --pw-accent определяется на wrapper'е (не на dialog'е) — чтобы
-          topBanner-sibling тоже его наследовал. Раньше переменная сидела на
-          dialog, и OfferTopBanner получал unstyled accent. */}
+      {/* Wrapper over the dialog. topBanner (if passed) renders right here,
+          sticking to the top of the dialog via `-mb-2 pb-5 rounded-t-xl
+          rounded-b-none` — giving a visual overlap (the banner's rounded-top
+          and the dialog's rounded-top are hidden under the banner), as in the
+          legacy PaywallModal. */}
+      {/* --pw-accent is defined on the wrapper (not on the dialog) — so the
+          topBanner sibling inherits it too. Previously the variable sat on the
+          dialog, and OfferTopBanner got an unstyled accent. */}
       <div
         class="relative flex w-full max-w-[400px] flex-col animate-[pw-scale-in_220ms_cubic-bezier(0.16,1,0.3,1)]"
         style={{ '--pw-accent': accent } as unknown as Record<string, string>}
@@ -132,30 +135,31 @@ export function Modal({
           aria-modal="true"
           aria-labelledby={labelledBy}
           tabIndex={-1}
-          // max-h ограничивает высоту вьюпортом (использует dvh для мобильных
-          // safe-area), flex-col + overflow на children даёт внутренний скролл
-          // когда контент выше viewport'а — критично для extension popup'ов
-          // (max 600px высоты) и узких контейнеров на сайтах.
+          // max-h caps the height at the viewport (uses dvh for the mobile
+          // safe-area); flex-col + overflow on children gives an inner scroll
+          // when content is taller than the viewport — critical for extension
+          // popups (max 600px tall) and narrow containers on websites.
           class="relative flex max-h-[calc(100dvh-1rem)] sm:max-h-[calc(100dvh-2rem)] w-full flex-col overflow-hidden rounded-xl bg-white outline-none"
           style={{
             boxShadow:
               '0 20px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1)'
           }}
         >
-          {/* children сами структурируют scroll/footer-зоны (см. Renderer.tsx):
-              flex-1 min-h-0 overflow-y-auto для scrollable, остаток — footer.
-              Раньше Modal оборачивал в обёртку overflow-y-auto, но это не
-              позволяло прибить CTA-footer к нижней кромке без overlap скролла
-              с footer'ом. */}
+          {/* children structure the scroll/footer zones themselves (see
+              Renderer.tsx): flex-1 min-h-0 overflow-y-auto for the scrollable
+              part, the rest is the footer. Previously Modal wrapped everything
+              in an overflow-y-auto wrapper, but that didn't let us pin the
+              CTA footer to the bottom edge without the scroll overlapping the
+              footer. */}
           {children}
           {allowClose && !hideCloseButton ? (
             <button
               type="button"
               onClick={onClose}
               aria-label={t('modal.close_aria', 'Close')}
-              // Absolute относительно dialog'а (не scrollable area) — кнопка
-              // всегда в правом верхнем углу dialog'а, не двигается со скроллом
-              // и не влияет на flow контента.
+              // Absolute relative to the dialog (not the scrollable area) — the
+              // button is always in the top-right corner of the dialog, doesn't
+              // move with the scroll, and doesn't affect the content flow.
               class="absolute right-3 top-3 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-white/80 text-gray-500 backdrop-blur-sm transition-colors hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--pw-accent)]"
             >
               <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">

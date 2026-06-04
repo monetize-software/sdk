@@ -1,19 +1,19 @@
-// Client-side транспорт. Используется в content-script'е (поверх chrome.runtime
-// port'а к SW) и в любом другом surface'е, который ходит к offscreen через
-// тот же роутер (popup, extension page, side panel).
+// Client-side transport. Used in the content-script (on top of the chrome.runtime
+// port to the SW) and in any other surface that talks to offscreen through
+// the same router (popup, extension page, side panel).
 //
-// Контракт:
-//  - request<K>(kind, params, signal?) — запрос с типизированным результатом.
-//    На disconnect канала pending request'ы reject'аются с reconnect-error;
-//    next call воссоздаст канал через ChannelFactory и продолжит работу.
-//  - on<K>(kind, handler) — подписка на broadcast от сервера. Переподписки
-//    переживают reconnect автоматически — handler'ы хранятся локально, а
-//    re-subscribe на сервере не требуется (сервер всегда broadcast'ит всем
-//    подключённым каналам).
+// Contract:
+//  - request<K>(kind, params, signal?) — a request with a typed result.
+//    On channel disconnect pending requests are rejected with a reconnect-error;
+//    the next call recreates the channel via ChannelFactory and resumes work.
+//  - on<K>(kind, handler) — subscribe to a broadcast from the server. Subscriptions
+//    survive reconnect automatically — handlers are stored locally, and
+//    re-subscribing on the server is not required (the server always broadcasts to all
+//    connected channels).
 //
-// Reconnect стратегия: lazy. Канал поднимается при первом request/on, мёртвый —
-// пересоздаётся в момент следующего запроса. Никаких exponential backoff'ов
-// в фоне — extension контекст это не любит (расход CPU + батарея).
+// Reconnect strategy: lazy. The channel is brought up on the first request/on, a dead one
+// is recreated at the moment of the next request. No exponential backoffs
+// in the background — the extension context dislikes that (CPU + battery drain).
 
 import type {
   EventEnvelope,
@@ -44,15 +44,15 @@ export class TransportClient {
   private listeners = new Map<EventKind, Set<(payload: unknown) => void>>();
   private destroyed = false;
   private nextId = 0;
-  /** Уникальный ID клиента — отправляется в handshake'е, server может логировать
-   *  для отладки connection-flap'а. */
+  /** Unique client ID — sent in the handshake, the server can log it
+   *  for debugging connection-flap. */
   private readonly clientId = `c-${Math.random().toString(36).slice(2, 10)}`;
 
   constructor(private readonly factory: ChannelFactory) {}
 
-  /** Гарантирует наличие живого канала. Lazy — поднимается при первом request.
-   *  Сразу после connect'а fire-and-forget шлёт handshake — на mismatch
-   *  логируем warning, но не блокируем дальнейшие запросы. */
+  /** Ensures a live channel exists. Lazy — brought up on the first request.
+   *  Right after connect it fire-and-forget sends a handshake — on mismatch
+   *  we log a warning but do not block further requests. */
   private ensureChannel(): MessageChannel {
     if (this.destroyed) throw new Error('TransportClient destroyed');
     if (this.channel) return this.channel;
@@ -64,9 +64,9 @@ export class TransportClient {
     const offDisc = channel.onDisconnect(() => this.handleDisconnect());
     this.channelDisposers = [offMsg, offDisc];
 
-    // Async, без await: основные запросы могут параллельно идти. На mismatch'е
-    // ничего не ломаем — server может быть на другой минорной версии (например,
-    // host обновил sdk-extension но не sdk).
+    // Async, without await: the main requests can proceed in parallel. On a mismatch
+    // we break nothing — the server may be on a different minor version (e.g.,
+    // the host updated sdk-extension but not sdk).
     void this.request('handshake', {
       protocolVersion: PROTOCOL_VERSION,
       clientId: this.clientId
@@ -80,7 +80,7 @@ export class TransportClient {
         }
       })
       .catch(() => {
-        // Server без handshake-handler'а или умер — best-effort, не падаем.
+        // Server without a handshake-handler or dead — best-effort, we don't fail.
       });
 
     return channel;
@@ -96,8 +96,8 @@ export class TransportClient {
       if (envelope.ok) {
         pending.resolve(envelope.result);
       } else {
-        // Narrowing на discriminated union с generic'ом теряется в strict-режиме —
-        // явный cast стабильнее, ok===false уже проверен.
+        // Narrowing on a discriminated union with a generic is lost in strict mode —
+        // an explicit cast is more reliable, ok===false is already checked.
         pending.reject(reconstructError((envelope as ResponseErr).error));
       }
       return;
@@ -105,7 +105,7 @@ export class TransportClient {
     if (envelope.type === 'event') {
       const set = this.listeners.get(envelope.kind);
       if (!set) return;
-      // Snapshot, чтобы handler мог отписать сам себя без NaN-итерации.
+      // Snapshot, so a handler can unsubscribe itself without breaking iteration.
       for (const handler of [...set]) {
         try {
           handler(envelope.payload);
@@ -120,7 +120,7 @@ export class TransportClient {
     for (const fn of this.channelDisposers) fn();
     this.channelDisposers = [];
     this.channel = null;
-    // Reject все in-flight — они идут с reconnect-кодом, host может ретрайнуть.
+    // Reject all in-flight — they carry a reconnect-code, the host can retry.
     const pending = Array.from(this.pending.values());
     this.pending.clear();
     for (const p of pending) {
@@ -155,13 +155,13 @@ export class TransportClient {
         pending.abortListener = () => {
           if (this.pending.delete(id)) {
             reject(new DOMException('Aborted', 'AbortError'));
-            // Послать cancel в offscreen чтобы там тоже abort'нуть underlying
-            // fetch. Best-effort: канал мог отвалиться — тогда send бросит,
-            // но pending уже удалён, юзер уже получил abort error.
+            // Send cancel to offscreen so it aborts the underlying
+            // fetch there too. Best-effort: the channel may have dropped — then send throws,
+            // but pending is already removed, the user already got the abort error.
             try {
               channel.send({ type: 'cancel', id });
             } catch {
-              /* channel dead — server'у уже всё равно */
+              /* channel dead — the server no longer cares */
             }
           }
         };
@@ -198,8 +198,8 @@ export class TransportClient {
     const wrapped = handler as (payload: unknown) => void;
     set.add(wrapped);
 
-    // Lazy ensureChannel: подписка не требует немедленного канала, но первый
-    // event может прилететь только если канал жив. Поднимаем заранее.
+    // Lazy ensureChannel: a subscription does not require an immediate channel, but the first
+    // event can only arrive if the channel is alive. Bring it up ahead of time.
     this.ensureChannel();
 
     return () => {

@@ -5,12 +5,12 @@ import { useI18n, type TFn } from '../../i18n';
 
 type OfferBannerBlock = Extract<LayoutBlock, { type: 'offer_banner' }>;
 
-// Хранилище старта для относительных таймеров (offer.duration_minutes). Ключ
-// привязан к offer.id — повторное открытие пейвола не сбрасывает countdown,
-// юзер не может «фармить» offer-баннер бесконечно. Ключ остаётся в storage
-// и после expiry — это forever-marker «offer уже стартовал для юзера»; без
-// него повторное открытие после истечения снова записало бы свежий `start`
-// и countdown перезапустился бы с нуля.
+// Start storage for relative timers (offer.duration_minutes). The key is
+// tied to offer.id — reopening the paywall does not reset the countdown,
+// and the user cannot "farm" the offer banner forever. The key stays in storage
+// even after expiry — it is a forever-marker "the offer has already started for the user";
+// without it, reopening after expiry would write a fresh `start` again
+// and the countdown would restart from zero.
 const STORAGE_KEY = (offerId: string): string => `pw-offer-${offerId}-start`;
 
 export interface TimeLeft {
@@ -35,9 +35,9 @@ function calcTimeLeft(endMs: number): TimeLeft {
   };
 }
 
-// Резолвит endMs: expires_at (абс. серверная дата) — приоритет, иначе
-// duration_minutes от первого open'а пейвола, сохранённого в localStorage.
-// null — offer без таймера, banner не нужен.
+// Resolves endMs: expires_at (absolute server date) takes priority, otherwise
+// duration_minutes from the first paywall open, stored in localStorage.
+// null — an offer without a timer, no banner needed.
 function resolveEndMs(offer: PaywallOffer): number | null {
   if (offer.expires_at) {
     const t = Date.parse(offer.expires_at);
@@ -54,7 +54,7 @@ function resolveEndMs(offer: PaywallOffer): number | null {
       }
       return Date.parse(startIso) + offer.duration_minutes * 60_000;
     } catch {
-      // Storage недоступен (private mode / SSR) — relative timer бесполезен.
+      // Storage unavailable (private mode / SSR) — a relative timer is useless.
       return null;
     }
   }
@@ -70,14 +70,14 @@ export function pickActiveOffer(
     const match = offers.find((o) => o.id === preferredId);
     if (match) return match;
   }
-  // Первый offer с активным таймером. Без таймера — banner не имеет смысла
-  // (offer-without-urgency показывается через PriceGrid discount badge).
+  // The first offer with an active timer. Without a timer the banner makes no sense
+  // (an offer-without-urgency is shown via the PriceGrid discount badge).
   return offers.find((o) => o.expires_at || o.duration_minutes) ?? null;
 }
 
-/** Hook: tick'ает каждую секунду пока offer не expired. Возвращает null если
- *  offer некорректен (нет таймера). Используется и в layout-block OfferBanner,
- *  и в top-tab OfferTopBanner из PaywallRoot. */
+/** Hook: ticks every second until the offer is expired. Returns null if the
+ *  offer is invalid (no timer). Used both in the layout-block OfferBanner
+ *  and in the top-tab OfferTopBanner from PaywallRoot. */
 export function useOfferCountdown(offer: PaywallOffer | null): TimeLeft | null {
   const endMs = offer ? resolveEndMs(offer) : null;
   const [timeLeft, setTimeLeft] = useState<TimeLeft | null>(() =>
@@ -95,10 +95,10 @@ export function useOfferCountdown(offer: PaywallOffer | null): TimeLeft | null {
     const timer = setInterval(() => {
       const next = calcTimeLeft(endMsRef.current ?? 0);
       setTimeLeft(next);
-      // НЕ удаляем `pw-offer-<id>-start` при expiry — ключ нужен как
-      // forever-marker «offer уже стартовал»; иначе re-open пейвола после
-      // истечения запишет свежий start и countdown стартанёт с нуля
-      // (offer-farming bug). Достаточно остановить тик.
+      // Do NOT delete `pw-offer-<id>-start` on expiry — the key is needed as a
+      // forever-marker "the offer has already started"; otherwise re-opening the paywall after
+      // expiry would write a fresh start and the countdown would restart from zero
+      // (offer-farming bug). It is enough to stop the tick.
       if (next.expired) clearInterval(timer);
     }, 1000);
     return () => clearInterval(timer);
@@ -164,8 +164,8 @@ function Cell({ children }: { children: preact.ComponentChildren }) {
   );
 }
 
-/** Top-tab variant: приклеивается к верху Modal'а как ярлычок-вкладка
- *  (rounded-top, negative margin-bottom для overlap). Зеркало легаси
+/** Top-tab variant: sticks to the top of the Modal as a little tab label
+ *  (rounded-top, negative margin-bottom for overlap). Mirrors the legacy
  *  PaywallModal:`offer-banner-enter -mb-2 pb-5 rounded-tl-xl rounded-tr-xl`. */
 export function OfferTopBanner({ offer }: { offer: PaywallOffer }) {
   const { t } = useI18n();

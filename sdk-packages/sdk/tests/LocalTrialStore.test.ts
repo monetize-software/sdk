@@ -38,7 +38,7 @@ describe('LocalTrialStore — opens mode', () => {
     s = await store.recordBlock();
     expect(s).toMatchObject({ blocked: false, remainingActions: 0 });
 
-    // Сheck после исчерпания возвращает blocked=false
+    // check after exhaustion returns blocked=false
     s = await store.check();
     expect(s).toMatchObject({ blocked: false, remainingActions: 0 });
   });
@@ -53,7 +53,7 @@ describe('LocalTrialStore — opens mode', () => {
   });
 
   it('reads v2 storage key (legacy compat)', async () => {
-    // Юзер мигрировал с v2: в storage уже лежит paywall-${id}-skip-times.
+    // The user migrated from v2: storage already holds paywall-${id}-skip-times.
     const adapter = memoryAdapter();
     await adapter.setItem(`paywall-${PAYWALL}-skip-times`, '2');
     const store = new LocalTrialStore(adapter, PAYWALL, config);
@@ -100,7 +100,7 @@ describe('LocalTrialStore — time mode', () => {
 
     vi.advanceTimersByTime(60 * 60 * 1000); // +1h
     const s2 = (await store.recordBlock()) as TimeTrialStatus;
-    // startedAt не перезаписался — окно триала зафиксировано первым open()
+    // startedAt wasn't overwritten — the trial window is fixed by the first open()
     expect(s2.startedAt).toBe(s1.startedAt);
     expect(s2.remainingMs).toBe(23 * 60 * 60 * 1000);
   });

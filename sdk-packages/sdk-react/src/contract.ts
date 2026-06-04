@@ -1,29 +1,29 @@
 /**
- * Type-level контракт между sdk-react и @monetize.software/sdk.
+ * Type-level contract between sdk-react and @monetize.software/sdk.
  *
- * Этот файл компилируется в TS-сборке (`pnpm typecheck`), но не экспортируется
- * наружу — это «assertion'ы», а не runtime-код. Каждая проверка фиксирует
- * конкретное ожидание относительно публичной поверхности SDK, на которое
- * полагаются Provider / hooks / components.
+ * This file is compiled in the TS build (`pnpm typecheck`) but is not exported
+ * outside — these are "assertions", not runtime code. Each check pins down a
+ * concrete expectation about the SDK's public surface that the Provider /
+ * hooks / components rely on.
  *
- * Если в SDK кто-то:
- *   - переименует/удалит публичный метод PaywallUI,
- *   - поменяет сигнатуру конструктора `new PaywallUI(opts)`,
- *   - выкинет поле из `PaywallStateSnapshot` / `PaywallAccessResult`,
- *   - изменит payload-тип события (например, `purchase_completed`),
+ * If someone in the SDK:
+ *   - renames/removes a public PaywallUI method,
+ *   - changes the constructor signature `new PaywallUI(opts)`,
+ *   - drops a field from `PaywallStateSnapshot` / `PaywallAccessResult`,
+ *   - changes an event's payload type (for example, `purchase_completed`),
  *
- * — `tsc --noEmit` в sdk-react падает на этом файле раньше, чем кто-то
- * заметит расхождение в проде. Это и есть «контракт»: эксплицитно
- * перечисленные точки опоры.
+ * — `tsc --noEmit` in sdk-react fails on this file before anyone notices the
+ * mismatch in prod. That's exactly the "contract": explicitly enumerated
+ * points of reliance.
  *
- * Дисциплина: при добавлении нового хука/компонента, который тянет что-то
- * новое из SDK, добавлять проверку сюда. Контракт должен быть проверяем
- * сам по себе, а не косвенно через успешный typecheck бизнес-кода (бизнес-
- * код может незаметно переехать на другую API-точку, и контракт по
- * фактическому использованию потеряет смысл).
+ * Discipline: when adding a new hook/component that pulls something new from
+ * the SDK, add a check here. The contract should be verifiable on its own, not
+ * indirectly through a successful typecheck of business code (business code
+ * can silently move to a different API point, and a contract based on actual
+ * usage would lose its meaning).
  *
- * Тип-имена с префиксом `_` намеренно — сигнализирует, что это assertion'ы
- * для компилятора, а не общедоступные алиасы.
+ * Type names prefixed with `_` are intentional — it signals that these are
+ * assertions for the compiler, not publicly available aliases.
  */
 
 import type {
@@ -40,16 +40,16 @@ import type {
 } from '@monetize.software/sdk';
 
 // -----------------------------------------------------------------------------
-// 1. Конструктор и публичные методы PaywallUI
+// 1. PaywallUI constructor and public methods
 // -----------------------------------------------------------------------------
 
-// new PaywallUI(opts: PaywallUIOptions) — Provider создаёт инстанс именно так.
+// new PaywallUI(opts: PaywallUIOptions) — that's exactly how the Provider creates the instance.
 type _AssertConstructor = ConstructorParameters<typeof PaywallUI> extends [PaywallUIOptions]
   ? true
   : false;
 
-// Методы, которые тянут хуки и компоненты. Если какой-то исчезнет — `keyof PaywallUI`
-// перестанет содержать этот ключ, и `_AssertMethods` станет `never`.
+// Methods that the hooks and components pull. If one disappears — `keyof PaywallUI`
+// will stop containing that key, and `_AssertMethods` becomes `never`.
 type RequiredMethods =
   | 'open'
   | 'openSupport'
@@ -71,54 +71,54 @@ type RequiredMethods =
   | 'getTrialStatus'
   | 'getVisibility'
   | 'destroy'
-  | 'billing'; // не метод, но публичное поле — нужно для billing.getCachedUser()
+  | 'billing'; // not a method, but a public field — needed for billing.getCachedUser()
 
-// `[X] extends [Y]` — отключаем distributive-conditional, иначе TS
-// раздробит union RequiredMethods и засчитает проверку true, даже если хотя бы
-// один из членов выпадет из `keyof PaywallUI`.
+// `[X] extends [Y]` — disables the distributive-conditional, otherwise TS
+// would split the RequiredMethods union and count the check as true even if at
+// least one member dropped out of `keyof PaywallUI`.
 type _AssertMethods = [RequiredMethods] extends [keyof PaywallUI] ? true : false;
 
-// `paywall.billing.getCachedUser()` — usePaywallUser читает через эту цепочку.
+// `paywall.billing.getCachedUser()` — usePaywallUser reads through this chain.
 type _AssertBillingGetCachedUser = PaywallUI['billing']['getCachedUser'] extends () => PaywallUser | null
   ? true
   : false;
 
-// usePaywallUser также читает `paywall.auth?.getCachedSession()` чтобы
-// различить guest vs loading-after-signin. `auth` опционален (hybrid mode
-// не создаёт AuthClient), поэтому проверяем через NonNullable.
+// usePaywallUser also reads `paywall.auth?.getCachedSession()` to distinguish
+// guest vs loading-after-signin. `auth` is optional (hybrid mode doesn't create
+// an AuthClient), so we check through NonNullable.
 type _AssertAuthGetCachedSession = NonNullable<PaywallUI['auth']>['getCachedSession'] extends () => unknown | null
   ? true
   : false;
 
 // -----------------------------------------------------------------------------
-// 2. Сигнатуры открытия и опций
+// 2. Open signatures and options
 // -----------------------------------------------------------------------------
 
-// open(opts?: OpenOptions) — `<PaywallButton>` пробрасывает в `paywall.open(openOpts)`.
+// open(opts?: OpenOptions) — `<PaywallButton>` forwards into `paywall.open(openOpts)`.
 type _AssertOpenSignature = Parameters<PaywallUI['open']> extends [(OpenOptions | undefined)?]
   ? true
   : false;
 
-// openSupport/openAuth/openSignin/openSignup имеют ту же сигнатуру — компонент
-// PaywallButton переключается между ними через `mode` prop.
+// openSupport/openAuth/openSignin/openSignup have the same signature — the
+// PaywallButton component switches between them via the `mode` prop.
 type _AssertOpenSupportSignature = Parameters<PaywallUI['openSupport']> extends [(OpenOptions | undefined)?]
   ? true
   : false;
 
-// checkout(priceId, opts?) — `<PaywallButton priceId>` пробрасывает в
-// `paywall.checkout(priceId, openOpts)`. Сигнатура отличается от open*-методов
-// первым позиционным priceId-аргументом, поэтому отдельный assertion.
+// checkout(priceId, opts?) — `<PaywallButton priceId>` forwards into
+// `paywall.checkout(priceId, openOpts)`. The signature differs from the open*
+// methods by the first positional priceId argument, hence a separate assertion.
 type _AssertCheckoutSignature = Parameters<PaywallUI['checkout']> extends [string, (OpenOptions | undefined)?]
   ? true
   : false;
 
 // -----------------------------------------------------------------------------
-// 3. Shape PaywallStateSnapshot — usePaywallState возвращает этот тип
+// 3. PaywallStateSnapshot shape — usePaywallState returns this type
 // -----------------------------------------------------------------------------
 
-// Поля, на которые опирается usePaywallState и наш SSR_SNAPSHOT placeholder.
-// `processing` добавлено в alpha.13 для late-mount direct-checkout: PaywallButton
-// читает его в priceId-режиме, чтобы показать busy без флеша модалки.
+// The fields that usePaywallState and our SSR_SNAPSHOT placeholder rely on.
+// `processing` was added in alpha.13 for late-mount direct-checkout: PaywallButton
+// reads it in priceId mode to show busy without a modal flash.
 type _AssertStateShape = PaywallStateSnapshot extends {
   open: boolean;
   view: unknown;
@@ -128,21 +128,21 @@ type _AssertStateShape = PaywallStateSnapshot extends {
   ? true
   : false;
 
-// getState() возвращает PaywallStateSnapshot (не другой shape).
+// getState() returns PaywallStateSnapshot (not some other shape).
 type _AssertGetState = ReturnType<PaywallUI['getState']> extends PaywallStateSnapshot
   ? true
   : false;
 
-// onStateChange возвращает функцию-unsubscribe (использует useSyncExternalStore subscribe).
+// onStateChange returns an unsubscribe function (used by useSyncExternalStore subscribe).
 type _AssertOnStateChange = ReturnType<PaywallUI['onStateChange']> extends () => void
   ? true
   : false;
 
 // -----------------------------------------------------------------------------
-// 4. PaywallAccessResult — usePaywallAccess и <PaywallGate> деструктурируют это
+// 4. PaywallAccessResult — usePaywallAccess and <PaywallGate> destructure this
 // -----------------------------------------------------------------------------
 
-// Discriminator на `access`.
+// Discriminator on `access`.
 type _AssertAccessGranted = [Extract<PaywallAccessResult, { access: 'granted' }>] extends [never]
   ? false
   : true;
@@ -150,12 +150,12 @@ type _AssertAccessBlocked = [Extract<PaywallAccessResult, { access: 'blocked' }>
   ? false
   : true;
 
-// getAccess() возвращает Promise<PaywallAccessResult> — usePaywallAccess await'ит.
+// getAccess() returns Promise<PaywallAccessResult> — usePaywallAccess awaits it.
 type _AssertGetAccess = ReturnType<PaywallUI['getAccess']> extends Promise<PaywallAccessResult>
   ? true
   : false;
 
-// GetAccessOptions содержит skipTrial / skipVisibility / signal — мы их читаем.
+// GetAccessOptions contains skipTrial / skipVisibility / signal — we read them.
 type _AssertGetAccessOptions = GetAccessOptions extends {
   skipTrial?: boolean | undefined;
   skipVisibility?: boolean | undefined;
@@ -165,11 +165,11 @@ type _AssertGetAccessOptions = GetAccessOptions extends {
   : false;
 
 // -----------------------------------------------------------------------------
-// 5. Event-система — usePaywallEvent типизирует payload через PaywallEventHandler
+// 5. Event system — usePaywallEvent types the payload via PaywallEventHandler
 // -----------------------------------------------------------------------------
 
-// События, на которые подписываются наши хуки. Если SDK переименует событие —
-// PaywallEvent перестанет содержать этот литерал, и `_AssertEvents` станет never.
+// Events our hooks subscribe to. If the SDK renames an event — PaywallEvent
+// will stop containing that literal, and `_AssertEvents` becomes never.
 type RequiredEvents =
   | 'open'
   | 'close'
@@ -185,18 +185,18 @@ type RequiredEvents =
 
 type _AssertEvents = [RequiredEvents] extends [PaywallEvent] ? true : false;
 
-// on(event, handler) возвращает unsubscribe — usePaywallEvent на этом
-// строит useEffect-cleanup.
+// on(event, handler) returns unsubscribe — usePaywallEvent builds its
+// useEffect cleanup on this.
 type _AssertOnReturn = ReturnType<PaywallUI['on']> extends () => void ? true : false;
 
-// PaywallEventHandler<'userChange'> принимает PaywallUser (без union с другими payload'ами
-// при сужении). Это критично для типов событий в usePaywallEvent.
+// PaywallEventHandler<'userChange'> accepts PaywallUser (without a union with other
+// payloads when narrowed). This is critical for the event types in usePaywallEvent.
 type _AssertUserChangePayload = Parameters<PaywallEventHandler<'userChange'>>[0] extends PaywallUser
   ? true
   : false;
 
 // -----------------------------------------------------------------------------
-// 6. Прайсы и trial/visibility snapshot'ы
+// 6. Prices and trial/visibility snapshots
 // -----------------------------------------------------------------------------
 
 type _AssertGetPrices = ReturnType<PaywallUI['getPrices']> extends Promise<PaywallPrice[]>
@@ -205,7 +205,7 @@ type _AssertGetPrices = ReturnType<PaywallUI['getPrices']> extends Promise<Paywa
 type _AssertGetCachedPrices = ReturnType<PaywallUI['getCachedPrices']> extends PaywallPrice[] | null
   ? true
   : false;
-// usePaywallOffers / usePaywallOffer строятся на этих двух геттерах.
+// usePaywallOffers / usePaywallOffer are built on these two getters.
 type _AssertGetCachedOffers = ReturnType<PaywallUI['getCachedOffers']> extends unknown[] | null
   ? true
   : false;
@@ -213,15 +213,15 @@ type _AssertGetOfferForPrice = Parameters<PaywallUI['getOfferForPrice']> extends
   ? true
   : false;
 
-// getTrialStatus / getVisibility возвращают T|null — наши хуки читают именно эту форму.
+// getTrialStatus / getVisibility return T|null — our hooks read exactly this shape.
 type _AssertTrialNullable = null extends ReturnType<PaywallUI['getTrialStatus']> ? true : false;
 type _AssertVisibilityNullable = null extends ReturnType<PaywallUI['getVisibility']> ? true : false;
 
 // -----------------------------------------------------------------------------
-// Enforcer — `Assert<T extends true>` ловит ситуацию, когда любая проверка
-// выше резолвится не в `true`. Без этого враппера TS пропустил бы тип `never`
-// (тоже легитимный, просто плохо документирующий поломку); с ним такой
-// случай — compile error на конкретной строке-проверке.
+// Enforcer — `Assert<T extends true>` catches the situation when any check
+// above resolves to something other than `true`. Without this wrapper TS would
+// let the `never` type through (also legitimate, just poorly documenting the
+// breakage); with it, such a case is a compile error on the specific check line.
 // -----------------------------------------------------------------------------
 
 type Assert<T extends true> = T;
@@ -253,5 +253,5 @@ type _ContractChecks = [
   Assert<_AssertVisibilityNullable>
 ];
 
-// Никакого `export` — модуль только для TS-side-effect компиляции. Файл
-// автоматически захвачен через tsconfig.include = ["src", ...].
+// No `export` — the module is only for TS-side-effect compilation. The file is
+// automatically captured via tsconfig.include = ["src", ...].

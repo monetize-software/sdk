@@ -1,10 +1,10 @@
 /**
- * Static-translations для de. Сгенерировано из:
- *  - `online/lang/static-translations.ts` (legacy, через KEY_MAP)
- *  - `tools/sdk-translations.mjs` (SDK-specific строки)
+ * Static-translations for de. Generated from:
+ *  - `online/lang/static-translations.ts` (legacy, via KEY_MAP)
+ *  - `tools/sdk-translations.mjs` (SDK-specific strings)
  *
- * Не править вручную — изменения теряются при следующем `node tools/gen-locales.mjs`.
- * Чтобы исправить перевод — править legacy/sdk-translations.mjs и регенерить.
+ * Do not edit by hand — changes are lost on the next `node tools/gen-locales.mjs`.
+ * To fix a translation, edit legacy/sdk-translations.mjs and regenerate.
  */
 const de = {
   'anon.description_default': 'Gast-Sitzung wird eingerichtet…',
@@ -52,7 +52,6 @@ const de = {
   'auth.reset_password_title': 'Passwort zurücksetzen',
   'auth.reset_sent_message': 'Wenn diese E-Mail existiert, wurde ein Reset-Code gesendet.',
   'auth.reset_sent_subtitle': 'Wir haben einen Link zum Zurücksetzen des Passworts gesendet. Folgen Sie den Anweisungen in der E-Mail.',
-  'auth.signup_sent_subtitle': 'Wir haben einen Bestätigungslink an Ihre E-Mail gesendet. Klicken Sie darauf, um Ihr Konto zu aktivieren, und melden Sie sich dann an.',
   'auth.restore_purchases_heading': 'Käufe wiederherstellen',
   'auth.restore_purchases_subheading': 'Bitte melden Sie sich an, um Ihre Käufe wiederherzustellen.',
   'auth.send_reset': 'Zurücksetzungs-E-Mail senden',
@@ -81,9 +80,9 @@ const de = {
   'modal.continue': 'Weiter',
   'modal.error_generic': 'Etwas ist schiefgelaufen',
   'modal.loading': 'Wird geladen…',
-  'modal.purchase_restored_subtitle': 'Willkommen zurück — Ihr Abonnement ist bereits aktiv.',
-  'modal.purchase_restored_title': 'Abonnement wiederhergestellt',
-  'modal.purchase_success_subtitle': 'Ihr Abonnement ist jetzt aktiv.',
+  'modal.purchase_restored_subtitle': 'Alles bereit — viel Spaß!',
+  'modal.purchase_restored_title': 'Willkommen zurück',
+  'modal.purchase_success_subtitle': 'Alles bereit — viel Spaß!',
   'modal.purchase_success_title': 'Zahlung erhalten',
   'modal.verifying_subscription': 'Abonnement wird geprüft…',
   'nav.back': '← Zurück',

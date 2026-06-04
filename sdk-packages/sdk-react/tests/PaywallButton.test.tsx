@@ -68,9 +68,9 @@ describe('<PaywallButton>', () => {
         <PaywallButton onClick={() => order.push('host')}>x</PaywallButton>
       </PaywallProvider>
     );
-    // Перехватываем порядок: open() мутирует counter, потом host onClick пушит 'host'.
+    // We capture the order: open() mutates the counter, then host onClick pushes 'host'.
     fireEvent.click(screen.getByText('x'));
     expect(fake.openCalls).toBe(1);
-    expect(order).toEqual(['host']); // host onClick стрельнул после open()
+    expect(order).toEqual(['host']); // host onClick fired after open()
   });
 });

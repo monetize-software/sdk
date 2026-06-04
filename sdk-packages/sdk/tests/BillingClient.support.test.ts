@@ -2,10 +2,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import { BillingClient } from '../src/core/BillingClient';
 
-// BillingClient.createSupportTicket контракт:
-// - JSON-ветка: Content-Type=application/json, body содержит subject/content/customer_email
-// - Multipart-ветка: FormData (Content-Type не выставляется явно, браузер сам ставит boundary),
-//   files прикладываются как 'files', email берётся из identity.email если не передан в payload.
+// BillingClient.createSupportTicket contract:
+// - JSON branch: Content-Type=application/json, body contains subject/content/customer_email
+// - Multipart branch: FormData (Content-Type isn't set explicitly, the browser sets the boundary itself),
+//   files are attached as 'files', email is taken from identity.email if not passed in the payload.
 
 function jsonResp(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -84,7 +84,7 @@ describe('BillingClient.createSupportTicket', () => {
       files: [file]
     });
     expect(calls).toHaveLength(1);
-    // Браузер сам выставит multipart boundary — мы НЕ должны слать application/json.
+    // The browser sets the multipart boundary itself — we must NOT send application/json.
     const ct = (calls[0].init.headers as Headers).get('Content-Type') || '';
     expect(ct).not.toContain('application/json');
     expect(calls[0].init.body).toBeInstanceOf(FormData);

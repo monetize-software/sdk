@@ -4,20 +4,20 @@ import { useI18n } from '../../i18n';
 
 type GuaranteeBlock = Extract<LayoutBlock, { type: 'guarantee_badge' }>;
 
-// Money-back guarantee pill под CtaButton. Компактный one-liner: shield-check
-// иконка + текст. Pill-styling (rounded-full + bg-gray-100) визуально отделяет
-// от CTA, но не перетягивает внимание на себя — это reassurance-элемент.
-// Subtitle убран из дефолтного рендера: пользователи сканируют покупку
-// быстро, второй строкой только шум. Если admin задаёт block.subtitle явно —
-// она рендерится мелким серым ниже pill'а.
+// Money-back guarantee pill below the CtaButton. A compact one-liner: shield-check
+// icon + text. The pill styling (rounded-full + bg-gray-100) visually separates it
+// from the CTA without drawing attention to itself — it is a reassurance element.
+// The subtitle is dropped from the default render: users scan a purchase
+// quickly, and a second line is just noise. If the admin sets block.subtitle
+// explicitly, it is rendered in small gray below the pill.
 export function GuaranteeBadge({ block }: BlockProps<GuaranteeBlock>) {
   const { t } = useI18n();
   const title = block.title ?? t('pricing.money_back', '30-day money-back guarantee');
   const subtitle = block.subtitle;
   const showIcon = (block.icon ?? 'dollar_shield') !== 'none';
 
-  // Выделяем "N-day" префикс жирным/тёмным — главная информация (срок),
-  // остальное обычным весом. Глаз сразу ловит цифру вместо ровного блока.
+  // Highlight the "N-day" prefix in bold/dark — it is the key info (the period),
+  // the rest in normal weight. The eye catches the number right away instead of a flat block.
   const parts = splitDaysPrefix(title);
 
   return (
@@ -54,8 +54,8 @@ function ShieldCheckIcon() {
       fill="none"
       width="16"
       height="16"
-      // emerald-500 — semantic «безопасность/возврат», поднимает контрастность
-      // reassurance-сигнала. Серый gray-500 пропускался глазом.
+      // emerald-500 — semantic "safety/refund", raises the contrast of the
+      // reassurance signal. Gray gray-500 was skipped over by the eye.
       class="flex-shrink-0 text-emerald-500"
       aria-hidden="true"
     >

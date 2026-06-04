@@ -3,11 +3,11 @@ import { resolve } from 'node:path';
 import { copyFileSync, mkdirSync } from 'node:fs';
 import tailwindcss from '@tailwindcss/vite';
 
-// Сборка MV3 extension playground. Отличается от sdk/vite.config.ts тем, что:
-// - preact НЕ external — бандл самодостаточный (CWS запрещает remote code).
-// - IIFE-подобный output (ESM без import'ов во внешние пакеты), чтобы подключать
-//   через <script src="popup.js"> в popup.html без загрузчика модулей.
-// - Tailwind плагин подключён для ?inline импорта styles.css (наследуется из SDK).
+// Build for the MV3 extension playground. Differs from sdk/vite.config.ts in that:
+// - preact is NOT external — the bundle is self-contained (CWS forbids remote code).
+// - IIFE-like output (ESM with no imports of external packages), so it can be loaded
+//   via <script src="popup.js"> in popup.html without a module loader.
+// - The Tailwind plugin is enabled for the ?inline import of styles.css (inherited from the SDK).
 export default defineConfig({
   plugins: [
     tailwindcss(),
@@ -36,7 +36,7 @@ export default defineConfig({
     target: 'es2020',
     minify: 'esbuild',
     sourcemap: true,
-    // Абсолютный путь — иначе vite, запущенный из sdk/, сложит файлы в sdk/dist/.
+    // Absolute path — otherwise vite, launched from sdk/, would put files in sdk/dist/.
     outDir: resolve(__dirname, 'dist'),
     emptyOutDir: true,
     lib: {
@@ -44,13 +44,13 @@ export default defineConfig({
         popup: resolve(__dirname, 'src/popup.entry.ts'),
         background: resolve(__dirname, 'src/background.ts')
       },
-      // ES-модули — в popup.html подключаем через `<script type="module">`,
-      // background в manifest.json помечен "type": "module".
+      // ES modules — in popup.html we load via `<script type="module">`,
+      // background is marked "type": "module" in manifest.json.
       formats: ['es'],
       fileName: (_format, entryName) => `${entryName}.js`
     },
     rollupOptions: {
-      // Всё инлайнится — ничего не external.
+      // Everything is inlined — nothing is external.
       external: [],
       output: {
         chunkFileNames: 'chunks/[name]-[hash].js'

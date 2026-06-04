@@ -1,10 +1,10 @@
 /**
- * Static-translations для th. Сгенерировано из:
- *  - `online/lang/static-translations.ts` (legacy, через KEY_MAP)
- *  - `tools/sdk-translations.mjs` (SDK-specific строки)
+ * Static-translations for th. Generated from:
+ *  - `online/lang/static-translations.ts` (legacy, via KEY_MAP)
+ *  - `tools/sdk-translations.mjs` (SDK-specific strings)
  *
- * Не править вручную — изменения теряются при следующем `node tools/gen-locales.mjs`.
- * Чтобы исправить перевод — править legacy/sdk-translations.mjs и регенерить.
+ * Do not edit by hand — changes are lost on the next `node tools/gen-locales.mjs`.
+ * To fix a translation, edit legacy/sdk-translations.mjs and regenerate.
  */
 const th = {
   'anon.heading_default': 'ดำเนินการต่อในฐานะแขก',
@@ -47,7 +47,6 @@ const th = {
   'auth.reset_password_title': 'รีเซ็ตรหัสผ่าน',
   'auth.reset_sent_message': 'หากอีเมลนี้มีอยู่ ระบบได้ส่งรหัสรีเซ็ตแล้ว',
   'auth.reset_sent_subtitle': 'เราได้ส่งลิงก์รีเซ็ตรหัสผ่านแล้ว ทำตามคำแนะนำในอีเมล',
-  'auth.signup_sent_subtitle': 'เราได้ส่งลิงก์ยืนยันไปยังอีเมลของคุณแล้ว คลิกเพื่อเปิดใช้งานบัญชีของคุณ แล้วลงชื่อเข้าใช้',
   'auth.restore_purchases_heading': 'คืนค่าการซื้อ',
   'auth.restore_purchases_subheading': 'กรุณาเข้าสู่ระบบเพื่อคืนค่าการซื้อของคุณ',
   'auth.send_reset': 'ส่งอีเมลรีเซ็ต',
@@ -79,9 +78,9 @@ const th = {
   'modal.continue': 'ดำเนินการต่อ',
   'modal.error_generic': 'มีบางอย่างผิดพลาด',
   'modal.loading': 'กำลังโหลด…',
-  'modal.purchase_restored_subtitle': 'ยินดีต้อนรับกลับ — การสมัครสมาชิกของคุณยังคงใช้งานอยู่',
-  'modal.purchase_restored_title': 'กู้คืนการสมัครสมาชิกแล้ว',
-  'modal.purchase_success_subtitle': 'การสมัครสมาชิกของคุณเปิดใช้งานแล้ว',
+  'modal.purchase_restored_subtitle': 'ทุกอย่างพร้อมแล้ว — ขอให้สนุก!',
+  'modal.purchase_restored_title': 'ยินดีต้อนรับกลับ',
+  'modal.purchase_success_subtitle': 'ทุกอย่างพร้อมแล้ว — ขอให้สนุก!',
   'modal.purchase_success_title': 'รับการชำระเงินแล้ว',
   'modal.verifying_subscription': 'กำลังตรวจสอบการสมัครสมาชิก…',
   'nav.back': '← กลับ',

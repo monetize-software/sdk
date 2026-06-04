@@ -1,7 +1,7 @@
-// Phase 3 surface coverage. Доказываем что для двух одновременных «вкладок»:
-//  1. createCheckout({priceId:'p1'}) дедупится в один сетевой запрос
-//  2. userChange после setIdentity broadcast'ится в обе вкладки
-//  3. balancesChange после force-refresh broadcast'ится в обе
+// Phase 3 surface coverage. We prove that for two simultaneous «tabs»:
+//  1. createCheckout({priceId:'p1'}) is deduped into a single network request
+//  2. userChange after setIdentity is broadcast to both tabs
+//  3. balancesChange after a force-refresh is broadcast to both
 
 import { describe, it, expect, vi } from 'vitest';
 import { BillingClient } from '@sdk/core/BillingClient';
@@ -73,7 +73,7 @@ function setupServer(billing: BillingClient): TransportServer {
     billing.setIdentity(p.identity ?? undefined);
   });
 
-  // Storage proxy — как в OffscreenServer.
+  // Storage proxy — as in OffscreenServer.
   const storage = billing.getStorage();
   server.on('storage.get', async (p) => storage.getItem(p.key));
   server.on('storage.set', async (p) => {
@@ -83,10 +83,10 @@ function setupServer(billing: BillingClient): TransportServer {
     await storage.removeItem(p.key);
   });
 
-  // Trial-store proxy с эмуляцией navigator.locks через простую очередь —
-  // node-окружение не имеет navigator.locks, делаем sequential queue, чтобы
-  // тест атомарности воспроизводился. В реальном offscreen используется
-  // navigator.locks из chrome.
+  // Trial-store proxy with navigator.locks emulated via a simple queue —
+  // the node environment has no navigator.locks, so we use a sequential queue so
+  // the atomicity test is reproducible. In a real offscreen we use
+  // navigator.locks from chrome.
   let trialQueue: Promise<unknown> = Promise.resolve();
   const serializeTrial = <T>(fn: () => Promise<T>): Promise<T> => {
     const next = trialQueue.then(fn);
@@ -105,7 +105,7 @@ function setupServer(billing: BillingClient): TransportServer {
     serializeTrial(() => createTrialStore(billing.getStorage(), p.paywallId, p.config).reset())
   );
 
-  // Broadcast bridges — ровно как в OffscreenServer.
+  // Broadcast bridges — exactly as in OffscreenServer.
   billing.onUserChange((u) => server.broadcast('userChange', u), { immediate: 'none' });
   billing.onBalanceChange((b) => server.broadcast('balancesChange', b), { immediate: 'none' });
 
@@ -155,8 +155,8 @@ describe('createCheckout — dedupe across tabs', () => {
     const tab1 = new RemoteBillingClient(new TransportClient(() => c1), { paywallId: 'demo' });
     const tab2 = new RemoteBillingClient(new TransportClient(() => c2), { paywallId: 'demo' });
 
-    // Симуляция: оба таба кликают «купить» одновременно. Идемпотентный ключ
-    // не передан → BillingClient дедупит по `auto:${priceId}`.
+    // Simulation: both tabs click «buy» at the same time. No idempotency key
+    // is passed → BillingClient dedupes by `auto:${priceId}`.
     const [r1, r2] = await Promise.all([
       tab1.createCheckout({ priceId: '5' }),
       tab2.createCheckout({ priceId: '5' })
@@ -200,19 +200,19 @@ describe('user/balance broadcast', () => {
     tab1.onUserChange((u) => tab1Events.push(u.has_active_subscription));
     tab2.onUserChange((u) => tab2Events.push(u.has_active_subscription));
 
-    // Tab1 force-fetch юзера — broadcast долетает до обоих табов.
+    // Tab1 force-fetches the user — the broadcast reaches both tabs.
     await tab1.getUser({ force: true });
     await new Promise((r) => setTimeout(r, 0));
 
     expect(tab1Events).toContain(false);
     expect(tab2Events).toContain(false);
 
-    // Эмулируем покупку: meaningfully изменился shape.
+    // Emulate a purchase: the shape changed meaningfully.
     active = true;
     await tab2.getUser({ force: true });
     await new Promise((r) => setTimeout(r, 0));
 
-    // Оба таба должны увидеть active=true (broadcast от offscreen в оба).
+    // Both tabs must see active=true (broadcast from offscreen to both).
     expect(tab1Events).toContain(true);
     expect(tab2Events).toContain(true);
   });
@@ -240,16 +240,16 @@ describe('trial-store atomic via offscreen', () => {
 
     const config = { mode: 'opens' as const, payload: 5, storage: 'client' as const };
 
-    // Initial: 5 показов доступно. Каждый recordBlock декрементит остаток.
-    // Тaбы кидают recordBlock одновременно — server обрабатывает их строго
-    // последовательно (locks в offscreen-server'е).
+    // Initial: 5 shows available. Each recordBlock decrements the remainder.
+    // The tabs fire recordBlock simultaneously — the server processes them strictly
+    // sequentially (locks in the offscreen-server).
     const store1 = tab1.createTrialStore(config);
     const store2 = tab2.createTrialStore(config);
 
     const [r1, r2] = await Promise.all([store1.recordBlock(), store2.recordBlock()]);
 
-    // Без атомарности оба бы прочитали по 5 → оба записали 4 → drift в 1.
-    // С atomic: первый ушёл с 4, второй с 3 (или наоборот — сам order не важен).
+    // Without atomicity both would read 5 → both wrote 4 → a drift of 1.
+    // With atomic: the first left with 4, the second with 3 (or vice versa — the order itself doesn't matter).
     expect(r1.mode).toBe('opens');
     expect(r2.mode).toBe('opens');
     if (r1.mode === 'opens' && r2.mode === 'opens') {
@@ -308,18 +308,18 @@ describe('storage proxy — single source of truth across tabs', () => {
     const tab1 = new RemoteBillingClient(new TransportClient(() => c1), { paywallId: 'demo' });
     const tab2 = new RemoteBillingClient(new TransportClient(() => c2), { paywallId: 'demo' });
 
-    // Tab1 пишет — Tab2 читает то же значение через свой proxy. Без offscreen
-    // это были бы два независимых localStorage'а content-script'ов.
+    // Tab1 writes — Tab2 reads the same value through its proxy. Without offscreen
+    // these would be two independent content-script localStorages.
     await tab1.getStorage().setItem('trial:demo', '5');
     const fromTab2 = await tab2.getStorage().getItem('trial:demo');
     expect(fromTab2).toBe('5');
 
-    // Tab2 обновляет — Tab1 видит свежее.
+    // Tab2 updates — Tab1 sees the fresh value.
     await tab2.getStorage().setItem('trial:demo', '4');
     const fromTab1 = await tab1.getStorage().getItem('trial:demo');
     expect(fromTab1).toBe('4');
 
-    // Удаление одной вкладкой видно другой.
+    // A removal by one tab is visible to the other.
     await tab1.getStorage().removeItem('trial:demo');
     const removed = await tab2.getStorage().getItem('trial:demo');
     expect(removed).toBeNull();
@@ -338,7 +338,7 @@ describe('identity sync', () => {
         ) as unknown as Response;
       }
       if (u.includes('/user-state')) {
-        // ApiClient wraps init.headers в Headers — читаем через .get().
+        // ApiClient wraps init.headers in Headers — read via .get().
         const h = init?.headers;
         const email =
           h instanceof Headers
@@ -368,12 +368,12 @@ describe('identity sync', () => {
     const tab1 = new RemoteBillingClient(new TransportClient(() => c1), { paywallId: 'demo' });
     const tab2 = new RemoteBillingClient(new TransportClient(() => c2), { paywallId: 'demo' });
 
-    // Tab1 ставит identity → setIdentity → offscreen.BillingClient.identity = ...
+    // Tab1 sets identity → setIdentity → offscreen.BillingClient.identity = ...
     await tab1.setIdentity({ email: 'late@x.io' });
 
-    // Tab2 force-fetch'ит user — запрос с X-User-Email: late@x.io должен уйти,
-    // подтверждая что identity жил единственный раз в offscreen и tab2 им
-    // воспользовался без локального дубля.
+    // Tab2 force-fetches the user — a request with X-User-Email: late@x.io must go out,
+    // confirming that identity lived a single time in offscreen and tab2 used it
+    // without a local duplicate.
     await tab2.getUser({ force: true });
 
     expect(seenEmails).toContain('late@x.io');

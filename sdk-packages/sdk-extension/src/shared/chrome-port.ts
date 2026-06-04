@@ -1,13 +1,15 @@
-// Адаптер chrome.runtime.Port → MessageChannel. Единственная точка кода,
-// где живёт chrome.* — содержит и client, и server side runtime.connect /
-// onConnect API. Тестируется только в extension-runtime (e2e), unit-тесты
-// shared/transport-*.ts работают с in-memory MessageChannel реализацией.
+// Adapter chrome.runtime.Port → MessageChannel. The single point in the code
+// where chrome.* lives — it contains both the client- and server-side
+// runtime.connect / onConnect API. Tested only in the extension runtime (e2e);
+// the unit tests for shared/transport-*.ts work with an in-memory MessageChannel
+// implementation.
 
 import type { MessageChannel } from './channel';
 import type { Envelope } from './protocol';
 
-/** Обернуть существующий port в MessageChannel. Используется на server-side
- *  (offscreen / SW) — там port уже создан onConnect-listener'ом. */
+/** Wrap an existing port in a MessageChannel. Used on the server side
+ *  (offscreen / SW) — there the port is already created by the onConnect
+ *  listener. */
 export function portToChannel(port: chrome.runtime.Port): MessageChannel {
   let disconnected = false;
   const messageCbs = new Set<(envelope: Envelope) => void>();
@@ -33,8 +35,8 @@ export function portToChannel(port: chrome.runtime.Port): MessageChannel {
       try {
         port.postMessage(envelope);
       } catch (e) {
-        // postMessage кидает если port уже закрыт. Эмулируем disconnect, чтобы
-        // TransportClient/Server не висели на in-flight request'ах.
+        // postMessage throws if the port is already closed. We emulate a
+        // disconnect so TransportClient/Server don't hang on in-flight requests.
         onDisconnectListener();
         throw e;
       }
@@ -45,7 +47,7 @@ export function portToChannel(port: chrome.runtime.Port): MessageChannel {
     },
     onDisconnect(cb) {
       if (disconnected) {
-        // Идемпотентно — late subscribers сразу получают сигнал.
+        // Idempotent — late subscribers get the signal immediately.
         queueMicrotask(cb);
         return () => {};
       }
@@ -60,8 +62,8 @@ export function portToChannel(port: chrome.runtime.Port): MessageChannel {
   };
 }
 
-/** Client-side фабрика канала: открыть port на extension'овский runtime по имени.
- *  Принимающая сторона — service worker (chrome.runtime.onConnect там). */
+/** Client-side channel factory: open a port to the extension runtime by name.
+ *  The receiving side is the service worker (chrome.runtime.onConnect is there). */
 export function createRuntimeChannel(portName: string): MessageChannel {
   const port = chrome.runtime.connect({ name: portName });
   return portToChannel(port);

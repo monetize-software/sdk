@@ -1,14 +1,14 @@
-// Drop-in `PaywallUI` для extension'а. Public API идентичен `@monetize.software/sdk`'у —
-// host пишет тот же код, опции те же. Под капотом:
-//  - billing — RemoteBillingClient (proxy в offscreen)
-//  - auth — RemoteAuthClient (когда `auth: true`)
-//  - tracker — RemoteEventTracker (события forward'ятся в offscreen-EventTracker)
+// Drop-in `PaywallUI` for the extension. The public API is identical to
+// `@monetize.software/sdk` — the host writes the same code, the same options. Under the hood:
+//  - billing — RemoteBillingClient (a proxy into offscreen)
+//  - auth — RemoteAuthClient (when `auth: true`)
+//  - tracker — RemoteEventTracker (events are forwarded into the offscreen EventTracker)
 //
-// EventTracker создаётся ОДИН на расширение, в offscreen'е. PaywallUI здесь
-// внутренний tracker отключает (`analytics: false` в base-конструкторе) и
-// сам подписывается на public-события, проксируя их через RemoteEventTracker.
-// Дубликат биндингов из base PaywallUI.initTracker — но это меньшее зло, чем
-// два EventTracker'а на одного юзера.
+// The EventTracker is created ONCE per extension, in offscreen. PaywallUI here
+// disables the internal tracker (`analytics: false` in the base constructor) and
+// subscribes to public events itself, proxying them through RemoteEventTracker.
+// It duplicates the bindings from the base PaywallUI.initTracker — but that's the
+// lesser evil compared to two EventTrackers per user.
 
 import { PaywallUI as BasePaywallUI, type PaywallUIOptions } from '@sdk/ui/PaywallUI';
 import type { BillingClient } from '@sdk/core/BillingClient';
@@ -18,20 +18,20 @@ import { RemoteAuthClient } from './RemoteAuthClient';
 import { RemoteEventTracker } from './RemoteEventTracker';
 import { getContentTransport } from './transport';
 
-/** Опции extension'овского PaywallUI. Убраны:
- *  - `client` — RemoteBillingClient создаётся автоматически
- *  - `storage` — storage живёт в offscreen'е, content его не видит
- *  - `apiKey` — server-SDK key, не имеет смысла в content-script'е
- *  - `fetch` — все сетевые запросы идут через offscreen
+/** Options for the extension's PaywallUI. Removed:
+ *  - `client` — RemoteBillingClient is created automatically
+ *  - `storage` — storage lives in offscreen, content doesn't see it
+ *  - `apiKey` — a server-SDK key, meaningless in a content-script
+ *  - `fetch` — all network requests go through offscreen
  *
- *  `auth: true` подключит RemoteAuthClient. Передавать готовый AuthClient
- *  из @monetize.software/sdk сюда не имеет смысла (мы хотим именно offscreen'овский). */
+ *  `auth: true` will wire up RemoteAuthClient. Passing a ready AuthClient from
+ *  @monetize.software/sdk here makes no sense (we specifically want the offscreen one). */
 export interface ExtensionPaywallUIOptions
   extends Omit<PaywallUIOptions, 'client' | 'storage' | 'apiKey' | 'fetch'> {}
 
 export class PaywallUI extends BasePaywallUI {
-  /** RemoteEventTracker (proxy в offscreen-EventTracker). Не путать с
-   *  base-классовым `tracker` (там null — мы отключили внутренний). */
+  /** RemoteEventTracker (a proxy into the offscreen EventTracker). Not to be
+   *  confused with the base class's `tracker` (which is null — we disabled the internal one). */
   private remoteTracker: RemoteEventTracker | null = null;
   private trackerUnsubs: Array<() => void> = [];
 
@@ -43,10 +43,10 @@ export class PaywallUI extends BasePaywallUI {
       apiOrigin: opts.apiOrigin
     });
 
-    // Auth: если host попросил — конструируем RemoteAuthClient. Готовый
-    // AuthClient из @monetize.software/sdk сюда не имеет смысла прокидывать (всё
-    // равно нужен offscreen-instance). Поэтому accept только `true` или
-    // ничего; явный AuthClient instance логирует warning и игнорится.
+    // Auth: if the host asked for it — construct a RemoteAuthClient. There's no
+    // point passing a ready AuthClient from @monetize.software/sdk here (we need the
+    // offscreen instance anyway). So we accept only `true` or nothing; an
+    // explicit AuthClient instance logs a warning and is ignored.
     let auth: RemoteAuthClient | undefined;
     if (opts.auth === true) {
       auth = new RemoteAuthClient(transport, {
@@ -61,24 +61,24 @@ export class PaywallUI extends BasePaywallUI {
       );
     }
 
-    // Прокидываем auth внутрь billing-клиента: PaywallRoot читает
-    // `client.auth` для restore / preauth-flow / signin-detection. Настоящий
-    // BillingClient выставляет это поле в конструкторе — у Remote-варианта
-    // делаем явное присваивание перед super(), чтобы PaywallRoot увидел.
+    // Pass auth into the billing client: PaywallRoot reads `client.auth` for
+    // restore / preauth-flow / signin-detection. The real BillingClient sets
+    // this field in its constructor — for the Remote variant we do an explicit
+    // assignment before super() so PaywallRoot sees it.
     if (auth) {
       (billing as { auth?: typeof auth }).auth = auth;
     }
 
     super({
       ...opts,
-      // Cast'ы безопасны: PaywallUI'ев resolveAuth duck-type'ит auth (см.
-      // sdk/src/ui/PaywallUI.ts isAuthClientLike), а billing-параметр идёт
-      // через `opts.client ?? new BillingClient(...)` — RemoteBillingClient
-      // там используется как есть, методы все сходятся.
+      // The casts are safe: PaywallUI's resolveAuth duck-types auth (see
+      // sdk/src/ui/PaywallUI.ts isAuthClientLike), and the billing param goes
+      // through `opts.client ?? new BillingClient(...)` — RemoteBillingClient is
+      // used there as-is, all the methods line up.
       client: billing as unknown as BillingClient,
       auth: auth as unknown as AuthClient | undefined,
-      // Внутренний EventTracker отключаем — единственный tracker живёт в
-      // offscreen'е. Манчиально подписываемся ниже.
+      // Disable the internal EventTracker — the only tracker lives in offscreen.
+      // We subscribe manually below.
       analytics: false
     });
 
@@ -88,9 +88,9 @@ export class PaywallUI extends BasePaywallUI {
     }
   }
 
-  /** Зеркало sdk/PaywallUI.initTracker'овских биндингов, но с RemoteEventTracker.
-   *  Когда @monetize.software/sdk экспоузнет публичный hook для inject'а tracker'а,
-   *  этот метод заменится на одну строку. */
+  /** A mirror of sdk/PaywallUI.initTracker's bindings, but with RemoteEventTracker.
+   *  Once @monetize.software/sdk exposes a public hook for injecting a tracker,
+   *  this method will be replaced with a single line. */
   private bindAnalytics(): void {
     const t = this.remoteTracker;
     if (!t) return;
@@ -131,16 +131,16 @@ export class PaywallUI extends BasePaywallUI {
       this.on('error', (e) => t.track('error', { code: e.code, message: e.message }))
     );
 
-    // auth_signin_success / auth_signout пока не фаерим: authChange эмитится
-    // и на гидрации сессии (popup поднимает кеш из offscreen), и на token
-    // refresh, и при параллельном content-script + popup — даёт ложные
-    // signin'ы. Реальные login-события нужно ловить через прямые вызовы
-    // signInWithEmail/signUp/signInWithOAuth/signOut, а не через authChange.
+    // We don't fire auth_signin_success / auth_signout yet: authChange is emitted
+    // both on session hydration (the popup brings up the cache from offscreen)
+    // and on token refresh, and with a parallel content-script + popup it gives
+    // false signins. Real login events should be caught via direct calls to
+    // signInWithEmail/signUp/signInWithOAuth/signOut, not via authChange.
   }
 
-  /** Прокси через RemoteEventTracker. Hosts могут вызывать paywall.track
-   *  для произвольных аналитических событий — летит в единственный
-   *  offscreen-tracker наряду с auto-emit'ами PaywallUI. */
+  /** A proxy through RemoteEventTracker. Hosts can call paywall.track for
+   *  arbitrary analytics events — it flies to the single offscreen tracker
+   *  alongside PaywallUI's auto-emits. */
   track(name: string, props?: Record<string, unknown>): void {
     this.remoteTracker?.track(name, props);
   }

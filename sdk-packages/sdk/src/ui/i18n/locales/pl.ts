@@ -1,10 +1,10 @@
 /**
- * Static-translations для pl. Сгенерировано из:
- *  - `online/lang/static-translations.ts` (legacy, через KEY_MAP)
- *  - `tools/sdk-translations.mjs` (SDK-specific строки)
+ * Static-translations for pl. Generated from:
+ *  - `online/lang/static-translations.ts` (legacy, via KEY_MAP)
+ *  - `tools/sdk-translations.mjs` (SDK-specific strings)
  *
- * Не править вручную — изменения теряются при следующем `node tools/gen-locales.mjs`.
- * Чтобы исправить перевод — править legacy/sdk-translations.mjs и регенерить.
+ * Do not edit by hand — changes are lost on the next `node tools/gen-locales.mjs`.
+ * To fix a translation, edit legacy/sdk-translations.mjs and regenerate.
  */
 const pl = {
   'anon.heading_default': 'Kontynuuj jako gość',
@@ -47,7 +47,6 @@ const pl = {
   'auth.reset_password_title': 'Zresetuj hasło',
   'auth.reset_sent_message': 'Jeśli ten adres istnieje, wysłaliśmy kod resetujący.',
   'auth.reset_sent_subtitle': 'Wysłaliśmy link do resetowania hasła. Postępuj zgodnie z instrukcjami w wiadomości.',
-  'auth.signup_sent_subtitle': 'Wysłaliśmy link potwierdzający na Twój e-mail. Kliknij go, aby aktywować konto, a następnie zaloguj się.',
   'auth.restore_purchases_heading': 'Przywróć zakupy',
   'auth.restore_purchases_subheading': 'Zaloguj się, aby przywrócić swoje zakupy.',
   'auth.send_reset': 'Wyślij link resetujący',
@@ -75,9 +74,9 @@ const pl = {
   'modal.continue': 'Kontynuuj',
   'modal.error_generic': 'Coś poszło nie tak',
   'modal.loading': 'Ładowanie…',
-  'modal.purchase_restored_subtitle': 'Witamy ponownie — subskrypcja jest już aktywna.',
-  'modal.purchase_restored_title': 'Subskrypcja przywrócona',
-  'modal.purchase_success_subtitle': 'Twoja subskrypcja jest aktywna.',
+  'modal.purchase_restored_subtitle': 'Wszystko gotowe — korzystaj!',
+  'modal.purchase_restored_title': 'Witamy ponownie',
+  'modal.purchase_success_subtitle': 'Wszystko gotowe — korzystaj!',
   'modal.purchase_success_title': 'Płatność otrzymana',
   'modal.verifying_subscription': 'Sprawdzanie subskrypcji…',
   'nav.back': '← Wstecz',

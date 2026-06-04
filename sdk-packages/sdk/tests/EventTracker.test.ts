@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventTracker } from '../src/core/EventTracker';
 import { SDK_VERSION } from '../src/core/api';
 
-// Helper для конструкции tracker'а с управляемыми зависимостями.
+// Helper to construct a tracker with controllable dependencies.
 function makeTracker(overrides: Partial<{
   fetch: typeof fetch;
   sendBeacon: (url: string, data: BodyInit) => boolean;
@@ -151,7 +151,7 @@ describe('EventTracker', () => {
     tracker.track('paywall_closed');
     tracker.flushBeacon();
 
-    // beacon не вызывается без visitor_id, события идут через flush()
+    // beacon isn't called without a visitor_id; events go through flush()
     expect(beaconSpy).not.toHaveBeenCalled();
     await vi.runOnlyPendingTimersAsync();
     expect(fetchSpy).toHaveBeenCalledTimes(1);
@@ -174,7 +174,7 @@ describe('EventTracker', () => {
     tracker.flushBeacon();
 
     expect(beaconSpy).toHaveBeenCalledTimes(1);
-    // events улетели через fallback flush → fetch
+    // events went out via the fallback flush → fetch
     await vi.runOnlyPendingTimersAsync();
     expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
@@ -187,36 +187,36 @@ describe('EventTracker', () => {
     tracker.track('paywall_viewed');
     await vi.advanceTimersByTimeAsync(60);
     expect(failingFetch).toHaveBeenCalledTimes(1);
-    // Не падаем — бизнес-логика продолжает работать.
+    // We don't crash — the business logic keeps working.
   });
 
   it('destroy flushes pending and stops timer', async () => {
     const { tracker, fetchSpy } = makeTracker();
     tracker.track('paywall_viewed');
     tracker.destroy();
-    // synchronous destroy вызывает flush, дайте microtask отработать
+    // synchronous destroy triggers flush, let the microtask run
     await Promise.resolve();
     await Promise.resolve();
     expect(fetchSpy).toHaveBeenCalledTimes(1);
 
-    // После destroy track() — no-op
+    // After destroy, track() is a no-op
     tracker.track('paywall_closed');
     await vi.advanceTimersByTimeAsync(100);
     expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 
   it('caps buffer to HARD_BUFFER_LIMIT to avoid leaks', async () => {
-    // sendBeacon=undefined и failing fetch — simulate offline
+    // sendBeacon=undefined and a failing fetch — simulate offline
     const failingFetch = vi.fn(async () => {
       throw new Error('offline');
     });
     const { tracker } = makeTracker({
       fetch: failingFetch as unknown as typeof fetch,
       maxBufferSize: 1000,
-      flushIntervalMs: 100000 // не успеет
+      flushIntervalMs: 100000 // won't fire in time
     });
     for (let i = 0; i < 250; i++) tracker.track(`evt_${i}`);
-    // буфер не должен расти бесконечно
+    // the buffer must not grow without bound
     const internal = tracker as unknown as { buffer: Array<unknown> };
     expect(internal.buffer.length).toBeLessThanOrEqual(200);
   });

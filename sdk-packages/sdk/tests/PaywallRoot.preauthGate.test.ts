@@ -7,13 +7,13 @@ import type { BillingClient } from '../src/core/BillingClient';
 import type { AuthClient, AuthSession } from '../src/core/auth';
 import type { LayoutBlock, PaywallBootstrap, PaywallSettings, CheckoutResult } from '../src/core/types';
 
-// Render-тесты на preauth-gate flow в PaywallRoot:
-// 1. checkout_mode=guest — checkout идёт без gate.
-// 2. checkout_mode=preauth + есть сессия — gate пропускается.
-// 3. checkout_mode=preauth + нет сессии — gate показывается, createCheckout НЕ вызывается.
-// 4. После signIn (onAuthChange выдаёт session) — auto-resume исходного checkout.
-// 5. Back из gate — возвращает layout, createCheckout не вызывается.
-// 6. Defensive: preauth без AuthClient → fallback на guest-flow (createCheckout вызывается).
+// Render tests for the preauth-gate flow in PaywallRoot:
+// 1. checkout_mode=guest — checkout proceeds without a gate.
+// 2. checkout_mode=preauth + existing session — the gate is skipped.
+// 3. checkout_mode=preauth + no session — the gate is shown, createCheckout is NOT called.
+// 4. After signIn (onAuthChange yields a session) — auto-resume of the original checkout.
+// 5. Back from the gate — returns to the layout, createCheckout isn't called.
+// 6. Defensive: preauth without AuthClient → falls back to the guest flow (createCheckout is called).
 
 function makeSession(): AuthSession {
   return {
@@ -57,9 +57,9 @@ function makeAuthHarness(initialSession: AuthSession | null = null): AuthHarness
   return {
     auth,
     signOut,
-    // emit: signin-like событие. Если переход null→session или другой user.id —
-    // SIGNED_IN; если тот же user — TOKEN_REFRESHED. Это match'ит реальный
-    // applyExternalSession-классификатор в @sdk/core/auth.
+    // emit: a signin-like event. On a null→session transition or a different user.id —
+    // SIGNED_IN; for the same user — TOKEN_REFRESHED. This matches the real
+    // applyExternalSession classifier in @sdk/core/auth.
     emit: (s) => {
       const event =
         !cached || !s || cached.user.id !== s.user.id ? 'SIGNED_IN' : 'TOKEN_REFRESHED';
@@ -154,7 +154,7 @@ function mount(client: BillingClient): {
 }
 
 async function flush(): Promise<void> {
-  // Дать `bootstrap()` Promise зарезолвиться + setState прогнать render.
+  // Let the `bootstrap()` promise resolve + setState drive a render.
   await act(async () => {
     await Promise.resolve();
     await Promise.resolve();
@@ -173,8 +173,8 @@ function clickContinue(container: HTMLElement): void {
 
 describe('PaywallRoot preauth gate', () => {
   beforeEach(() => {
-    // По дефолту имитируем "попап открылся": runCheckout считает не-null
-    // возврат за успех и не дёргает location.assign-fallback.
+    // By default we simulate "popup opened": runCheckout treats a non-null
+    // return as success and doesn't hit the location.assign fallback.
     vi.stubGlobal('open', vi.fn().mockReturnValue({} as Window));
   });
   afterEach(() => {
@@ -211,9 +211,9 @@ describe('PaywallRoot preauth gate', () => {
     await flush();
     clickContinue(container);
     await flush();
-    // createCheckout не должен дёрнуться — gate перехватил.
+    // createCheckout must not fire — the gate intercepted it.
     expect(createCheckout).not.toHaveBeenCalled();
-    // На экране — preauth-intent heading "Log in to continue your purchase" + Back-кнопка.
+    // On screen — the preauth-intent heading "Log in to continue your purchase" + a Back button.
     expect(container.textContent).toContain('Log in to continue your purchase');
     expect(container.querySelector('button[aria-label="Back"]')).toBeTruthy();
     unmount();
@@ -228,7 +228,7 @@ describe('PaywallRoot preauth gate', () => {
     await flush();
     expect(createCheckout).not.toHaveBeenCalled();
 
-    // Имитируем успешный signIn — onAuthChange должен запустить runCheckout.
+    // Simulate a successful signIn — onAuthChange should start runCheckout.
     act(() => {
       harness.emit(makeSession());
     });
@@ -240,10 +240,10 @@ describe('PaywallRoot preauth gate', () => {
   });
 
   it('preauth: popup blocked after auto-resume → shows popup_blocked view, never navigates current tab', async () => {
-    // window.open(_blank) после длинной async-цепочки signin→createCheckout
-    // может блокироваться (transient activation истёк). НЕ уносим юзера через
-    // location.assign — пейвол должен остаться. Показываем inline retry с
-    // фреш-гестуром по кнопке.
+    // window.open(_blank) after the long async chain signin→createCheckout
+    // can be blocked (transient activation expired). We do NOT take the user away via
+    // location.assign — the paywall must stay. We show an inline retry with
+    // a fresh gesture on the button.
     vi.stubGlobal('open', vi.fn().mockReturnValue(null));
     const assignSpy = vi.fn();
     const originalLocation = window.location;
@@ -282,8 +282,8 @@ describe('PaywallRoot preauth gate', () => {
   });
 
   it('preauth: successful popup transitions to awaiting_payment view with retry button', async () => {
-    // Счастливый путь: window.open вернул handle. Пейвол показывает
-    // ожидание + кнопку Try again на случай если юзер закрыл вкладку.
+    // Happy path: window.open returned a handle. The paywall shows
+    // a waiting state + a Try again button in case the user closed the tab.
     const harness = makeAuthHarness(null);
     const { client, createCheckout } = makeClientHarness({ checkout_mode: 'preauth' }, harness.auth);
     const { container, unmount } = mount(client);
@@ -303,7 +303,7 @@ describe('PaywallRoot preauth gate', () => {
     );
     expect(retryBtn).toBeTruthy();
 
-    // Try again — пересоздаёт checkout (URL мог expire'нуться).
+    // Try again — recreates the checkout (the URL may have expired).
     act(() => {
       retryBtn!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
@@ -324,7 +324,7 @@ describe('PaywallRoot preauth gate', () => {
       harness.emit(makeSession());
     });
     await flush();
-    // Refresh цикл — onAuthChange может прислать ещё одну сессию.
+    // Refresh cycle — onAuthChange may send another session.
     act(() => {
       harness.emit(makeSession());
     });
@@ -349,7 +349,7 @@ describe('PaywallRoot preauth gate', () => {
     });
     await flush();
 
-    // Снова видим Continue → значит вернулись в layout.
+    // We see Continue again → meaning we're back in the layout.
     const continueBtn = Array.from(container.querySelectorAll('button')).find(
       (b) => b.textContent === 'Continue'
     );
@@ -409,7 +409,7 @@ describe('PaywallRoot preauth gate', () => {
     await flush();
 
     expect(harness.signOut).toHaveBeenCalledTimes(1);
-    // После signOut harness эмитит null — block перерендеривается в "Restore".
+    // After signOut the harness emits null — the block re-renders into "Restore".
     expect(container.textContent).toContain('Restore purchases');
     expect(createCheckout).not.toHaveBeenCalled();
     unmount();
@@ -434,18 +434,18 @@ describe('PaywallRoot preauth gate', () => {
     });
     await flush();
 
-    // Gate открыт с intent='restore' — видим кастомный заголовок.
+    // The gate opened with intent='restore' — we see the custom heading.
     expect(container.textContent).toContain('Restore Purchases');
 
-    // Имитируем signIn — gate схлопывается, createCheckout НЕ вызывается
-    // (рестор не несёт pendingCheckout).
+    // Simulate signIn — the gate collapses, createCheckout is NOT called
+    // (restore carries no pendingCheckout).
     act(() => {
       harness.emit(makeSession());
     });
     await flush();
 
     expect(createCheckout).not.toHaveBeenCalled();
-    // После схлопывания gate'а юзер снова в layout — видит signed-in summary.
+    // After the gate collapses the user is back in the layout — sees the signed-in summary.
     expect(container.textContent).toContain('Signed in as');
     unmount();
   });
@@ -456,7 +456,7 @@ describe('PaywallRoot preauth gate', () => {
     await flush();
     clickContinue(container);
     await flush();
-    // Безопасный fallback — без AuthClient гейт смысла не имеет.
+    // Safe fallback — without an AuthClient the gate makes no sense.
     expect(createCheckout).toHaveBeenCalledTimes(1);
     unmount();
   });

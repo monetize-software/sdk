@@ -1,10 +1,10 @@
 /**
- * Static-translations для nl. Сгенерировано из:
- *  - `online/lang/static-translations.ts` (legacy, через KEY_MAP)
- *  - `tools/sdk-translations.mjs` (SDK-specific строки)
+ * Static-translations for nl. Generated from:
+ *  - `online/lang/static-translations.ts` (legacy, via KEY_MAP)
+ *  - `tools/sdk-translations.mjs` (SDK-specific strings)
  *
- * Не править вручную — изменения теряются при следующем `node tools/gen-locales.mjs`.
- * Чтобы исправить перевод — править legacy/sdk-translations.mjs и регенерить.
+ * Do not edit by hand — changes are lost on the next `node tools/gen-locales.mjs`.
+ * To fix a translation, edit legacy/sdk-translations.mjs and regenerate.
  */
 const nl = {
   'anon.description_default': 'Gastsessie wordt ingesteld…',
@@ -52,7 +52,6 @@ const nl = {
   'auth.reset_password_title': 'Wachtwoord opnieuw instellen',
   'auth.reset_sent_message': 'Als dat e-mailadres bestaat, is er een resetcode verzonden.',
   'auth.reset_sent_subtitle': 'We hebben een wachtwoord-resetlink verzonden. Volg de instructies in de e-mail.',
-  'auth.signup_sent_subtitle': 'We hebben een bevestigingslink naar je e-mail gestuurd. Klik erop om je account te activeren en log daarna in.',
   'auth.restore_purchases_heading': 'Aankopen Herstellen',
   'auth.restore_purchases_subheading': 'Log in om je aankopen te herstellen.',
   'auth.send_reset': 'Reset-e-mail Versturen',
@@ -81,9 +80,9 @@ const nl = {
   'modal.continue': 'Doorgaan',
   'modal.error_generic': 'Er ging iets mis',
   'modal.loading': 'Laden…',
-  'modal.purchase_restored_subtitle': 'Welkom terug — je abonnement is al actief.',
-  'modal.purchase_restored_title': 'Abonnement hersteld',
-  'modal.purchase_success_subtitle': 'Je abonnement is nu actief.',
+  'modal.purchase_restored_subtitle': 'Alles is klaar — veel plezier!',
+  'modal.purchase_restored_title': 'Welkom terug',
+  'modal.purchase_success_subtitle': 'Alles is klaar — veel plezier!',
   'modal.purchase_success_title': 'Betaling ontvangen',
   'modal.verifying_subscription': 'Abonnement controleren…',
   'nav.back': '← Terug',

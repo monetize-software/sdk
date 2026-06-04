@@ -4,9 +4,9 @@ import type { PaywallUser } from '../src/core/types';
 
 const TEST_API_ORIGIN = 'https://test.example.com';
 
-// Каждый тест получает свежий storage — иначе module-level memoryMap из
-// storage.ts протекает между тестами и persistent fallback hydrate'ит чужой
-// user.
+// Each test gets a fresh storage — otherwise the module-level memoryMap from
+// storage.ts leaks between tests and the persistent fallback hydrates someone
+// else's user.
 function freshStorage() {
   return {
     getItem: vi.fn(async () => null),
@@ -43,9 +43,9 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
-// fetch-мок, который различает /bootstrap и /user-state. Для тестов user-state
-// /bootstrap не вызывается — возвращаем 404, чтобы было видно, если случайно
-// дёрнут.
+// fetch mock that distinguishes /bootstrap from /user-state. For user-state tests
+// /bootstrap isn't called — we return 404 so it's visible if it gets hit by
+// accident.
 function makeFetch(userResponses: PaywallUser[]): { fn: typeof fetch; calls: () => number } {
   let i = 0;
   const fn = vi.fn<typeof fetch>(async (input) => {
@@ -152,7 +152,7 @@ describe('BillingClient.getUser', () => {
     const b = client.getUser();
     const c = client.getUser();
 
-    // Прокручиваем microtask-цепочку async IIFE → ApiClient.request → fetchImpl.
+    // Run the microtask chain: async IIFE → ApiClient.request → fetchImpl.
     await vi.advanceTimersByTimeAsync(0);
     expect((fetchFn as ReturnType<typeof vi.fn>).mock.calls.length).toBe(1);
 
@@ -244,8 +244,8 @@ describe('BillingClient.onUserChange', () => {
     const seen: PaywallUser[] = [];
     client.onUserChange((u) => seen.push(u));
 
-    expect(seen.length).toBe(0); // не синхронно
-    await Promise.resolve(); // прокручиваем микротаски
+    expect(seen.length).toBe(0); // not synchronous
+    await Promise.resolve(); // run the microtasks
     expect(seen).toEqual([ACTIVE]);
   });
 

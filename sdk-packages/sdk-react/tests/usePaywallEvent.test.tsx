@@ -24,8 +24,8 @@ describe('usePaywallEvent', () => {
     });
     expect(handler1).toHaveBeenCalledWith({ priceId: 'p1', sessionId: 's1' });
 
-    // Меняем handler без unmount — старая подписка должна позвать новый handler
-    // (через ref), а не пересоздаваться.
+    // Change the handler without unmounting — the old subscription should call
+    // the new handler (via ref) rather than be recreated.
     rerender({ handler: handler2 });
 
     act(() => {
@@ -36,7 +36,7 @@ describe('usePaywallEvent', () => {
 
     unmount();
 
-    // После unmount подписка снята — handler больше не вызывается.
+    // After unmount the subscription is removed — the handler is no longer called.
     act(() => {
       fake.emit('purchase_completed', { priceId: 'p3', sessionId: 's3' });
     });

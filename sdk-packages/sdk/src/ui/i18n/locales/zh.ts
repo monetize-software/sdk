@@ -1,10 +1,10 @@
 /**
- * Static-translations для zh. Сгенерировано из:
- *  - `online/lang/static-translations.ts` (legacy, через KEY_MAP)
- *  - `tools/sdk-translations.mjs` (SDK-specific строки)
+ * Static-translations for zh. Generated from:
+ *  - `online/lang/static-translations.ts` (legacy, via KEY_MAP)
+ *  - `tools/sdk-translations.mjs` (SDK-specific strings)
  *
- * Не править вручную — изменения теряются при следующем `node tools/gen-locales.mjs`.
- * Чтобы исправить перевод — править legacy/sdk-translations.mjs и регенерить.
+ * Do not edit by hand — changes are lost on the next `node tools/gen-locales.mjs`.
+ * To fix a translation, edit legacy/sdk-translations.mjs and regenerate.
  */
 const zh = {
   'anon.description_default': '正在设置访客会话…',
@@ -52,7 +52,6 @@ const zh = {
   'auth.reset_password_title': '重置密码',
   'auth.reset_sent_message': '如果该邮箱存在，已发送重置码。',
   'auth.reset_sent_subtitle': '我们已发送密码重置链接。请按邮件中的说明操作。',
-  'auth.signup_sent_subtitle': '我们已向您的邮箱发送了确认链接。点击它激活您的账户，然后登录。',
   'auth.restore_purchases_heading': '恢复购买',
   'auth.restore_purchases_subheading': '请登录以恢复您的购买。',
   'auth.send_reset': '发送重置邮件',
@@ -85,9 +84,9 @@ const zh = {
   'modal.continue': '继续',
   'modal.error_generic': '出错了',
   'modal.loading': '加载中…',
-  'modal.purchase_restored_subtitle': '欢迎回来 — 您的订阅已激活。',
-  'modal.purchase_restored_title': '订阅已恢复',
-  'modal.purchase_success_subtitle': '您的订阅已激活。',
+  'modal.purchase_restored_subtitle': '一切就绪 — 尽情享受吧！',
+  'modal.purchase_restored_title': '欢迎回来',
+  'modal.purchase_success_subtitle': '一切就绪 — 尽情享受吧！',
   'modal.purchase_success_title': '已收到付款',
   'modal.verifying_subscription': '正在检查您的订阅…',
   'nav.back': '← 返回',

@@ -1,12 +1,12 @@
-// Demo content-script. PaywallUI + плавающий widget в углу страницы.
+// Demo content-script. PaywallUI + a floating widget in the corner of the page.
 //
-// Widget показывает текущий account/subscription state и реактивно обновляется
-// на authChange/userChange. Главное демо-значение: signin в popup'е (или другой
-// вкладке) мгновенно отражается на этой странице — потому что offscreen broadcast'ит
-// auth/user обновления всем подключённым content-script'ам.
+// The widget shows the current account/subscription state and updates reactively
+// on authChange/userChange. The key demo value: a signin in the popup (or another
+// tab) is reflected on this page instantly — because offscreen broadcasts
+// auth/user updates to all connected content-scripts.
 //
-// Виджет в собственном Shadow DOM, чтобы стили страницы (CSP, !important от
-// host'а) не ломали layout.
+// The widget lives in its own Shadow DOM so that page styles (CSP, !important from
+// the host) don't break the layout.
 
 import { PaywallUI, PROTOCOL_VERSION } from '@monetize.software/sdk-extension';
 import { ApiGatewayClient } from '@sdk/core/ApiGatewayClient';
@@ -14,13 +14,13 @@ import { type Balance, type PaywallUser } from '@sdk/core/types';
 import type { AuthClient, AuthSession } from '@sdk/core/auth';
 import { trackRealAuth, handleGatewayError, callWithRetry } from './unauthorized-handler';
 
-const PROVIDER_ID = '1'; // DeepSeek api-провайдер.
+const PROVIDER_ID = '1'; // DeepSeek api provider.
 
 console.info('[demo-extension] content-script loaded, sdk-extension v' + PROTOCOL_VERSION);
 
-// data-attribute на <html> — единственный надёжный способ для page-context
-// (e2e-тестов) увидеть, что content-script прогрузился. window.__paywall
-// доступен только в content-script isolated world, page его не видит.
+// A data-attribute on <html> is the only reliable way for the page-context
+// (e2e tests) to see that the content-script has loaded. window.__paywall
+// is only available in the content-script isolated world; the page can't see it.
 document.documentElement.setAttribute('data-paywall-loaded', '1');
 
 interface WidgetState {
@@ -30,9 +30,9 @@ interface WidgetState {
   expanded: boolean;
   flash: string | null;
   anonBusy: boolean;
-  /** 'main' — карточка с account + кнопками; 'ask' — DeepSeek чат; 'image' —
-   *  Replicate генерация; 'upscale' — Replicate Clarity Upscaler с file input.
-   *  Переключается через nav-кнопки в карточке. */
+  /** 'main' — card with account + buttons; 'ask' — DeepSeek chat; 'image' —
+   *  Replicate generation; 'upscale' — Replicate Clarity Upscaler with a file input.
+   *  Switched via the nav buttons in the card. */
   view: 'main' | 'ask' | 'image' | 'upscale';
   askPrompt: string;
   askBusy: boolean;
@@ -62,26 +62,27 @@ async function bootstrapPaywall(): Promise<void> {
     auth: true
   });
 
-  // Page-context exposure ТОЛЬКО для e2e-сборки (`vite build --mode e2e`).
-  // В обычном `build:demo` (= шаблон для клиентов) этой строки в bundle нет —
-  // клиент копипастит content.ts и не получает PaywallUI в page-context'е
-  // случайно: любой script на странице иначе мог бы дёрнуть paywall.open() /
-  // .track() и злоупотреблять чужим extension'ом. Cast: demo-extension
-  // excluded из tsconfig, `vite/client` types сюда не подтянуты — берём env
-  // вручную, vite заменит на литерал при bundling'е и if-блок dead-code'нится.
+  // Page-context exposure ONLY for the e2e build (`vite build --mode e2e`).
+  // In a regular `build:demo` (= the client template) this line isn't in the
+  // bundle — a client copy-pastes content.ts and doesn't accidentally get
+  // PaywallUI in the page-context: otherwise any script on the page could call
+  // paywall.open() / .track() and abuse someone else's extension. Cast:
+  // demo-extension is excluded from tsconfig and `vite/client` types aren't
+  // pulled in here — we read env manually, vite replaces it with a literal at
+  // bundling time and the if-block gets dead-coded away.
   const mode = (import.meta as { env?: { MODE?: string } }).env?.MODE;
   if (mode === 'e2e') {
     (window as unknown as { __paywall?: PaywallUI }).__paywall = paywall;
   }
   document.documentElement.setAttribute('data-paywall-ready', '1');
 
-  // Записываем persistent-флаг "юзер логинился реальной identity" — нужен для
-  // решения 401-recovery flow'а (см. handleGatewayError ниже).
+  // Write the persistent flag "user signed in with a real identity" — needed to
+  // decide the 401-recovery flow (see handleGatewayError below).
   trackRealAuth(paywall);
 
   mountWidget(paywall);
 
-  // Bootstrap в фоне — заполнит cachedUser, виджет ре-рендерится через onUserChange.
+  // Bootstrap in the background — fills cachedUser; the widget re-renders via onUserChange.
   void paywall.billing.bootstrap();
 }
 
@@ -90,13 +91,13 @@ void bootstrapPaywall();
 // === Floating widget ===
 
 function mountWidget(paywall: PaywallUI): void {
-  // top-level контейнер — обычный div в host-документе. attachShadow
-  // делает изолированный subtree, в который рисуем UI.
+  // top-level container — a plain div in the host document. attachShadow
+  // creates an isolated subtree into which we render the UI.
   const host = document.createElement('div');
   host.id = '__monetize-demo-widget';
   host.style.cssText = 'all: initial; position: fixed; bottom: 16px; right: 16px; z-index: 2147483646;';
-  // Только когда DOM готов — иначе на document_idle injection'е <body>
-  // может ещё не быть (редко, но бывает на slow-renderable страницах).
+  // Only once the DOM is ready — otherwise at document_idle injection <body>
+  // may not exist yet (rare, but happens on slow-renderable pages).
   if (document.body) document.body.appendChild(host);
   else document.addEventListener('DOMContentLoaded', () => document.body.appendChild(host), { once: true });
 
@@ -133,9 +134,9 @@ function mountWidget(paywall: PaywallUI): void {
     upscaleError: null
   };
 
-  // Bearer'ов общий gateway: внутри ApiGatewayClient вызывает
+  // Shared gateway for Bearer tokens: internally ApiGatewayClient calls
   // `auth.getAccessToken()` → RemoteAuthClient → transport → offscreen.
-  // 402 = квота — открываем paywall автоматически.
+  // 402 = quota — we open the paywall automatically.
   const gateway = new ApiGatewayClient({
     paywallId: paywall.billing.paywallId,
     apiOrigin: paywall.billing.apiOrigin ?? undefined,
@@ -157,11 +158,11 @@ function mountWidget(paywall: PaywallUI): void {
     }, 2500);
   }
 
-  // Первый callback per subscriber — это initial snapshot из cached mirror'а
-  // (см. `RemoteBillingClient.onUserChange` microtask emit), а не реальный
-  // переход. Если в нём уже premium — это «восстановили state», а не «только
-  // что активировал»; флеш «Premium activated» нужен ТОЛЬКО на реальном
-  // false→true переходе уже после initial sync.
+  // The first callback per subscriber is the initial snapshot from the cached
+  // mirror (see `RemoteBillingClient.onUserChange` microtask emit), not a real
+  // transition. If it's already premium, that's "state restored", not "just
+  // activated"; the "Premium activated" flash is needed ONLY on a real
+  // false→true transition that happens after the initial sync.
   let userInitialDelivered = false;
   paywall.onUserChange((u) => {
     const wasPremium = !!state.user?.has_active_subscription;
@@ -177,19 +178,20 @@ function mountWidget(paywall: PaywallUI): void {
   paywall.on('authChange', ({ event, session: s }) => {
     state.session = s;
     if (event === 'SIGNED_IN') {
-      // Реальный вход — баланс может отличаться от того, что закешировано
-      // под предыдущей identity (или вообще не было кеша). Force-refetch.
+      // A real sign-in — the balance may differ from what was cached under
+      // the previous identity (or there was no cache at all). Force-refetch.
       void paywall.billing.getBalances({ force: true }).catch(() => {});
       setFlash(`Signed in: ${s?.user?.email ?? ''}`);
     } else if (event === 'SIGNED_OUT') {
-      // user/balances обновятся через onUserChange/onBalanceChange (SDK
-      // эмитит EMPTY_USER + [] в setIdentity(undefined)). Здесь только flash.
+      // user/balances will update via onUserChange/onBalanceChange (the SDK
+      // emits EMPTY_USER + [] in setIdentity(undefined)). Here only the flash.
       setFlash('Signed out');
     } else {
-      // INITIAL_SESSION (restore из storage при reload), TOKEN_REFRESHED,
-      // USER_UPDATED, PASSWORD_RECOVERY — для UI это просто re-render с новой
-      // session. Балансы НЕ дёргаем: либо это сессия восстановилась (cached
-      // через offscreen-persist всё ещё валиден), либо те же user.id+квоты.
+      // INITIAL_SESSION (restore from storage on reload), TOKEN_REFRESHED,
+      // USER_UPDATED, PASSWORD_RECOVERY — for the UI these are just a re-render
+      // with the new session. We do NOT fetch balances: either the session was
+      // restored (the offscreen-persisted cache is still valid), or it's the
+      // same user.id + quotas.
       render();
     }
   });
@@ -249,10 +251,10 @@ function mountWidget(paywall: PaywallUI): void {
     state.imageError = null;
     render();
     try {
-      // Replicate Imagen-4-fast: создаём prediction, ждём результата через
-      // `Prefer: wait=60`. Replicate за это время либо завершит и вернёт
-      // output (URL картинки), либо отдаст prediction в processing-state'е.
-      // Для processing — poll'им через тот же gateway по prediction.id.
+      // Replicate Imagen-4-fast: create a prediction, wait for the result via
+      // `Prefer: wait=60`. In that time Replicate either finishes and returns
+      // output (the image URL), or returns the prediction in a processing state.
+      // For processing — we poll through the same gateway by prediction.id.
       const res = await callWithRetry(paywall, () =>
         gateway.call({
           providerId: '2',
@@ -327,9 +329,9 @@ function mountWidget(paywall: PaywallUI): void {
     }
   }
 
-  /** Replicate prediction polling. Если уже готов на момент возврата POST'а
-   *  (Prefer:wait=60 успел) — резолвим сразу. Иначе ходим за prediction
-   *  каждые 2с (через тот же gateway, чтобы Bearer + paywall_id). */
+  /** Replicate prediction polling. If it's already ready when the POST returns
+   *  (Prefer:wait=60 made it in time) — resolve immediately. Otherwise fetch the
+   *  prediction every 2s (through the same gateway, to keep Bearer + paywall_id). */
   async function waitForPrediction(initial: {
     id?: string;
     status?: string;
@@ -528,12 +530,12 @@ function mountWidget(paywall: PaywallUI): void {
 
     card.querySelectorAll<HTMLElement>('[data-action]').forEach((node) => {
       const action = node.getAttribute('data-action');
-      // Input/textarea — пишем напрямую в state без render'а (не теряем
-      // caret position на каждом keystroke).
+      // Input/textarea — write straight to state without a render (so we don't
+      // lose the caret position on every keystroke).
       if (action === 'ask-prompt') {
-        // НЕ ре-рендерим на каждый keystroke — иначе caret position теряется
-        // в textarea (innerHTML re-mount). Сохраняем в state, кнопка проверит
-        // prompt при click'е.
+        // Do NOT re-render on every keystroke — otherwise the caret position is
+        // lost in the textarea (innerHTML re-mount). Store it in state; the
+        // button will check the prompt on click.
         node.addEventListener('input', (e) => {
           state.askPrompt = (e.currentTarget as HTMLTextAreaElement).value;
         });

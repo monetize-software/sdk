@@ -1,28 +1,28 @@
 import { defineConfig, devices } from '@playwright/test';
 
-// Проекты:
-//   - `extension`         — MV3 playground, fixtures.ts поднимает persistent-context с --load-extension.
-//   - `demo-stripe`       — bootstrap-смоук на тест-пейволе со Stripe (id=3).
-//   - `demo-paddle`       — bootstrap-смоук на тест-пейволе с Paddle (id=4).
-//   - `demo-freemius`     — bootstrap-смоук на тест-пейволе с Freemius (id=5).
-//   - `checkout-stripe`   — полный Stripe test-mode flow на пейволе id=3, карта 4242.
-//   - `checkout-paddle`   — полный Paddle Sandbox flow на пейволе id=4.
-//   - `checkout-freemius` — полный Freemius Sandbox flow на пейволе id=5 (через polling, без redirect).
-// Запуск:
+// Projects:
+//   - `extension`         — MV3 playground, fixtures.ts spins up a persistent-context with --load-extension.
+//   - `demo-stripe`       — bootstrap smoke on the Stripe test paywall (id=3).
+//   - `demo-paddle`       — bootstrap smoke on the Paddle test paywall (id=4).
+//   - `demo-freemius`     — bootstrap smoke on the Freemius test paywall (id=5).
+//   - `checkout-stripe`   — full Stripe test-mode flow on paywall id=3, card 4242.
+//   - `checkout-paddle`   — full Paddle Sandbox flow on paywall id=4.
+//   - `checkout-freemius` — full Freemius Sandbox flow on paywall id=5 (via polling, without redirect).
+// Running:
 //   pnpm test:e2e                    → extension
 //   pnpm test:e2e:demo:stripe        → smoke Stripe (CI)
 //   pnpm test:e2e:demo:paddle        → smoke Paddle (CI)
 //   pnpm test:e2e:demo:freemius      → smoke Freemius (CI)
-//   pnpm test:e2e:checkout:stripe    → полный Stripe checkout (руками перед релизом)
-//   pnpm test:e2e:checkout:paddle    → полный Paddle checkout (руками перед релизом)
-//   pnpm test:e2e:checkout:freemius  → полный Freemius checkout (руками перед релизом)
-//   pnpm test:e2e:all                → всё
+//   pnpm test:e2e:checkout:stripe    → full Stripe checkout (manually before release)
+//   pnpm test:e2e:checkout:paddle    → full Paddle checkout (manually before release)
+//   pnpm test:e2e:checkout:freemius  → full Freemius checkout (manually before release)
+//   pnpm test:e2e:all                → everything
 //
-// `webServer` поднимает `pnpm dev` на :5070 и форсит VITE_API_TARGET на dev-online
-// (http://152.42.143.9:3000 — там крутится дев-билд из ветки `dev`, цепляется
-// к тестовой БД, где живут paywall id=3 (Stripe), id=4 (Paddle), id=5 (Freemius)). Локальный
-// `pnpm dev` без e2e продолжает ходить на local.paywall.app:5050 (см. vite.config.ts).
-// SKIP_WEB_SERVER=1 отключает автозапуск, если dev уже крутится.
+// `webServer` spins up `pnpm dev` on :5070 and forces VITE_API_TARGET to dev-online
+// (http://152.42.143.9:3000 — a dev build from the `dev` branch runs there, connecting
+// to the test DB where paywall id=3 (Stripe), id=4 (Paddle), id=5 (Freemius) live). A local
+// `pnpm dev` without e2e keeps hitting local.paywall.app:5050 (see vite.config.ts).
+// SKIP_WEB_SERVER=1 disables the autostart if dev is already running.
 const STAGING_ONLINE = process.env.VITE_API_TARGET ?? 'http://152.42.143.9:3000';
 
 export default defineConfig({

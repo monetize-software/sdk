@@ -7,9 +7,9 @@ import type { BlockContext } from '../src/ui/renderer/types';
 import type { AuthClient, AuthSession } from '../src/core/auth';
 import { PaywallError, type LayoutBlock } from '../src/core/types';
 
-// Минимальный мок AuthClient: достаточно для рендера AuthPanel и вызова
-// signIn/signUp/oauth/forgot. Не наследуем реальный AuthClient — берём
-// duck-typed shape, чтобы не тащить настоящий конструктор + сеть в каждый тест.
+// Minimal AuthClient mock: enough to render AuthPanel and call
+// signIn/signUp/oauth/forgot. We don't extend the real AuthClient — we use a
+// duck-typed shape to avoid dragging the real constructor + network into every test.
 function makeAuthMock(overrides: Partial<AuthClient> = {}): AuthClient {
   const stub: Partial<AuthClient> = {
     signInWithEmail: vi.fn(async () => makeSession()),
@@ -101,7 +101,7 @@ describe('AuthPanel render', () => {
     expect(inputs.length).toBe(2);
     expect(inputs[0].type).toBe('email');
     expect(inputs[1].type).toBe('password');
-    // Submit-кнопка с лейблом Sign In.
+    // Submit button labeled Sign In.
     const submit = container.querySelector('button[type="submit"]');
     expect(submit?.textContent).toContain('Sign In');
   });
@@ -156,16 +156,16 @@ describe('AuthPanel render', () => {
   it('toggle to signup mode shows Sign Up submit (collapsed) then Create Account (expanded)', () => {
     const auth = makeAuthMock();
     const { container } = renderPanel(BLOCK_DEFAULT, { auth });
-    // Toggle через "Sign Up" link в футере (signin → signup).
+    // Toggle via the "Sign Up" link in the footer (signin → signup).
     const link = Array.from(container.querySelectorAll('button')).find(
       (b) => (b.textContent ?? '').trim() === 'Sign Up'
     );
     act(() => link!.click());
-    // Collapsed: только email + submit "Sign Up".
+    // Collapsed: only email + the "Sign Up" submit.
     const submit = container.querySelector('button[type="submit"]');
     expect(submit?.textContent).toContain('Sign Up');
     expect(container.querySelector('input[type="password"]')).toBeNull();
-    // Раскрываем кликом submit с заполненным email.
+    // Expand by clicking submit with the email filled in.
     const email = container.querySelector<HTMLInputElement>('input[type="email"]')!;
     act(() => {
       email.value = 'new@b.c';
@@ -272,13 +272,13 @@ describe('AuthPanel render', () => {
     const auth = makeAuthMock({ signUp });
     const { container } = renderPanel(BLOCK_DEFAULT, { auth });
 
-    // Toggle signup через "Sign Up" link
+    // Toggle signup via the "Sign Up" link
     const toSignup = Array.from(container.querySelectorAll('button')).find(
       (b) => (b.textContent ?? '').trim() === 'Sign Up'
     );
     act(() => toSignup!.click());
 
-    // Шаг 1: fill email + первый submit (раскрывает password+confirm).
+    // Step 1: fill email + first submit (expands password+confirm).
     const email = container.querySelector<HTMLInputElement>('input[type="email"]')!;
     const form = container.querySelector('form')!;
     await act(async () => {
@@ -289,7 +289,7 @@ describe('AuthPanel render', () => {
       form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
     });
 
-    // Шаг 2: fill password + confirm и второй submit — реальный signUp call.
+    // Step 2: fill password + confirm and a second submit — the real signUp call.
     const passwords = container.querySelectorAll<HTMLInputElement>('input[type="password"]');
     await act(async () => {
       passwords[0].value = 'pw_new';
@@ -301,8 +301,8 @@ describe('AuthPanel render', () => {
       form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
     });
 
-    // Link-флоу: показываем «check your email → click link», НЕ экран кода.
-    // OTP-инпута быть не должно (signup подтверждается ссылкой, не кодом).
+    // Link flow: we show "check your email → click link", NOT the code screen.
+    // There should be no OTP input (signup is confirmed by a link, not a code).
     const otp = container.querySelector('input[autocomplete="one-time-code"]');
     expect(otp).toBeFalsy();
     expect(container.textContent).toContain('Check your email');

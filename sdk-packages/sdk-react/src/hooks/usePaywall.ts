@@ -3,23 +3,23 @@ import type { PaywallUI } from '@monetize.software/sdk';
 import { PaywallContext, PaywallProviderMarker } from '../context';
 
 /**
- * Достаёт PaywallUI-инстанс из ближайшего {@link PaywallProvider}.
+ * Pulls the PaywallUI instance from the nearest {@link PaywallProvider}.
  *
- * Бросает ошибку, если вызван вне Provider'а — это явный программный баг,
- * не runtime-флоу. На SSR / до useEffect Provider'а возвращает `null`
- * (Provider есть, но инстанс ещё не смонтирован).
+ * Throws if called outside a Provider — that's an outright programming bug, not
+ * a runtime flow. On SSR / before the Provider's useEffect it returns `null`
+ * (the Provider exists, but the instance isn't mounted yet).
  *
- * Подавляющему большинству пейволов от хоста нужны `paywall.open()`,
- * `paywall.openSupport()`, подписки на события — для всего этого
- * usePaywall() самый прямой путь:
+ * The vast majority of paywalls need `paywall.open()`,
+ * `paywall.openSupport()`, event subscriptions from the host — for all of that
+ * usePaywall() is the most direct path:
  *
  * ```tsx
  * const paywall = usePaywall();
  * <button onClick={() => paywall?.open()}>Upgrade</button>
  * ```
  *
- * Для типичных кейсов (gating, state-driven UI) обычно удобнее
- * специализированные хуки: {@link usePaywallState}, {@link usePaywallAccess},
+ * For typical cases (gating, state-driven UI) the specialized hooks are usually
+ * more convenient: {@link usePaywallState}, {@link usePaywallAccess},
  * {@link usePaywallUser}.
  */
 export function usePaywall(): PaywallUI | null {

@@ -5,10 +5,10 @@ import { STORAGE_KEYS, type StorageAdapter } from '../src/core/storage';
 
 const TEST_API_ORIGIN = 'https://test.example.com';
 
-// Стораджевая шина для теста: эмулирует chrome.storage.onChanged через
-// общий map + список подписчиков. Любой setItem/removeItem тригерит всех
-// подписчиков, как делает chrome.storage в реальности (включая context'а,
-// который инициировал запись — onChanged фаерится во ВСЕХ контекстах).
+// Storage bus for the test: emulates chrome.storage.onChanged via a shared map
+// + a list of subscribers. Any setItem/removeItem triggers all subscribers,
+// just as chrome.storage does in reality (including the context that initiated
+// the write — onChanged fires in ALL contexts).
 function makeShared(): {
   forContext: () => StorageAdapter;
 } {
@@ -70,21 +70,21 @@ describe('AuthClient cross-context sync', () => {
     await a.ready();
     await b.ready();
 
-    // A пишет — эмулируем "popup.signIn() сделал persist". Используем
-    // приватный путь через прямой setItem (тест эмулирует, что A только
-    // что записал, без полного signIn-флоу).
+    // A writes — emulating "popup.signIn() did a persist". We use the private
+    // path via a direct setItem (the test emulates that A just wrote, without
+    // the full signIn flow).
     await (a as unknown as { storage: StorageAdapter }).storage.setItem(
       KEY,
       JSON.stringify(SESSION)
     );
 
-    // applyExternalSession async — даём ему пройти.
+    // applyExternalSession is async — let it run.
     await Promise.resolve();
     await Promise.resolve();
 
     expect(b.getCachedSession()).toEqual(SESSION);
-    // events: INITIAL_SESSION(null) + SIGNED_IN(SESSION) — cross-context login
-    // в контексте, где session=null, классифицируется как SIGNED_IN.
+    // events: INITIAL_SESSION(null) + SIGNED_IN(SESSION) — a cross-context login
+    // in a context where session=null is classified as SIGNED_IN.
     expect(events.at(-1)).toEqual(['SIGNED_IN', SESSION]);
     a.destroy();
     b.destroy();
@@ -120,8 +120,8 @@ describe('AuthClient cross-context sync', () => {
     await Promise.resolve();
     const initial = eventsA.length;
 
-    // A persist'ит ту же session дважды. onChanged-цикл не должен генерить
-    // лишних emit'ов из-за sameSession() guard'а.
+    // A persists the same session twice. The onChanged loop must not generate
+    // extra emits thanks to the sameSession() guard.
     await (a as unknown as { storage: StorageAdapter }).storage.setItem(
       KEY,
       JSON.stringify(SESSION)
@@ -135,31 +135,31 @@ describe('AuthClient cross-context sync', () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    // Один реальный applyExternalSession (первое изменение от null → SESSION),
-    // второй — sameSession-guard.
+    // One real applyExternalSession (the first change from null → SESSION), the
+    // second is caught by the sameSession guard.
     expect(eventsA.length - initial).toBeLessThanOrEqual(1);
     a.destroy();
   });
 
   it('lazy rehydrate in getAccessToken closes the construction race', async () => {
     const shared = makeShared();
-    // Seed AFTER constructor (имитируем: B проинстансился, потом A залогинился,
-    // но onChanged event "потерян"/еще не долетел).
+    // Seed AFTER the constructor (simulating: B was instantiated, then A logged
+    // in, but the onChanged event is "lost"/has not arrived yet).
     const b = new AuthClient({ apiOrigin: TEST_API_ORIGIN, paywallId: PAYWALL_ID, storage: shared.forContext() });
     await b.ready();
     expect(b.getCachedSession()).toBeNull();
 
-    // Без триггера watch — пишем в storage напрямую через свежий контекст
-    // (бэз watch-эмиссии, чтобы проверить чисто pull-fallback). Эмулируем
-    // через прямой map: новый shared не подойдёт. Используем тот же shared
-    // но без notify — для этого делаем прямую запись в b's storage.
+    // Without triggering watch — we write to storage directly via a fresh
+    // context (without a watch emission, to test the pure pull fallback). We
+    // emulate it via the direct map: a new shared would not fit. We use the same
+    // shared but without notify — for that we write directly into b's storage.
     await (b as unknown as { storage: StorageAdapter }).storage.setItem(
       KEY,
       JSON.stringify(SESSION)
     );
-    // Тут notify прозвучал — но мы хотим именно pull-фоллбэк, а не push.
-    // Уберём всех подписчиков, имитируя "event ещё не долетел":
-    // (после destroy() pull-фоллбэк всё равно работает).
+    // notify fired here — but we want the pull fallback, not push. We remove all
+    // subscribers, simulating "the event has not arrived yet":
+    // (after destroy() the pull fallback still works).
 
     const token = await b.getAccessToken();
     expect(token).toBe(SESSION.access_token);

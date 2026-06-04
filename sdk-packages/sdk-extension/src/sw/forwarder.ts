@@ -1,8 +1,8 @@
-// Service worker forwarder. Stateless по дизайну — единственная задача
-// маршрутизировать port'ы content↔offscreen. SW можеть умирать в любой момент
-// (после 30с idle); reconnect происходит органически: следующий content
-// runtime.connect разбудит SW, тот пересоздаст offscreen (если умер — а он
-// обычно нет) и поднимет свежий pipe.
+// Service worker forwarder. Stateless by design — its only job is to
+// route content↔offscreen ports. The SW can die at any moment
+// (after 30s idle); reconnect happens organically: the next content
+// runtime.connect wakes the SW, which recreates offscreen (if it died — though it
+// usually hasn't) and brings up a fresh pipe.
 
 import type { RouterOptions } from './types';
 import { ensureOffscreen } from './ensure-offscreen';
@@ -20,10 +20,10 @@ export function installForwarder(opts: RouterOptions): void {
   chrome.runtime.onConnect.addListener((contentPort) => {
     if (contentPort.name !== PORT_NAME) return;
 
-    // Поднимаем offscreen и проксируем. ensureOffscreen async — content успел
-    // отправить request'ы до её резолва: буферим в queue до создания offscreen
-    // port'а. Это лучше чем потерять — content всё равно тащит абсолютно всё
-    // через нас.
+    // Bring up offscreen and proxy. ensureOffscreen is async — content may
+    // send requests before it resolves: we buffer them in a queue until the offscreen
+    // port is created. Better than dropping them — content routes absolutely everything
+    // through us anyway.
     void connectAndPipe(contentPort, opts.offscreenUrl, reasons, justification);
   });
 }
@@ -61,11 +61,11 @@ async function connectAndPipe(
 
   let offscreenPort: chrome.runtime.Port;
   try {
-    // Используем отдельное имя relay-порта (не PORT_NAME), чтобы offscreen
-    // принимал только SW-relay подключения и игнорировал direct connect'ы
-    // от popup/content (которые тоже триггерят onConnect в offscreen — в MV3
-    // chrome.runtime.connect доставляется во ВСЕ extension contexts с
-    // onConnect listener'ом, не только в SW).
+    // We use a separate relay-port name (not PORT_NAME), so offscreen
+    // accepts only SW-relay connections and ignores direct connects
+    // from popup/content (which also trigger onConnect in offscreen — in MV3
+    // chrome.runtime.connect is delivered to ALL extension contexts with an
+    // onConnect listener, not just the SW).
     offscreenPort = chrome.runtime.connect({ name: RELAY_PORT_NAME });
   } catch (e) {
     console.error('[sdk-extension/sw] connect to offscreen failed', e);
@@ -73,20 +73,20 @@ async function connectAndPipe(
     return;
   }
 
-  // Снимаем буфер-listener, ставим прямой forwarder.
+  // Remove the buffer-listener, install the direct forwarder.
   contentPort.onMessage.removeListener(queueListener);
   contentPort.onMessage.addListener((msg) => {
     try {
       offscreenPort.postMessage(msg);
     } catch {
-      /* offscreen уже отвалился — disconnect-каскад поднимет content */
+      /* offscreen already dropped — the disconnect cascade will tear down content */
     }
   });
   offscreenPort.onMessage.addListener((msg) => {
     try {
       contentPort.postMessage(msg);
     } catch {
-      /* content уже отвалился */
+      /* content already dropped */
     }
   });
 
@@ -105,7 +105,7 @@ async function connectAndPipe(
     }
   });
 
-  // Сливаем накопившийся буфер.
+  // Flush the accumulated buffer.
   for (const msg of queue) {
     try {
       offscreenPort.postMessage(msg);

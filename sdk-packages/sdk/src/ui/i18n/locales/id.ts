@@ -1,10 +1,10 @@
 /**
- * Static-translations для id. Сгенерировано из:
- *  - `online/lang/static-translations.ts` (legacy, через KEY_MAP)
- *  - `tools/sdk-translations.mjs` (SDK-specific строки)
+ * Static-translations for id. Generated from:
+ *  - `online/lang/static-translations.ts` (legacy, via KEY_MAP)
+ *  - `tools/sdk-translations.mjs` (SDK-specific strings)
  *
- * Не править вручную — изменения теряются при следующем `node tools/gen-locales.mjs`.
- * Чтобы исправить перевод — править legacy/sdk-translations.mjs и регенерить.
+ * Do not edit by hand — changes are lost on the next `node tools/gen-locales.mjs`.
+ * To fix a translation, edit legacy/sdk-translations.mjs and regenerate.
  */
 const id = {
   'anon.heading_default': 'Lanjutkan sebagai tamu',
@@ -47,7 +47,6 @@ const id = {
   'auth.reset_password_title': 'Atur ulang kata sandi',
   'auth.reset_sent_message': 'Jika email tersebut ada, kode reset telah dikirim.',
   'auth.reset_sent_subtitle': 'Kami telah mengirim tautan reset kata sandi. Ikuti petunjuk di email.',
-  'auth.signup_sent_subtitle': 'Kami telah mengirim tautan konfirmasi ke email Anda. Klik untuk mengaktifkan akun Anda, lalu masuk.',
   'auth.restore_purchases_heading': 'Pulihkan pembelian',
   'auth.restore_purchases_subheading': 'Silakan masuk untuk memulihkan pembelian Anda.',
   'auth.send_reset': 'Kirim email reset',
@@ -75,9 +74,9 @@ const id = {
   'modal.continue': 'Lanjutkan',
   'modal.error_generic': 'Terjadi kesalahan',
   'modal.loading': 'Memuat…',
-  'modal.purchase_restored_subtitle': 'Selamat datang kembali — langganan Anda sudah aktif.',
-  'modal.purchase_restored_title': 'Langganan dipulihkan',
-  'modal.purchase_success_subtitle': 'Langganan Anda sekarang aktif.',
+  'modal.purchase_restored_subtitle': 'Semua siap — selamat menikmati!',
+  'modal.purchase_restored_title': 'Selamat datang kembali',
+  'modal.purchase_success_subtitle': 'Semua siap — selamat menikmati!',
   'modal.purchase_success_title': 'Pembayaran diterima',
   'modal.verifying_subscription': 'Memeriksa langganan Anda…',
   'nav.back': '← Kembali',

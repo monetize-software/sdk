@@ -53,6 +53,41 @@ paywall.open();  // exactly like @monetize.software/sdk
 
 **On websites** — keep using `@monetize.software/sdk`, nothing changes.
 
+## Advanced: calling the metered API gateway yourself
+
+`PaywallUI` covers the paywall + checkout flow. If you also hit the metered AI proxy
+(`/api/v1/api-gateway/...`) directly, build `ApiGatewayClient` from
+`@monetize.software/sdk/core` and pass the extension's `RemoteAuthClient` as the auth
+source — the Bearer is resolved in offscreen via `getAccessToken()`, so there is still a
+single AuthClient and no token duplication:
+
+```ts
+// content-script.ts / popup.ts
+import { ApiGatewayClient, QuotaExceededError } from '@monetize.software/sdk/core';
+import type { AuthClient } from '@monetize.software/sdk/core';
+
+const gateway = new ApiGatewayClient({
+  paywallId,
+  apiOrigin,                                    // same custom_domain as PaywallUI
+  auth: paywall.auth as unknown as AuthClient,  // RemoteAuthClient, duck-typed
+  onQuotaExceeded: () => paywall.open()         // 402 → show the paywall
+});
+
+try {
+  const res = await gateway.call({ providerId, path: 'v1/chat/completions', body });
+  // res is the raw Response — res.json() / res.body.getReader() for SSE.
+} catch (err) {
+  if (err instanceof QuotaExceededError) { /* out of quota */ }
+}
+```
+
+> Import `ApiGatewayClient` **and** `QuotaExceededError` from the same
+> `@monetize.software/sdk/core` entry. `sdk-extension` deliberately does **not** re-export
+> them: its content bundle inlines a copy of `sdk`, so a `QuotaExceededError` re-exported
+> from `sdk-extension` would be a *different* class identity and silently break `instanceof`
+> at the call site. `ApiGatewayClient` itself is transport-agnostic infra and belongs in
+> `core`, not in the chrome-remoting package.
+
 ## Manifest: what to declare in the host extension
 
 The SDK itself does not add anything to the manifest — the host extension picks

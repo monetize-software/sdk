@@ -1,15 +1,15 @@
-// Service worker entry. Тонкий forwarder между content-script'ами и offscreen.
-// State не держит — вся правда в offscreen, SW только маршрут. SW может
-// умирать в любой момент; следующий content runtime.connect разбудит его и
-// pipe пересоздастся.
+// Service worker entry. A thin forwarder between content-scripts and offscreen.
+// Holds no state — all truth lives in offscreen, the SW is just a route. The SW can
+// die at any moment; the next content runtime.connect wakes it and the
+// pipe is recreated.
 //
-// OAuth не проксируем — auth-flow на extension'е использует тот же
-// web-вариант, что и на сайтах: window.open на наш домен → callback в новой
-// вкладке передаёт code в offscreen через chrome.runtime сообщение.
-// chrome.identity намеренно не используется (требует chrome-extension://
-// redirect URL у провайдеров, ломает совместимость с web).
+// We don't proxy OAuth — the auth-flow in the extension uses the same
+// web variant as on websites: window.open to our domain → the callback in a new
+// tab passes the code to offscreen via a chrome.runtime message.
+// chrome.identity is deliberately not used (it requires a chrome-extension://
+// redirect URL at providers, which breaks compatibility with web).
 //
-// Использование в host'е:
+// Usage in the host:
 //   import { installRouter } from '@monetize.software/sdk-extension/sw';
 //   installRouter({ offscreenUrl: chrome.runtime.getURL('offscreen.html') });
 

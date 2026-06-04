@@ -1,17 +1,17 @@
 import { PaywallUI } from '../src';
 import type { PaywallOffer, PaywallPrice, PaywallSettings } from '../src/core/types';
 
-// Режимы демо:
-//   ?mock — захардкоженные ответы, без сети
-//   (default) — реальный бэк через Vite proxy (/api/* → VITE_API_TARGET)
+// Demo modes:
+//   ?mock — hardcoded responses, no network
+//   (default) — real backend via Vite proxy (/api/* → VITE_API_TARGET)
 const params = new URLSearchParams(location.search);
 const USE_MOCK = params.has('mock');
-// Дефолт `3` — тестовый пейвол со Stripe (acquiring.mode=test) в тест-БД.
-// Подменяется через ?id=<paywall_id>. e2e открывают:
-//   ?id=3 — Stripe тест-пейвол
-//   ?id=4 — Paddle тест-пейвол
-//   ?id=5 — Freemius тест-пейвол
-// Реальные продакшн-пейволы в demo не трогаем, чтобы не создать настоящий платёж.
+// Default `3` — test paywall with Stripe (acquiring.mode=test) in the test DB.
+// Overridden via ?id=<paywall_id>. e2e tests open:
+//   ?id=3 — Stripe test paywall
+//   ?id=4 — Paddle test paywall
+//   ?id=5 — Freemius test paywall
+// We don't touch real production paywalls in the demo, to avoid creating an actual payment.
 const PAYWALL_ID = params.get('id') ?? '3';
 
 const mockSettings: PaywallSettings = {
@@ -101,21 +101,21 @@ append(USE_MOCK ? 'mode: mock' : `mode: real backend (paywall ${PAYWALL_ID})`);
 
 const paywall = new PaywallUI({
   paywallId: PAYWALL_ID,
-  // mock-режим — фейковый origin (никаких сетевых запросов, всё mockFetch).
-  // real-режим — location.origin, Vite проксирует /api/* на VITE_API_TARGET
-  // (по умолчанию local online, e2e Playwright форсит dev-staging).
+  // mock mode — fake origin (no network requests, everything via mockFetch).
+  // real mode — location.origin, Vite proxies /api/* to VITE_API_TARGET
+  // (local online by default, e2e Playwright forces dev-staging).
   apiOrigin: USE_MOCK ? 'https://demo.local' : location.origin,
-  // В mock-режиме identity жёстко задаём (auth-эндпоинты не замоканы);
-  // в real-backend режиме включаем managed-auth — для preauth-пейволов
-  // SDK сам рисует gate-форму, identity синхронизируется из AuthClient.
+  // In mock mode identity is hardcoded (auth endpoints aren't mocked);
+  // in real-backend mode we enable managed-auth — for preauth paywalls the
+  // SDK renders the gate form itself, identity is synced from AuthClient.
   ...(USE_MOCK ? { identity: { email: 'demo@example.com', userId: 'demo-user' } } : { auth: true }),
-  // Demo — single-origin, host-страница своя. Open-режим даёт Playwright/DevTools
-  // доступ к содержимому модалки; в проде остаётся дефолтный `closed`.
+  // Demo is single-origin, the host page is ours. Open mode gives Playwright/DevTools
+  // access to the modal's contents; in production the default `closed` stays.
   shadowMode: 'open',
   fetch: USE_MOCK ? mockFetch : undefined
 });
 
-// Экспонируем для e2e тестов и ручной консольной отладки.
+// Expose for e2e tests and manual console debugging.
 (window as unknown as { __paywall?: unknown }).__paywall = paywall;
 
 for (const event of [

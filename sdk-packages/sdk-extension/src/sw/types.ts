@@ -1,21 +1,21 @@
-// Public types для SW-роутера. Отдельный файл, чтобы forwarder.ts не
-// ходил в index.ts (циклический type-only import терпим, но плохо читается).
+// Public types for the SW router. A separate file so forwarder.ts doesn't
+// reach into index.ts (a cyclic type-only import is tolerable, but reads poorly).
 
 export interface RouterOptions {
-  /** URL offscreen-страницы. Может быть статической строкой ИЛИ функцией —
-   *  функция позволяет resolve'ить URL на каждом connect'е, что нужно когда
-   *  параметры (apiOrigin, paywallId, etc.) приходят из chrome.storage и
-   *  могут поменяться без перезагрузки SW. Каждый ленивый resolve может
-   *  быть async — функция async читает storage и возвращает URL.
+  /** URL of the offscreen page. Can be a static string OR a function —
+   *  the function lets you resolve the URL on every connect, which is needed when
+   *  parameters (apiOrigin, paywallId, etc.) come from chrome.storage and
+   *  may change without reloading the SW. Each lazy resolve can
+   *  be async — an async function reads storage and returns the URL.
    *
-   *  Простой случай: `chrome.runtime.getURL('offscreen.html')`.
-   *  С параметрами:
+   *  Simple case: `chrome.runtime.getURL('offscreen.html')`.
+   *  With parameters:
    *    `() => chrome.storage.local.get(['k']).then(({ k }) =>
    *      chrome.runtime.getURL('offscreen.html') + '?k=' + k)`
    */
   offscreenUrl: string | (() => string | Promise<string>);
-  /** Reasons для chrome.offscreen.createDocument. Дефолт — `['LOCAL_STORAGE']`. */
+  /** Reasons for chrome.offscreen.createDocument. Default — `['LOCAL_STORAGE']`. */
   offscreenReasons?: chrome.offscreen.Reason[];
-  /** Justification для CWS ревью. */
+  /** Justification for the CWS review. */
   offscreenJustification?: string;
 }

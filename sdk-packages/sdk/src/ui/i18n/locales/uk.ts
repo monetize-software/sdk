@@ -1,10 +1,10 @@
 /**
- * Static-translations для uk. Сгенерировано из:
- *  - `online/lang/static-translations.ts` (legacy, через KEY_MAP)
- *  - `tools/sdk-translations.mjs` (SDK-specific строки)
+ * Static-translations for uk. Generated from:
+ *  - `online/lang/static-translations.ts` (legacy, via KEY_MAP)
+ *  - `tools/sdk-translations.mjs` (SDK-specific strings)
  *
- * Не править вручную — изменения теряются при следующем `node tools/gen-locales.mjs`.
- * Чтобы исправить перевод — править legacy/sdk-translations.mjs и регенерить.
+ * Do not edit by hand — changes are lost on the next `node tools/gen-locales.mjs`.
+ * To fix a translation, edit legacy/sdk-translations.mjs and regenerate.
  */
 const uk = {
   'anon.description_default': 'Налаштовуємо гостьовий сеанс…',
@@ -51,7 +51,6 @@ const uk = {
   'auth.reset_password_title': 'Скидання пароля',
   'auth.reset_sent_message': 'Якщо такий email існує, код для скидання надіслано.',
   'auth.reset_sent_subtitle': 'Ми надіслали посилання для скидання пароля. Дотримуйтесь інструкцій у листі.',
-  'auth.signup_sent_subtitle': 'Ми надіслали посилання для підтвердження на вашу пошту. Перейдіть за ним, щоб активувати акаунт, а потім увійдіть.',
   'auth.restore_purchases_heading': 'Відновити покупки',
   'auth.restore_purchases_subheading': 'Увійдіть, щоб відновити покупки.',
   'auth.send_reset': 'Надіслати лист для скидання',
@@ -84,9 +83,9 @@ const uk = {
   'modal.continue': 'Продовжити',
   'modal.error_generic': 'Щось пішло не так',
   'modal.loading': 'Завантаження…',
-  'modal.purchase_restored_subtitle': 'Із поверненням — підписка вже активна.',
-  'modal.purchase_restored_title': 'Підписку відновлено',
-  'modal.purchase_success_subtitle': 'Підписка активна.',
+  'modal.purchase_restored_subtitle': 'Усе готово — користуйтеся!',
+  'modal.purchase_restored_title': 'Із поверненням',
+  'modal.purchase_success_subtitle': 'Усе готово — користуйтеся!',
   'modal.purchase_success_title': 'Платіж отримано',
   'modal.verifying_subscription': 'Перевіряємо підписку…',
   'nav.back': '← Назад',

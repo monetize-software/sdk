@@ -1,9 +1,9 @@
-// Architecture-level e2e: загружаем demo-extension в реальном Chrome через
-// `--load-extension` и проверяем что offscreen-architecture работает как
-// задумано в Chrome. Network mock'и идут через локальный HTTP-сервер
-// (fixtures.mockServer); demo-extension переключается на него через
-// chrome.storage.local — page.route() не достаёт offscreen контекст,
-// поэтому мокаем по-настоящему на сетевом уровне.
+// Architecture-level e2e: we load the demo-extension into a real Chrome via
+// `--load-extension` and verify that the offscreen-architecture works as
+// intended in Chrome. Network mocks go through a local HTTP server
+// (fixtures.mockServer); the demo-extension switches to it via
+// chrome.storage.local — page.route() doesn't reach the offscreen context,
+// so we mock for real at the network level.
 
 import { test, expect } from './fixtures';
 
@@ -65,7 +65,7 @@ test('offscreen document is single across multiple popups', async ({ context, ex
 test('popup bootstrap succeeds against mock backend', async ({ context, extensionId }) => {
   const page = await context.newPage();
   await page.goto(`chrome-extension://${extensionId}/popup.html`);
-  // popup.ts выводит 'bootstrap ok' когда billing.bootstrap() резолвнулся.
+  // popup.ts prints 'bootstrap ok' when billing.bootstrap() resolves.
   await expect(page.locator('#state')).toContainText('bootstrap ok', { timeout: 10_000 });
 });
 
@@ -84,8 +84,8 @@ test('two popups share single bootstrap fetch — single source of truth', async
   await page2.goto(`chrome-extension://${extensionId}/popup.html`);
   await expect(page2.locator('#state')).toContainText('bootstrap ok', { timeout: 10_000 });
 
-  // Главное доказательство: один фетч /bootstrap на всё расширение, а не два.
-  // Это проверяет single-source-of-truth архитектуру в реальном Chrome.
+  // The key proof: a single /bootstrap fetch for the whole extension, not two.
+  // This verifies the single-source-of-truth architecture in a real Chrome.
   expect(mockServer.hitCount('/bootstrap')).toBe(1);
 });
 
@@ -94,18 +94,18 @@ test('content-script injects on http page and creates PaywallUI', async ({
   contentPage
 }) => {
   const page = await context.newPage();
-  // Логируем все console-сообщения content-script'а — пригодится для диагностики
-  // если content-script не отстреляет.
+  // Log all console messages from the content-script — useful for diagnostics
+  // if the content-script doesn't fire.
   const messages: string[] = [];
   page.on('console', (msg) => messages.push(`[${msg.type()}] ${msg.text()}`));
   page.on('pageerror', (err) => messages.push(`[error] ${err.message}`));
 
   await page.goto(contentPage.contentPageUrl, { waitUntil: 'load' });
 
-  // data-attribute на <html> — content-script ставит при загрузке (loaded),
-  // ready ставится после async-bootstrap'а PaywallUI. window.__paywall
-  // живёт в isolated world content-script'а и page-context'у не виден,
-  // поэтому проверяем через DOM атрибут.
+  // data-attribute on <html> — the content-script sets it on load (loaded),
+  // ready is set after the async bootstrap of PaywallUI. window.__paywall
+  // lives in the content-script's isolated world and isn't visible to the page-context,
+  // so we check via the DOM attribute.
   try {
     await page.waitForFunction(
       () => document.documentElement.hasAttribute('data-paywall-loaded'),
@@ -128,10 +128,10 @@ test('cross-tab user-state: refresh in tab1 broadcasts to tab2', async ({
   extensionId,
   mockServer
 }) => {
-  // Watcher и реальный stripe-popup в e2e не воспроизводим (нет real OAuth/redirect-loop'а).
-  // Архитектурное доказательство — переключение has_active_subscription в одном
-  // таб'е через getUser({force:true}) broadcast'ится в остальные через
-  // userChange-event, которое идёт от offscreen'а во все content-канал'ы.
+  // We don't reproduce the watcher and a real stripe-popup in e2e (no real OAuth/redirect-loop).
+  // The architectural proof: toggling has_active_subscription in one
+  // tab via getUser({force:true}) is broadcast to the others via the
+  // userChange-event, which goes from offscreen to all content channels.
   let userActive = false;
   mockServer.on('/user-state', (_req, res) => {
     res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -154,7 +154,7 @@ test('cross-tab user-state: refresh in tab1 broadcasts to tab2', async ({
   await page2.goto(`chrome-extension://${extensionId}/popup.html`);
   await expect(page2.locator('#state')).toContainText('bootstrap ok', { timeout: 10_000 });
 
-  // identity нужно для /user-state (BillingClient шлёт X-User-Email).
+  // identity is needed for /user-state (BillingClient sends X-User-Email).
   await page1.evaluate(() => {
     const pw = (window as unknown as {
       __paywall: { billing: { setIdentity: (i: { email: string }) => Promise<void> } };
@@ -170,7 +170,7 @@ test('cross-tab user-state: refresh in tab1 broadcasts to tab2', async ({
     await pw.billing.getUser({ force: true });
   });
 
-  // Юзер «заплатил» — mock переключается.
+  // The user «paid» — the mock toggles.
   userActive = true;
 
   // tab1 force-refresh → BillingClient.userChange broadcast → tab2 mirror-update.
@@ -181,8 +181,8 @@ test('cross-tab user-state: refresh in tab1 broadcasts to tab2', async ({
     await pw.billing.getUser({ force: true });
   });
 
-  // tab2 видит свежий user через RemoteBillingClient.getCachedUser
-  // (заполняется broadcast'ом userChange).
+  // tab2 sees the fresh user via RemoteBillingClient.getCachedUser
+  // (populated by the userChange broadcast).
   await expect
     .poll(
       async () =>
@@ -205,16 +205,16 @@ test('interaction: clicking Restore opens auth gate (signin form appears)', asyn
   context,
   extensionId
 }) => {
-  // Regression: раньше RemoteBillingClient.auth был undefined → PaywallRoot
-  // получал client.auth = undefined → restore action в no-op'ил молча.
-  // Этот тест воспроизводит юзерский flow: открыть пейвол, кликнуть
-  // Restore purchases, увидеть signin-форму.
+  // Regression: previously RemoteBillingClient.auth was undefined → PaywallRoot
+  // received client.auth = undefined → the restore action silently no-op'd.
+  // This test reproduces the user flow: open the paywall, click
+  // Restore purchases, see the signin form.
   const page = await context.newPage();
   await page.setViewportSize({ width: 800, height: 700 });
   await page.goto(`chrome-extension://${extensionId}/popup.html`);
   await expect(page.locator('#state')).toContainText('bootstrap ok', { timeout: 10_000 });
 
-  // Открыть модалку.
+  // Open the modal.
   await page.evaluate(
     () =>
       new Promise<void>((resolve) => {
@@ -226,14 +226,14 @@ test('interaction: clicking Restore opens auth gate (signin form appears)', asyn
       })
   );
 
-  // Найти Restore-кнопку. Modal в Shadow DOM (open mode), Playwright
-  // pierces shadow boundaries через role-locator. По getByRole надёжнее
-  // чем getByText — последний может задеть SVG-text или label-обёртки.
+  // Find the Restore button. The modal is in Shadow DOM (open mode), Playwright
+  // pierces shadow boundaries via the role-locator. getByRole is more reliable
+  // than getByText — the latter may hit SVG-text or label wrappers.
   const restoreBtn = page.getByRole('button', { name: /restore/i });
   await expect(restoreBtn).toBeVisible({ timeout: 5000 });
   await restoreBtn.click();
 
-  // Auth-gate должен открыться — email-input первый признак signin-формы.
+  // The auth-gate should open — the email-input is the first sign of the signin form.
   await expect(page.locator('input[type="email"]')).toBeVisible({ timeout: 5000 });
   await expect(page.getByRole('button', { name: /sign in/i })).toBeVisible();
 });
@@ -247,8 +247,8 @@ test('visual: popup with paywall modal matches reference screenshot', async ({
   await page.goto(`chrome-extension://${extensionId}/popup.html`);
   await expect(page.locator('#state')).toContainText('bootstrap ok', { timeout: 10_000 });
 
-  // Открываем модалку и ждём render-ready (через ready event) — модалка
-  // должна стабилизироваться до screenshot'а.
+  // Open the modal and wait for render-ready (via the ready event) — the modal
+  // must stabilize before the screenshot.
   await page.evaluate(
     () =>
       new Promise<void>((resolve) => {
@@ -259,7 +259,7 @@ test('visual: popup with paywall modal matches reference screenshot', async ({
         pw.open();
       })
   );
-  // Дать одному frame'у пройти, чтобы стили закоммитились.
+  // Let one frame pass so the styles get committed.
   await page.waitForTimeout(200);
 
   await expect(page).toHaveScreenshot('popup-paywall-modal.png', {
@@ -273,7 +273,7 @@ test('persistence: auth session in storage survives offscreen close/reopen', asy
   extensionId,
   mockServer
 }) => {
-  // Mock signin endpoint чтобы установить session.
+  // Mock the signin endpoint to establish a session.
   mockServer.on('/auth/email/signin', (_req, res) => {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(
@@ -292,7 +292,7 @@ test('persistence: auth session in storage survives offscreen close/reopen', asy
   await page1.goto(`chrome-extension://${extensionId}/popup.html`);
   await expect(page1.locator('#state')).toContainText('bootstrap ok', { timeout: 10_000 });
 
-  // Логинимся через RemoteAuthClient.
+  // Sign in via RemoteAuthClient.
   await page1.evaluate(async () => {
     const pw = (window as unknown as {
       __paywall: { auth: { signInWithEmail: (i: { email: string; password: string }) => Promise<unknown> } };
@@ -300,8 +300,8 @@ test('persistence: auth session in storage survives offscreen close/reopen', asy
     await pw.auth.signInWithEmail({ email: 'persist@x.io', password: 'pw' });
   });
 
-  // Закрываем offscreen — эмулирует idle-eviction. SW обнаружит пропажу при
-  // следующем content connect и пересоздаст.
+  // Close offscreen — this emulates idle-eviction. The SW will detect it's gone on
+  // the next content connect and recreate it.
   const [sw] = context.serviceWorkers();
   await sw.evaluate(async () => {
     if (chrome.offscreen.closeDocument) {
@@ -313,13 +313,13 @@ test('persistence: auth session in storage survives offscreen close/reopen', asy
     }
   });
 
-  // Новый popup — поднимет offscreen с rehydrate из storage.
+  // A new popup — brings up offscreen with rehydrate from storage.
   const page2 = await context.newPage();
   await page2.goto(`chrome-extension://${extensionId}/popup.html`);
   await expect(page2.locator('#state')).toContainText('bootstrap ok', { timeout: 10_000 });
 
-  // Session должна быть восстановлена — RemoteAuthClient.ready() резолвится
-  // с непустой session.
+  // The session must be restored — RemoteAuthClient.ready() resolves
+  // with a non-empty session.
   const sessionToken = await page2.evaluate(async () => {
     const pw = (window as unknown as {
       __paywall: { auth: { ready: () => Promise<void>; getCachedSession: () => { access_token?: string } | null } };

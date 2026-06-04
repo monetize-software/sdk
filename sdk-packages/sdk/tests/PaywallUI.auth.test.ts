@@ -5,10 +5,10 @@ import { PaywallUI } from '../src/ui/PaywallUI';
 
 const TEST_API_ORIGIN = 'https://test.example.com';
 
-// Тесты интеграции AuthClient внутрь PaywallUI:
-// - `auth: true` создаёт AuthClient автоматом и кладёт в paywall.auth;
-// - `auth: AuthClient` использует переданный инстанс (не создаёт второй);
-// - `authChange` event эмитится при login/logout.
+// Tests for integrating AuthClient into PaywallUI:
+// - `auth: true` creates an AuthClient automatically and puts it on paywall.auth;
+// - `auth: AuthClient` uses the passed instance (doesn't create a second one);
+// - the `authChange` event is emitted on login/logout.
 
 const noopFetch: typeof fetch = async () =>
   new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } });
@@ -109,9 +109,9 @@ describe('PaywallUI auth integration', () => {
     const handler = vi.fn();
     ui.on('authChange', handler);
 
-    // Принудительно вызываем emit на AuthClient через приватный setSession —
-    // имитация login без сетевого тура. Альтернатива (полноценный signin)
-    // потребовала бы мокать /signin endpoint, что уже покрыто в auth.test.ts.
+    // Force an emit on AuthClient via the private setSession —
+    // simulating login without a network round-trip. The alternative (a full signin)
+    // would require mocking the /signin endpoint, which is already covered in auth.test.ts.
     const fakeSession = {
       access_token: 'a1',
       refresh_token: 'r1',
@@ -154,8 +154,8 @@ describe('PaywallUI auth integration', () => {
       }
     ).setSession(fakeSession, { event: 'SIGNED_IN' });
 
-    // listeners почищены destroy() — handler не должен дёрнуться, даже если
-    // AuthClient продолжает эмитить.
+    // listeners were cleared by destroy() — the handler must not fire, even if
+    // AuthClient keeps emitting.
     expect(handler).not.toHaveBeenCalled();
   });
 });

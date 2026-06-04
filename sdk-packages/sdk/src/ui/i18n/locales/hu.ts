@@ -1,10 +1,10 @@
 /**
- * Static-translations для hu. Сгенерировано из:
- *  - `online/lang/static-translations.ts` (legacy, через KEY_MAP)
- *  - `tools/sdk-translations.mjs` (SDK-specific строки)
+ * Static-translations for hu. Generated from:
+ *  - `online/lang/static-translations.ts` (legacy, via KEY_MAP)
+ *  - `tools/sdk-translations.mjs` (SDK-specific strings)
  *
- * Не править вручную — изменения теряются при следующем `node tools/gen-locales.mjs`.
- * Чтобы исправить перевод — править legacy/sdk-translations.mjs и регенерить.
+ * Do not edit by hand — changes are lost on the next `node tools/gen-locales.mjs`.
+ * To fix a translation, edit legacy/sdk-translations.mjs and regenerate.
  */
 const hu = {
   'anon.heading_default': 'Folytatás vendégként',
@@ -47,7 +47,6 @@ const hu = {
   'auth.reset_password_title': 'Jelszó visszaállítása',
   'auth.reset_sent_message': 'Ha ez az e-mail létezik, elküldtük a visszaállító kódot.',
   'auth.reset_sent_subtitle': 'Elküldtük a jelszó-visszaállító linket. Kövesse az e-mailben található utasításokat.',
-  'auth.signup_sent_subtitle': 'Megerősítő linket küldtünk az e-mail-címedre. Kattints rá a fiók aktiválásához, majd jelentkezz be.',
   'auth.restore_purchases_heading': 'Vásárlások visszaállítása',
   'auth.restore_purchases_subheading': 'Jelentkezzen be a vásárlásai visszaállításához.',
   'auth.send_reset': 'Visszaállító e-mail küldése',
@@ -75,9 +74,9 @@ const hu = {
   'modal.continue': 'Folytatás',
   'modal.error_generic': 'Valami hiba történt',
   'modal.loading': 'Betöltés…',
-  'modal.purchase_restored_subtitle': 'Üdvözöljük újra — előfizetése már aktív.',
-  'modal.purchase_restored_title': 'Előfizetés visszaállítva',
-  'modal.purchase_success_subtitle': 'Az előfizetése aktív.',
+  'modal.purchase_restored_subtitle': 'Minden készen áll — jó használatot!',
+  'modal.purchase_restored_title': 'Üdvözöljük újra',
+  'modal.purchase_success_subtitle': 'Minden készen áll — jó használatot!',
   'modal.purchase_success_title': 'Fizetés beérkezett',
   'modal.verifying_subscription': 'Előfizetés ellenőrzése…',
   'nav.back': '← Vissza',

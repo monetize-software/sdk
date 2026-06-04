@@ -8,9 +8,9 @@ export type { TrialStore } from './TrialStore';
 export { LocalTrialStore } from './LocalTrialStore';
 export { ServerTrialStore } from './ServerTrialStore';
 
-/** Резолвит реализацию TrialStore по `settings.trial.storage` из bootstrap.
- *  null/undefined config — каллер должен это проверять сам и не вызывать
- *  фабрику (триал отключён → store вообще не нужен). */
+/** Resolves the TrialStore implementation by `settings.trial.storage` from
+ *  bootstrap. A null/undefined config — the caller must check for it itself
+ *  and not call the factory (trial disabled → the store isn't needed at all). */
 export function createTrialStore(
   storage: StorageAdapter,
   paywallId: string,

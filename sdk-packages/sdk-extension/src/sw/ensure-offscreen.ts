@@ -1,8 +1,8 @@
-// Singleton-страж offscreen-документа. Chrome 116+ имеет
-// chrome.runtime.getContexts (Promise-overload в MV3); используем его как
-// основной путь. Race: несколько параллельных onConnect'ов в одном tick'е
-// могут вызвать ensureOffscreen одновременно — запоминаем in-flight promise,
-// чтобы каждый следующий ждал общий create.
+// Singleton guard for the offscreen document. Chrome 116+ has
+// chrome.runtime.getContexts (Promise-overload in MV3); we use it as
+// the primary path. Race: several parallel onConnects in the same tick
+// may call ensureOffscreen simultaneously — we remember the in-flight promise,
+// so each subsequent one waits on the shared create.
 
 interface EnsureOffscreenOptions {
   url: string;
@@ -29,9 +29,9 @@ async function doEnsure(opts: EnsureOffscreenOptions): Promise<void> {
       justification: opts.justification
     });
   } catch (e) {
-    // Гонка: между нашим check'ом и create'ом другой onConnect успел создать.
-    // Chrome бросает 'Only a single offscreen document may be created' — это
-    // OK, документ есть. Любая другая ошибка — пробрасываем.
+    // Race: between our check and create another onConnect managed to create it.
+    // Chrome throws 'Only a single offscreen document may be created' — that's
+    // OK, the document exists. Any other error — rethrow.
     if (e instanceof Error && /single offscreen document/i.test(e.message)) return;
     throw e;
   }

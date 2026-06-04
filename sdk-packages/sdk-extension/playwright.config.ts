@@ -1,12 +1,12 @@
 import { defineConfig } from '@playwright/test';
 
-// E2E под реальный Chrome с загруженным MV3-extension'ом. Перед запуском
-// `pnpm build:demo` собирает demo-extension/dist, тесты грузят его через
+// E2E against a real Chrome with a loaded MV3 extension. Before running,
+// `pnpm build:demo` builds demo-extension/dist, and the tests load it via
 // --load-extension.
 //
-// Network policy: тесты НЕ ходят на appbox.space (CI'ные ошибки), используем
-// route interception для мока bootstrap/auth/events. Архитектурные проверки
-// (offscreen существует, single-source-of-truth) не зависят от backend.
+// Network policy: tests do NOT hit appbox.space (CI errors), we use route
+// interception to mock bootstrap/auth/events. Architectural checks (offscreen
+// exists, single-source-of-truth) don't depend on the backend.
 export default defineConfig({
   testDir: './tests-e2e',
   fullyParallel: false,

@@ -4,10 +4,10 @@ import { PaywallUI } from '../src/ui/PaywallUI';
 
 const TEST_API_ORIGIN = 'https://test.example.com';
 
-// Тесты интеграции EventTracker внутрь PaywallUI:
-// - системные emit'ы автоматически пробрасываются как track-события;
-// - public track() работает;
-// - analytics: false полностью отключает.
+// Tests for integrating EventTracker into PaywallUI:
+// - system emits are automatically forwarded as track events;
+// - public track() works;
+// - analytics: false disables it entirely.
 
 const noopFetch: typeof fetch = async () =>
   new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } });
@@ -51,9 +51,9 @@ function emit(ui: PaywallUI, event: string, payload?: unknown) {
   (ui as unknown as { emit: (e: string, p?: unknown) => void }).emit(event, payload);
 }
 
-// paywall_viewed/paywall_closed гейтятся на lastMountedView ===
-// 'layout' — в обычной жизни его выставляет mountAndShow. В юнит-тестах,
-// которые эмитят события напрямую, ставим его руками.
+// paywall_viewed/paywall_closed are gated on lastMountedView ===
+// 'layout' — in normal operation it is set by mountAndShow. In unit tests that
+// emit events directly, we set it by hand.
 function setMountedView(ui: PaywallUI, view: string | null) {
   (ui as unknown as { lastMountedView: string | null }).lastMountedView = view;
 }
@@ -83,7 +83,7 @@ describe('PaywallUI tracking integration', () => {
     const { ui, calls } = makeUI();
     setMountedView(ui, 'layout');
 
-    // 'open' больше не трекается отдельно — показ пейвола фиксирует 'viewed'.
+    // 'open' is no longer tracked separately — showing the paywall records 'viewed'.
     emit(ui, 'open');
     emit(ui, 'ready', {
       settings: { id: 'pw_1', name: 'X', is_test_mode: false },
@@ -131,7 +131,7 @@ describe('PaywallUI tracking integration', () => {
 
   it('non-layout view (support/auth) does NOT emit paywall_viewed/closed', async () => {
     const { ui, calls } = makeUI();
-    // Открыт support — публичные open/ready/close эмитятся, но это не «пейвол».
+    // Support is open — public open/ready/close are emitted, but this is not a "paywall".
     setMountedView(ui, 'support');
 
     emit(ui, 'open');
@@ -140,8 +140,8 @@ describe('PaywallUI tracking integration', () => {
       prices: [{ id: '1' }],
       offers: []
     });
-    // checkout внутри support-flow (например после restore) всё ещё форвардится —
-    // гейт только на paywall-lifecycle события, не на остальное.
+    // checkout inside the support flow (e.g. after restore) is still forwarded —
+    // the gate applies only to paywall-lifecycle events, not the rest.
     emit(ui, 'price_selected', { priceId: '1', price: {} });
     emit(ui, 'close');
 
@@ -167,7 +167,7 @@ describe('PaywallUI tracking integration', () => {
     const { ui, calls } = makeUI();
     ui.track('app_opened');
     ui.destroy();
-    // даём destroy() сделать flush
+    // let destroy() perform its flush
     await vi.runOnlyPendingTimersAsync();
     await Promise.resolve();
     await Promise.resolve();

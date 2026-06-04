@@ -4,15 +4,15 @@ import type { BlockProps } from '../types';
 
 type HeadingBlock = Extract<LayoutBlock, { type: 'heading' }>;
 
-const BASE_FONT_PX = 24; // соответствует sm:text-2xl у h1
+const BASE_FONT_PX = 24; // matches sm:text-2xl on h1
 const MIN_FONT_PX = 16;
 const MAX_LINES = 2;
 
-// Авто-fit: если заголовок не вмещается в `MAX_LINES` строк при базовом размере,
-// уменьшаем font-size шагом 1px до тех пор, пока влезает или не упёрлись в
-// `MIN_FONT_PX`. Используется только для h1 — h2/h3 это подзаголовки, им
-// клиппинг не нужен. Считаем по реальной высоте элемента (scrollHeight) после
-// рендера — иначе пришлось бы держать canvas-измеритель.
+// Auto-fit: if the heading does not fit within `MAX_LINES` lines at the base size,
+// we shrink the font-size by 1px steps until it fits or we hit
+// `MIN_FONT_PX`. Used only for h1 — h2/h3 are subheadings and don't need
+// clipping. We measure by the element's real height (scrollHeight) after
+// render — otherwise we'd have to keep a canvas-based measurer.
 function fitHeading(el: HTMLElement, lineHeight: number): void {
   const maxHeight = lineHeight * MAX_LINES;
   let size = BASE_FONT_PX;
@@ -38,8 +38,8 @@ export function Heading({ block, ctx }: BlockProps<HeadingBlock>) {
 
   useEffect(() => {
     if (!autoFit || !ref.current) return;
-    // line-height у text-2xl = 1.5 (Tailwind дефолт). Считаем от текущего
-    // computed line-height — устойчиво к будущим CSS-изменениям.
+    // line-height on text-2xl = 1.5 (Tailwind default). We compute from the current
+    // computed line-height — robust to future CSS changes.
     const cs = getComputedStyle(ref.current);
     const lh = parseFloat(cs.lineHeight) || BASE_FONT_PX * 1.5;
     fitHeading(ref.current, lh);

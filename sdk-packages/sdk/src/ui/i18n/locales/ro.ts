@@ -1,10 +1,10 @@
 /**
- * Static-translations для ro. Сгенерировано из:
- *  - `online/lang/static-translations.ts` (legacy, через KEY_MAP)
- *  - `tools/sdk-translations.mjs` (SDK-specific строки)
+ * Static-translations for ro. Generated from:
+ *  - `online/lang/static-translations.ts` (legacy, via KEY_MAP)
+ *  - `tools/sdk-translations.mjs` (SDK-specific strings)
  *
- * Не править вручную — изменения теряются при следующем `node tools/gen-locales.mjs`.
- * Чтобы исправить перевод — править legacy/sdk-translations.mjs и регенерить.
+ * Do not edit by hand — changes are lost on the next `node tools/gen-locales.mjs`.
+ * To fix a translation, edit legacy/sdk-translations.mjs and regenerate.
  */
 const ro = {
   'anon.heading_default': 'Continuă ca invitat',
@@ -47,7 +47,6 @@ const ro = {
   'auth.reset_password_title': 'Resetare parolă',
   'auth.reset_sent_message': 'Dacă acel e-mail există, a fost trimis un cod de resetare.',
   'auth.reset_sent_subtitle': 'Am trimis un link pentru resetarea parolei. Urmează instrucțiunile din e-mail.',
-  'auth.signup_sent_subtitle': 'Ți-am trimis un link de confirmare pe e-mail. Apasă pe el pentru a-ți activa contul, apoi conectează-te.',
   'auth.restore_purchases_heading': 'Restabilește achizițiile',
   'auth.restore_purchases_subheading': 'Autentifică-te pentru a-ți restabili achizițiile.',
   'auth.send_reset': 'Trimite e-mail de resetare',
@@ -75,9 +74,9 @@ const ro = {
   'modal.continue': 'Continuă',
   'modal.error_generic': 'Ceva nu a mers bine',
   'modal.loading': 'Se încarcă…',
-  'modal.purchase_restored_subtitle': 'Bine ai revenit — abonamentul tău este deja activ.',
-  'modal.purchase_restored_title': 'Abonament restabilit',
-  'modal.purchase_success_subtitle': 'Abonamentul tău este acum activ.',
+  'modal.purchase_restored_subtitle': 'Totul e gata — bucură-te!',
+  'modal.purchase_restored_title': 'Bine ai revenit',
+  'modal.purchase_success_subtitle': 'Totul e gata — bucură-te!',
   'modal.purchase_success_title': 'Plată primită',
   'modal.verifying_subscription': 'Se verifică abonamentul…',
   'nav.back': '← Înapoi',

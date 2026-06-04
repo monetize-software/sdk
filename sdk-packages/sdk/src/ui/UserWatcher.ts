@@ -1,19 +1,19 @@
 import type { BillingClient } from '../core/BillingClient';
 import type { PaywallUser } from '../core/types';
 
-// Параметры по умолчанию подобраны под "юзер платит ~60-90с после клика
-// Continue, иногда ходит за чашкой 5-10 минут". См. обсуждение в TODO.md
-// (фаза "Что это меняет в архитектуре").
+// The default parameters are tuned for "the user pays ~60-90s after clicking
+// Continue, sometimes steps away for a coffee for 5-10 minutes". See the
+// discussion in TODO.md (the "What this changes in the architecture" phase).
 export interface UserWatcherOptions {
   client: BillingClient;
-  /** Дёрнут, когда впервые увидели has_active_subscription === true. */
+  /** Fired the first time we see has_active_subscription === true. */
   onActive: (user: PaywallUser) => void;
-  /** Полный таймаут наблюдения. По истечении — стоп без onActive. */
+  /** Overall watch timeout. On expiry — stop without onActive. */
   onTimeout?: () => void;
   timeoutMs?: number;
-  /** Интервал polling, когда вкладка видимая. */
+  /** Polling interval while the tab is visible. */
   visibleIntervalMs?: number;
-  /** Интервал polling, когда вкладка скрыта (браузер троттлит таймеры). */
+  /** Polling interval while the tab is hidden (the browser throttles timers). */
   hiddenIntervalMs?: number;
 }
 
@@ -21,20 +21,20 @@ const DEFAULT_TIMEOUT_MS = 10 * 60_000;
 const DEFAULT_VISIBLE_INTERVAL_MS = 5_000;
 const DEFAULT_HIDDEN_INTERVAL_MS = 30_000;
 
-// Polling после checkout_started.
+// Polling after checkout_started.
 //
-// Источники сигнала "проверить сейчас":
-// 1. visibility change → visible (юзер вернулся в исходную вкладку).
+// Sources of the "check now" signal:
+// 1. visibility change → visible (the user returned to the original tab).
 // 2. window focus.
-// 3. postMessage вида { type: 'paywall_purchase' } от success-страницы
-//    (acceleration: success_url на нашем origin делает window.opener.postMessage).
-// 4. Регулярный таймер с visibility-aware расписанием.
+// 3. postMessage of the form { type: 'paywall_purchase' } from the success page
+//    (acceleration: a success_url on our origin calls window.opener.postMessage).
+// 4. A regular timer with a visibility-aware schedule.
 //
-// Стоп: либо has_active_subscription === true, либо таймаут.
+// Stop: either has_active_subscription === true, or timeout.
 //
-// Runtime detection: см. shouldRunUserWatcher() — extension popup отбрасывается,
-// он не доживает до возврата с checkout. Background service worker отсекается
-// проверкой `typeof document` в start().
+// Runtime detection: see shouldRunUserWatcher() — the extension popup is discarded,
+// it doesn't survive until the return from checkout. The background service worker
+// is filtered out by the `typeof document` check in start().
 export class UserWatcher {
   private opts: Required<Omit<UserWatcherOptions, 'client'>> & { client: BillingClient };
   private timer: ReturnType<typeof setTimeout> | null = null;
@@ -108,7 +108,7 @@ export class UserWatcher {
         this.opts.onActive(user);
       }
     } catch {
-      /* транзиентные ошибки — пропустим один тик, поллер дёрнет ещё */
+      /* transient errors — skip one tick, the poller will fire again */
     } finally {
       this.checking = false;
     }
@@ -130,7 +130,7 @@ export class UserWatcher {
   private handleVisibilityChange(): void {
     if (typeof document === 'undefined') return;
     if (document.visibilityState === 'visible') void this.check();
-    // Перепланируем таймер с интервалом нового состояния.
+    // Reschedule the timer with the interval for the new state.
     if (this.timer !== null) {
       clearTimeout(this.timer);
       this.timer = null;
@@ -146,16 +146,17 @@ export class UserWatcher {
   }
 }
 
-// Решаем, имеет ли смысл вообще запускать watcher в текущем рантайме.
-// false → код, который должен закрывать пейвол на оплату, полагается на
-// другой путь (bootstrap при следующем открытии для extension popup;
-// отсутствие document — для service worker).
+// Decide whether it even makes sense to run the watcher in the current runtime.
+// false → the code that should close the paywall on payment relies on a
+// different path (bootstrap on the next open for the extension popup; the
+// absence of document — for the service worker).
 export function shouldRunUserWatcher(): boolean {
   if (typeof document === 'undefined') return false;
   if (typeof window === 'undefined') return false;
-  // Chrome extension popup живёт только пока открыт. window.open()
-  // checkout-провайдера сразу ест фокус → popup закрывается → весь JS-context
-  // (включая SDK и watcher) уничтожается. Polling тут бесполезен.
+  // The Chrome extension popup lives only while it's open. The checkout
+  // provider's window.open() immediately grabs focus → the popup closes → the
+  // entire JS context (including the SDK and watcher) is destroyed. Polling is
+  // useless here.
   if (typeof location !== 'undefined' && location.protocol === 'chrome-extension:') {
     return false;
   }

@@ -1,16 +1,16 @@
 /**
- * Полный источник истины по ключам static-translations SDK v3.
+ * The full source of truth for the SDK v3 static-translations keys.
  *
- * **Расположение**: НЕ в `./locales/` — иначе Rollup-glob `./locales/${key}.ts`
- * запекёт его в отдельный chunk, который никогда не грузится в runtime (EN —
- * inline fallback) и тратит ~6KB build size зря.
+ * **Location**: NOT in `./locales/` — otherwise the Rollup glob `./locales/${key}.ts`
+ * would bake it into a separate chunk that never loads at runtime (EN is the
+ * inline fallback) and wastes ~6KB of build size for nothing.
  *
- * **Runtime**: этот файл НЕ грузится в браузере — EN-fallback'и всегда inline'ом
- * в вызовах `t('auth.welcome', 'Welcome back!')` внутри блоков. Соответствие
- * inline-строк значениям отсюда — обязанность автора блока.
+ * **Runtime**: this file is NOT loaded in the browser — the EN fallbacks are always
+ * inline in the `t('auth.welcome', 'Welcome back!')` calls inside the blocks. Keeping
+ * the inline strings in sync with the values here is the block author's responsibility.
  *
- * **Tests**: тесты могут импортировать этот словарь и проверять, что блоки
- * используют известные ключи (avoid typo'в в production).
+ * **Tests**: tests can import this dictionary and verify that blocks use known
+ * keys (to avoid typos in production).
  */
 const en = {
   // === navigation ===
@@ -23,9 +23,9 @@ const en = {
   'modal.error_generic': 'Something went wrong',
   'modal.continue': 'Continue',
   'modal.purchase_success_title': 'Payment received',
-  'modal.purchase_success_subtitle': 'Your subscription is now active.',
-  'modal.purchase_restored_title': 'Subscription restored',
-  'modal.purchase_restored_subtitle': 'Welcome back — your subscription is already active.',
+  'modal.purchase_success_subtitle': "You're all set — enjoy!",
+  'modal.purchase_restored_title': 'Welcome back',
+  'modal.purchase_restored_subtitle': "You're all set — enjoy!",
   'modal.close_aria': 'Close',
 
   // === payment awaiting / popup blocked ===
@@ -114,9 +114,9 @@ const en = {
   'auth.sign_out': 'Sign out',
 
   // === current session block ===
-  // Prefix-only — email рендерится отдельным <b> элементом справа, чтобы
-  // сохранить bold-вёрстку. Языки с обратным порядком ("X пользователем
-  // вошёл") должны переписать ключ целиком и передвинуть email в коде.
+  // Prefix-only — the email is rendered as a separate <b> element on the right,
+  // to preserve the bold layout. Languages with reversed order ("by X is signed
+  // in") must rewrite the key entirely and move the email in the code.
   'session.signed_in_as_prefix': 'Signed in as',
   'session.signing_out': 'Signing out…',
   'session.sign_out': 'Sign Out',
@@ -180,7 +180,7 @@ const en = {
   'support.done_button': 'Done',
   'support.send_another': 'Send another request',
   'support.success_heading': 'Request submitted',
-  // Prefix-only — email рендерится отдельным <b> элементом справа, точка после.
+  // Prefix-only — the email is rendered as a separate <b> element on the right, with a period after.
   'support.success_message_prefix': "We've received your message and will respond to",
   'support.attachments_label': 'Attachments (optional)',
   'support.attachments_aria': 'Attachments upload',

@@ -1,17 +1,17 @@
-// Service worker bootstrap для demo-extension.
-// installRouter поднимает forwarder и при первом content-script connect'е
-// создаст offscreen.html через chrome.offscreen API.
+// Service worker bootstrap for the demo-extension.
+// installRouter brings up the forwarder and, on the first content-script connect,
+// creates offscreen.html via the chrome.offscreen API.
 //
-// apiOrigin/paywallId читаются из chrome.storage.local (e2e тесты их там
-// устанавливают) и пробрасываются в offscreen через query-параметры —
-// у offscreen-документа НЕТ доступа к chrome.storage, поэтому единственный
-// канал передачи начальной конфигурации — URL.
+// apiOrigin/paywallId are read from chrome.storage.local (e2e tests set them
+// there) and passed into offscreen via query parameters — the offscreen document
+// has NO access to chrome.storage, so the only channel for passing the initial
+// configuration is the URL.
 import { installRouter } from '@monetize.software/sdk-extension/sw';
 
-// URL offscreen'а ресолвится лениво на каждом connect'е — это позволяет
-// конфигурации (apiOrigin/paywallId) меняться через chrome.storage без
-// перезагрузки SW. Тесты этим пользуются: фикстура ставит storage ПОСЛЕ
-// расширение загрузилось, и первый же content connect подхватывает её.
+// The offscreen URL is resolved lazily on each connect — this lets the
+// configuration (apiOrigin/paywallId) change via chrome.storage without
+// reloading the SW. Tests rely on this: the fixture sets storage AFTER the
+// extension has loaded, and the very first content connect picks it up.
 installRouter({
   offscreenUrl: async () => {
     const cfg = (await chrome.storage.local.get([

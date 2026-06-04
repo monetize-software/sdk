@@ -7,9 +7,9 @@ import { useI18n } from './i18n';
 export interface SupportGateProps {
   client: BillingClient;
   authSession: AuthSession | null;
-  // 'standalone' — модалка открыта только для саппорта (paywall.openSupport()),
-  // Back/Done закрывают её. 'layout' — пришли из current_session-блока,
-  // Back/Done возвращают в layout (и пейвол с тарифами остаётся открытым).
+  // 'standalone' — the modal is open only for support (paywall.openSupport()),
+  // Back/Done close it. 'layout' — arrived from the current_session block,
+  // Back/Done return to the layout (and the paywall with plans stays open).
   origin: 'layout' | 'standalone';
   onBack: () => void;
 }
@@ -25,7 +25,7 @@ const EMAIL_RE = /.+@.+\..+/;
 export function SupportGate({ client, authSession, origin, onBack }: SupportGateProps) {
   const { t } = useI18n();
   const sessionEmail = authSession?.user.email ?? '';
-  // Если есть сессия — email фиксируем из неё, форма его не редактирует.
+  // If there's a session, we lock the email from it; the form doesn't edit it.
   const lockedEmail = sessionEmail ? sessionEmail : null;
   const [email, setEmail] = useState<string>(sessionEmail);
   const [subject, setSubject] = useState('');
@@ -98,9 +98,9 @@ export function SupportGate({ client, authSession, origin, onBack }: SupportGate
     setSubmittedEmail(null);
   };
 
-  // Footer-shadow + scroll-area pattern идентичен Renderer.tsx — кнопки
-  // прибиты к низу dialog'а и читабельны на коротких viewport'ах (extension
-  // popup ≤600px), скроллится только контент над ними.
+  // Footer-shadow + scroll-area pattern identical to Renderer.tsx — the buttons
+  // are pinned to the bottom of the dialog and remain readable on short viewports
+  // (extension popup ≤600px); only the content above them scrolls.
   const footerClass = 'flex flex-col gap-3 bg-white px-6 pb-6 pt-3 sm:px-8';
   const footerStyle = { boxShadow: '0 -4px 12px -4px rgba(15,23,42,0.06)' };
 
@@ -130,8 +130,8 @@ export function SupportGate({ client, authSession, origin, onBack }: SupportGate
             {t('support.success_heading', 'Request submitted')}
           </div>
           <div class="max-w-[320px] text-sm leading-relaxed text-gray-500">
-            {/* email рендерим отдельным <b>, prefix-only ключ — для языков с
-               порядком "received message will be sent to X" этого хватает. */}
+            {/* We render the email in a separate <b>; prefix-only key — this is
+               enough for languages with the order "received message will be sent to X". */}
             {t(
               'support.success_message_prefix',
               "We've received your message and will respond to"

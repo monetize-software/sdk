@@ -1,16 +1,16 @@
-// Server-side транспорт. Один TransportServer слушает все каналы, которые
-// подключаются. В extension'е это offscreen, к которому SW проксирует
-// content-script'ы (один offscreen ↔ N каналов от SW, по одному на content).
+// Server-side transport. A single TransportServer listens to all channels that
+// connect. In the extension this is offscreen, to which the SW proxies
+// content-scripts (one offscreen ↔ N channels from the SW, one per content).
 //
-// Контракт:
-//  - on<K>(kind, handler) — регистрирует handler для request-типа. Один
-//    handler на kind (overrideStatic диспатч): если переопределили — последний
-//    выигрывает. Throw'ы ловятся и сериализуются в ResponseErr.
-//  - broadcast<K>(kind, payload) — fan-out на все живые каналы. Используется
-//    BillingClient'ом / AuthClient'ом, когда состояние меняется.
-//  - accept(channel) — добавить канал в активный пул. Не делаем listenTo'у на
-//    chrome.runtime.onConnect внутри shared-кода, чтобы тестировать без
-//    chrome.* — это делает extension-side adapter (offscreen/sw).
+// Contract:
+//  - on<K>(kind, handler) — registers a handler for a request type. One
+//    handler per kind (override dispatch): if redefined — the last one
+//    wins. Throws are caught and serialized into a ResponseErr.
+//  - broadcast<K>(kind, payload) — fan-out to all live channels. Used by
+//    BillingClient / AuthClient when state changes.
+//  - accept(channel) — add a channel to the active pool. We don't listen on
+//    chrome.runtime.onConnect inside shared code, so it can be tested without
+//    chrome.* — that's done by the extension-side adapter (offscreen/sw).
 
 import type {
   CancelEnvelope,
@@ -27,9 +27,9 @@ import { serializeError } from './errors';
 import type { MessageChannel } from './channel';
 
 export interface RequestContext {
-  /** AbortSignal, который тригернётся при получении cancel-envelope от клиента.
-   *  Handler может пробросить его в underlying fetch для отмены сетевой
-   *  операции. Игнорировать тоже OK — старые handler'ы продолжат работать. */
+  /** AbortSignal that triggers when a cancel-envelope is received from the client.
+   *  A handler can pass it into the underlying fetch to cancel the network
+   *  operation. Ignoring it is also OK — older handlers keep working. */
   signal: AbortSignal;
 }
 
@@ -41,14 +41,14 @@ export type RequestHandler<K extends RequestKind> = (
 export class TransportServer {
   private handlers = new Map<RequestKind, RequestHandler<RequestKind>>();
   private channels = new Set<MessageChannel>();
-  /** Активные запросы по каналам: channel → id → AbortController. На cancel
-   *  envelope ищем controller и abort'им его. На disconnect — abort всех. */
+  /** Active requests per channel: channel → id → AbortController. On a cancel
+   *  envelope we find the controller and abort it. On disconnect — abort all. */
   private active = new WeakMap<MessageChannel, Map<string, AbortController>>();
 
   constructor() {
-    // Built-in handshake handler — отвечает текущей версией протокола.
-    // Клиент логирует mismatch на стороне TransportClient.ensureChannel,
-    // не блокируем дальнейшие запросы (best-effort версионирование).
+    // Built-in handshake handler — responds with the current protocol version.
+    // The client logs the mismatch on the TransportClient.ensureChannel side,
+    // we don't block further requests (best-effort versioning).
     this.on('handshake', () => ({
       protocolVersion: PROTOCOL_VERSION,
       offscreenReady: true
@@ -63,9 +63,9 @@ export class TransportServer {
     this.handlers.delete(kind);
   }
 
-  /** Подключить канал. Сервер начинает обрабатывать запросы из него и
-   *  включает его в broadcast'ы. На disconnect автоматически удаляет +
-   *  abort'ит все in-flight handlers для этого канала. */
+  /** Attach a channel. The server starts handling requests from it and
+   *  includes it in broadcasts. On disconnect it automatically removes it and
+   *  aborts all in-flight handlers for that channel. */
   accept(channel: MessageChannel): void {
     this.channels.add(channel);
     this.active.set(channel, new Map());
@@ -80,7 +80,7 @@ export class TransportServer {
     });
   }
 
-  /** Fan-out события всем подключённым каналам. */
+  /** Fan-out an event to all connected channels. */
   broadcast<K extends EventKind>(kind: K, payload: EventPayload<K>): void {
     const envelope: EventEnvelope<EventPayload<K>> = { type: 'event', kind, payload };
     for (const channel of this.channels) {
@@ -92,8 +92,8 @@ export class TransportServer {
     }
   }
 
-  /** Размер активного пула — для health-check / cleanup'а offscreen'а
-   *  (если 0, host может закрыть offscreen-документ). */
+  /** Size of the active pool — for health-check / offscreen cleanup
+   *  (if 0, the host can close the offscreen document). */
   get connectionCount(): number {
     return this.channels.size;
   }
@@ -123,9 +123,9 @@ export class TransportServer {
       });
       this.respondOk(channel, raw.id, result);
     } catch (e) {
-      // Если handler завершился через abort — клиент уже знает (он сам и
-      // отменял). Респонс ошибки всё равно шлём; client-side pending уже
-      // очищен, ничего не произойдёт. Безопаснее, чем пропустить response.
+      // If the handler finished via abort — the client already knows (it
+      // did the cancelling itself). We send the error response anyway; the
+      // client-side pending is already cleared, nothing happens. Safer than skipping the response.
       this.respondErr(channel, raw.id, e);
     } finally {
       inFlight?.delete(raw.id);

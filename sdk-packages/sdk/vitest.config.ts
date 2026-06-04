@@ -1,6 +1,6 @@
 import { defineConfig } from 'vitest/config';
 
-// Юнит-тесты Vitest живут в tests/. tests-e2e/ — отдельный Playwright.
+// Vitest unit tests live in tests/. tests-e2e/ is a separate Playwright suite.
 export default defineConfig({
   test: {
     include: ['tests/**/*.test.ts'],

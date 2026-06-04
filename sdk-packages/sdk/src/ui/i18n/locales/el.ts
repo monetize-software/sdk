@@ -1,10 +1,10 @@
 /**
- * Static-translations для el. Сгенерировано из:
- *  - `online/lang/static-translations.ts` (legacy, через KEY_MAP)
- *  - `tools/sdk-translations.mjs` (SDK-specific строки)
+ * Static-translations for el. Generated from:
+ *  - `online/lang/static-translations.ts` (legacy, via KEY_MAP)
+ *  - `tools/sdk-translations.mjs` (SDK-specific strings)
  *
- * Не править вручную — изменения теряются при следующем `node tools/gen-locales.mjs`.
- * Чтобы исправить перевод — править legacy/sdk-translations.mjs и регенерить.
+ * Do not edit by hand — changes are lost on the next `node tools/gen-locales.mjs`.
+ * To fix a translation, edit legacy/sdk-translations.mjs and regenerate.
  */
 const el = {
   'anon.heading_default': 'Συνέχεια ως επισκέπτης',
@@ -47,7 +47,6 @@ const el = {
   'auth.reset_password_title': 'Επαναφορά κωδικού',
   'auth.reset_sent_message': 'Αν αυτό το email υπάρχει, εστάλη κωδικός επαναφοράς.',
   'auth.reset_sent_subtitle': 'Στείλαμε σύνδεσμο επαναφοράς κωδικού. Ακολουθήστε τις οδηγίες στο email.',
-  'auth.signup_sent_subtitle': 'Σας στείλαμε έναν σύνδεσμο επιβεβαίωσης στο email σας. Κάντε κλικ για να ενεργοποιήσετε τον λογαριασμό σας και μετά συνδεθείτε.',
   'auth.restore_purchases_heading': 'Επαναφορά αγορών',
   'auth.restore_purchases_subheading': 'Παρακαλώ συνδεθείτε για να επαναφέρετε τις αγορές σας.',
   'auth.send_reset': 'Αποστολή email επαναφοράς',
@@ -79,9 +78,9 @@ const el = {
   'modal.continue': 'Συνέχεια',
   'modal.error_generic': 'Κάτι πήγε στραβά',
   'modal.loading': 'Φόρτωση…',
-  'modal.purchase_restored_subtitle': 'Καλώς ήρθατε ξανά — η συνδρομή σας είναι ήδη ενεργή.',
-  'modal.purchase_restored_title': 'Η συνδρομή αποκαταστάθηκε',
-  'modal.purchase_success_subtitle': 'Η συνδρομή σας είναι πλέον ενεργή.',
+  'modal.purchase_restored_subtitle': 'Όλα έτοιμα — απόλαυσέ το!',
+  'modal.purchase_restored_title': 'Καλώς ήρθατε ξανά',
+  'modal.purchase_success_subtitle': 'Όλα έτοιμα — απόλαυσέ το!',
   'modal.purchase_success_title': 'Πληρωμή ελήφθη',
   'modal.verifying_subscription': 'Έλεγχος συνδρομής…',
   'nav.back': '← Πίσω',

@@ -1,6 +1,6 @@
 import { test, expect } from './fixtures';
 
-// Evaluate-хелпер: PaywallUI инстанс прокинут в window.__paywall из popup.entry.ts.
+// Evaluate helper: the PaywallUI instance is exposed on window.__paywall from popup.entry.ts.
 declare global {
   interface Window {
     __paywall: {
@@ -28,7 +28,7 @@ test('open() создаёт shadow host в DOM и эмитит ready', async ({ 
   await page.goto(`chrome-extension://${extensionId}/popup.html`);
   await page.waitForFunction(() => !!window.__paywall);
 
-  // Регистрируем listener ДО open() — ловим ready в промисе.
+  // Register the listener BEFORE open() — capture ready in a promise.
   const readyPromise = page.evaluate(
     () =>
       new Promise<unknown>((resolve) => {
@@ -37,8 +37,8 @@ test('open() создаёт shadow host в DOM и эмитит ready', async ({ 
   );
 
   await page.evaluate(() => window.__paywall.open());
-  // `all: initial` на host превращает div в inline-бокс с нулевым box-model —
-  // Playwright-у он кажется hidden. Проверяем наличие в DOM, а не видимость.
+  // `all: initial` on the host turns the div into an inline box with a zero box-model —
+  // Playwright sees it as hidden. We check for presence in the DOM, not visibility.
   await page.waitForSelector('[data-paywall-host]', { state: 'attached', timeout: 5000 });
 
   const payload = (await readyPromise) as { settings: { name: string }; prices: unknown[] };
@@ -52,13 +52,13 @@ test('визуальный snapshot модалки', async ({ context, extension
   await page.goto(`chrome-extension://${extensionId}/popup.html`);
   await page.waitForFunction(() => !!window.__paywall);
 
-  // Дожидаемся рендер-ready (приходит после bootstrap). Через тот же listener.
+  // Wait for render-ready (arrives after bootstrap). Through the same listener.
   const ready = page.evaluate(
     () => new Promise<void>((resolve) => window.__paywall.on('ready', () => resolve()))
   );
   await page.evaluate(() => window.__paywall.open());
   await ready;
-  // Один frame чтобы модалка успела закоммитить стили.
+  // One frame so the modal has time to commit its styles.
   await page.waitForTimeout(150);
 
   await expect(page).toHaveScreenshot('paywall-ext-popup.png', { fullPage: false });
@@ -69,8 +69,8 @@ test('checkReturn ловит URL-маркеры и чистит URL', async ({ c
   await page.goto(`chrome-extension://${extensionId}/popup.html`);
   await page.waitForFunction(() => !!window.__paywall);
 
-  // Chrome-extension navigation с query уходит в closed-page — стартуем "чистым"
-  // и подменяем URL через replaceState перед ручным вызовом checkReturn().
+  // Chrome-extension navigation with a query lands on a closed page — we start "clean"
+  // and substitute the URL via replaceState before manually calling checkReturn().
   const payload = await page.evaluate(() => {
     window.history.replaceState(
       null,

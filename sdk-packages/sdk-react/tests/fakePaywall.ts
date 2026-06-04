@@ -11,11 +11,11 @@ import type {
   ResolvedOffer
 } from '../src';
 
-// Drop-in совместимый PaywallUI для тестов. Имитирует те части public API,
-// которые трогают наши хуки и компоненты, без сетевых вызовов и DOM-mount'а.
+// A drop-in compatible PaywallUI for tests. It mimics the parts of the public
+// API that our hooks and components touch, without network calls or a DOM mount.
 //
-// Любой тестовый сценарий двигает state и эмитит события явно — это даёт
-// детерминированные тесты вне зависимости от внутренних reactor'ов SDK.
+// Every test scenario drives state and emits events explicitly — this gives
+// deterministic tests regardless of the SDK's internal reactors.
 
 type EventMap = {
   [E in PaywallEvent]: Set<(payload: unknown) => void>;
@@ -30,10 +30,10 @@ export interface FakePaywallOptions {
   initialPrices?: PaywallPrice[] | null;
   initialTrial?: ReturnType<PaywallUI['getTrialStatus']>;
   initialVisibility?: ReturnType<PaywallUI['getVisibility']>;
-  /** Опциональный managed-auth стаб. Без него `paywall.auth` остаётся
-   *  undefined — для тестов hybrid-режима. С `initialSession` или вызовом
-   *  `setSession(...)` FakePaywall эмулирует AuthClient API, который трогает
-   *  usePaywallUser (`getCachedSession()` + authChange-эмиты). */
+  /** Optional managed-auth stub. Without it, `paywall.auth` stays undefined —
+   *  for hybrid-mode tests. With `initialSession` or a `setSession(...)` call,
+   *  FakePaywall emulates the AuthClient API that usePaywallUser touches
+   *  (`getCachedSession()` + authChange emits). */
   withAuth?: boolean;
   initialSession?: AuthSession | null;
 }
@@ -52,7 +52,7 @@ export class FakePaywall {
   private visibility: ReturnType<PaywallUI['getVisibility']>;
   private session: AuthSession | null = null;
 
-  // Spy-счётчики для assert'ов в тестах.
+  // Spy counters for assertions in tests.
   openCalls = 0;
   openSupportCalls = 0;
   openAuthCalls = 0;
@@ -91,14 +91,14 @@ export class FakePaywall {
     }
   }
 
-  // billing.getCachedUser — usePaywallUser ходит через эту цепочку.
+  // billing.getCachedUser — usePaywallUser goes through this chain.
   billing = {
     getCachedUser: (): PaywallUser | null => this.user
   };
 
-  /** Опциональный managed-auth стаб. Заполняется в конструкторе по
-   *  `withAuth: true` или явному `initialSession`. usePaywallUser проверяет
-   *  его, чтобы различить guest vs signed-in. */
+  /** Optional managed-auth stub. Populated in the constructor based on
+   *  `withAuth: true` or an explicit `initialSession`. usePaywallUser checks it
+   *  to distinguish guest vs signed-in. */
   auth?: { getCachedSession: () => AuthSession | null };
 
   open = (): void => {
@@ -162,7 +162,7 @@ export class FakePaywall {
   getTrialStatus = (): ReturnType<PaywallUI['getTrialStatus']> => this.trial;
   getVisibility = (): ReturnType<PaywallUI['getVisibility']> => this.visibility;
 
-  // ---- helpers для тестов ----
+  // ---- helpers for tests ----
 
   setState(snapshot: PaywallStateSnapshot): void {
     this.state = snapshot;
@@ -207,10 +207,10 @@ export class FakePaywall {
   }
 }
 
-/** Каст в `PaywallUI` для passing'а в Provider. Структурная совместимость
- *  гарантирована поверхностью методов, которые трогают наши хуки —
- *  contract.ts держит SDK side в синхронизации, а тесты держат FakePaywall
- *  side через TS-checking. */
+/** Cast to `PaywallUI` for passing into the Provider. Structural compatibility
+ *  is guaranteed by the surface of methods that our hooks touch —
+ *  contract.ts keeps the SDK side in sync, and the tests keep the FakePaywall
+ *  side in sync via TS checking. */
 export function asPaywallUI(fake: FakePaywall): PaywallUI {
   return fake as unknown as PaywallUI;
 }

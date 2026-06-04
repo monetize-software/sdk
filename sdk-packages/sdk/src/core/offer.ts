@@ -47,17 +47,17 @@ export function findApplicableOffer(
 }
 
 /**
- * Как `findApplicableOffer`, но возвращает оффер только пока он **жив** (не
- * истёк). `findApplicableOffer` сам по себе фильтрует лишь по `price_id` +
- * `discount_percent > 0` и срок не смотрит — поэтому strike-through/`-X%` в
- * `PriceGrid` внутри модалки переживал expiry, хотя countdown-баннер уже
- * скрывался (рассинхрон внутри модалки + расхождение с хост-прайсингом,
- * который резолвит через `resolveOffer`). Эта обёртка прогоняет найденный
- * оффер через `resolveOffer` и режет просроченное.
+ * Like `findApplicableOffer`, but returns an offer only while it is still
+ * **alive** (not expired). `findApplicableOffer` on its own filters merely by
+ * `price_id` + `discount_percent > 0` and ignores the deadline — so the
+ * strike-through/`-X%` in `PriceGrid` inside the modal survived expiry even
+ * though the countdown banner was already hidden (an in-modal desync plus a
+ * mismatch with host-pricing, which resolves via `resolveOffer`). This wrapper
+ * runs the found offer through `resolveOffer` and cuts off expired ones.
  *
- * Для duration_minutes-оффера без записанного старта (marker ещё не
- * проставлен) `resolveOffer` отдаёт оффер как perpetual — скидка
- * показывается, как и раньше; режется ровно истёкшее.
+ * For a duration_minutes offer without a recorded start (the marker is not yet
+ * set), `resolveOffer` returns the offer as perpetual — the discount is shown
+ * as before; only genuinely expired offers are cut.
  */
 export function findLiveOffer(
   offers: PaywallOffer[] | null | undefined,

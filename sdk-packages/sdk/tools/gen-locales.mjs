@@ -1,19 +1,19 @@
 #!/usr/bin/env node
 /**
- * Генератор static-translations для SDK v3. Два источника:
- *  1. Legacy `online/lang/static-translations.ts` (KEY_MAP портирует ключи
- *     с легаси-схемы на v3).
- *  2. `sdk-translations.mjs` (SDK-specific строки, для которых нет легаси).
+ * static-translations generator for SDK v3. Two sources:
+ *  1. Legacy `online/lang/static-translations.ts` (KEY_MAP ports keys from the
+ *     legacy schema to v3).
+ *  2. `sdk-translations.mjs` (SDK-specific strings with no legacy counterpart).
  *
- * SDK-translations имеют приоритет над legacy при конфликте — это нужно
- * чтобы можно было переопределить кривой legacy-перевод
- * (например `pricing.included_per` для JA/KO/ZH).
+ * SDK-translations take priority over legacy on conflict — this is needed so a
+ * broken legacy translation can be overridden
+ * (e.g. `pricing.included_per` for JA/KO/ZH).
  *
- * Использование: `node tools/gen-locales.mjs`
+ * Usage: `node tools/gen-locales.mjs`
  *
- * Скрипт безопасный: только пишет в `src/ui/i18n/locales/*.ts`. Canonical EN
- * (`src/ui/i18n/canonical-en.ts`) НЕ трогается — source of truth,
- * поддерживается вручную.
+ * The script is safe: it only writes to `src/ui/i18n/locales/*.ts`. Canonical EN
+ * (`src/ui/i18n/canonical-en.ts`) is NOT touched — it is the source of truth,
+ * maintained by hand.
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
@@ -26,10 +26,10 @@ const REPO_ROOT = resolve(__dirname, '../../..');
 const LEGACY_PATH = resolve(REPO_ROOT, 'online/lang/static-translations.ts');
 const OUT_DIR = resolve(__dirname, '../src/ui/i18n/locales');
 
-// Маппинг legacy-ключей → SDK v3 ключей. Только те, где смысл совпадает.
-// Если legacy-ключа нет в этой таблице — он игнорируется (legacy-онли
-// фичи: portal/attachments/overpay/captcha/checkout/finish). Если v3-ключа
-// нет в legacy — он останется на EN-fallback'е inline'ом в блоке.
+// Mapping of legacy keys → SDK v3 keys. Only those where the meaning matches.
+// If a legacy key is not in this table, it is ignored (legacy-only features:
+// portal/attachments/overpay/captcha/checkout/finish). If a v3 key has no
+// legacy counterpart, it stays on its inline EN fallback in the block.
 const KEY_MAP = {
   // === modal / support ===
   'modal.support': 'support.heading',
@@ -38,14 +38,14 @@ const KEY_MAP = {
   'pricing.interval.week': 'pricing.interval.week',
   'pricing.interval.month': 'pricing.interval.month',
   'pricing.interval.year': 'pricing.interval.year',
-  // pricing.included_per: legacy дала только префикс ("Включено за"), v3
-  // склеивает с интервалом и двоеточием в одном tфразе. Post-transform
-  // ниже добавляет " {interval}:" — корректно для языков с суффиксом
-  // (en/ru/de/es/...). Для языков с порядком "{interval}に含まれる" (ja/ko/zh)
-  // лучше править вручную после регенерации.
+  // pricing.included_per: legacy provided only the prefix ("Included for"), while
+  // v3 joins it with the interval and a colon in a single phrase. The post-transform
+  // below appends " {interval}:" — correct for languages with a suffix
+  // (en/ru/de/es/...). For languages with the "{interval}に含まれる" order (ja/ko/zh)
+  // it is better to edit by hand after regeneration.
   'pricing.included_per': 'pricing.included_per',
 
-  // === pricing plan labels (PriceGrid header — legacy ключи в singular) ===
+  // === pricing plan labels (PriceGrid header — legacy keys are singular) ===
   'pricing.plan_label.week': 'pricing.plan_label.weekly',
   'pricing.plan_label.month': 'pricing.plan_label.monthly',
   'pricing.plan_label.year': 'pricing.plan_label.yearly',
@@ -57,7 +57,7 @@ const KEY_MAP = {
   // === pricing — start trial (interpolation {days}) ===
   'pricing.start_trial': 'cta.start_trial',
 
-  // === payment-awaiting "Ожидание оплаты..." ===
+  // === payment-awaiting "Awaiting payment..." ===
   'pricing.waiting_payment': 'payment.awaiting_title',
 
   // === auth — OAuth ===
@@ -114,15 +114,15 @@ const KEY_MAP = {
 };
 
 function parseLegacy(content) {
-  // Грубый парсер: ищем top-level блоки вида `<lang>: { ... }` (2-buchstabig + ':' с 2 space-indent).
-  // Достаточно для нашего format'а, у нас формат стабильный (Prettier — single quotes, 2-space).
+  // Rough parser: look for top-level blocks of the form `<lang>: { ... }` (2-letter + ':' at 2-space indent).
+  // Good enough for our format, which is stable (Prettier — single quotes, 2-space).
   const out = {};
   const langBlockRe = /^ {2}([a-z]{2}):\s*{$/gm;
   let m;
   while ((m = langBlockRe.exec(content)) !== null) {
     const lang = m[1];
     const start = m.index + m[0].length;
-    // Найти закрывающую `}` на 2-space indent
+    // Find the closing `}` at 2-space indent
     const closeIdx = content.indexOf('\n  },', start);
     const block = closeIdx === -1
       ? content.slice(start, content.indexOf('\n  }\n}', start))
@@ -131,7 +131,7 @@ function parseLegacy(content) {
     const entryRe = /^ {4}'([^']+)':\s*'((?:[^'\\]|\\.)*)'/gm;
     let em;
     while ((em = entryRe.exec(block)) !== null) {
-      // Unescape \' и \\
+      // Unescape \' and \\
       dict[em[1]] = em[2].replace(/\\(['\\])/g, '$1');
     }
     out[lang] = dict;
@@ -140,7 +140,7 @@ function parseLegacy(content) {
 }
 
 function escape(s) {
-  // Используем single quotes наружу, эскейпим только их + backslash.
+  // Use single quotes on the outside, escape only those + the backslash.
   return s.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 }
 
@@ -153,12 +153,12 @@ function emit(lang, dict) {
   const lines = keys.map((k) => `  '${k}': '${escape(dict[k])}'`);
   const body =
     `/**
- * Static-translations для ${lang}. Сгенерировано из:
- *  - \`online/lang/static-translations.ts\` (legacy, через KEY_MAP)
- *  - \`tools/sdk-translations.mjs\` (SDK-specific строки)
+ * Static-translations for ${lang}. Generated from:
+ *  - \`online/lang/static-translations.ts\` (legacy, via KEY_MAP)
+ *  - \`tools/sdk-translations.mjs\` (SDK-specific strings)
  *
- * Не править вручную — изменения теряются при следующем \`node tools/gen-locales.mjs\`.
- * Чтобы исправить перевод — править legacy/sdk-translations.mjs и регенерить.
+ * Do not edit by hand — changes are lost on the next \`node tools/gen-locales.mjs\`.
+ * To fix a translation, edit legacy/sdk-translations.mjs and regenerate.
  */
 const ${lang} = {
 ${lines.join(',\n')}
@@ -170,9 +170,9 @@ export default ${lang};
   console.log(`  ${lang}: ${keys.length} keys`);
 }
 
-/** Извлекает SDK-translations для конкретного языка. Структура источника —
- *  `{ key: { lang: "value", ... }, ... }`, инвертируем в `{ key: "value" }`
- *  только для нашего lang. Пропускаем ключи без перевода под этот lang. */
+/** Extracts SDK-translations for a specific language. The source structure is
+ *  `{ key: { lang: "value", ... }, ... }`, which we invert into `{ key: "value" }`
+ *  for our lang only. Keys without a translation for this lang are skipped. */
 function sdkForLang(lang) {
   const out = {};
   for (const [key, langMap] of Object.entries(SDK_TRANSLATIONS)) {
@@ -194,15 +194,15 @@ function main() {
       const val = legacy[lang][legacyKey];
       if (val) fromLegacy[v3Key] = val;
     }
-    // pricing.included_per — legacy без суффикса/placeholder'а; добиваем
-    // до v3-формата "{prefix} {interval}:". Если уже содержит {interval}
-    // (например, sdk-translations override) — не трогаем.
+    // pricing.included_per — legacy has no suffix/placeholder; we pad it up to
+    // the v3 format "{prefix} {interval}:". If it already contains {interval}
+    // (e.g. an sdk-translations override), leave it alone.
     if (fromLegacy['pricing.included_per'] && !fromLegacy['pricing.included_per'].includes('{interval}')) {
       fromLegacy['pricing.included_per'] = `${fromLegacy['pricing.included_per']} {interval}:`;
     }
-    // SDK-translations имеют приоритет — спред'имся после legacy. Это
-    // позволяет override'ить криво портированные ключи (например
-    // ja/ko/zh `pricing.included_per` со словарным порядком, отличным от EN).
+    // SDK-translations take priority — we spread after legacy. This allows
+    // overriding poorly ported keys (e.g. ja/ko/zh `pricing.included_per` with a
+    // word order different from EN).
     const merged = { ...fromLegacy, ...sdkForLang(lang) };
     emit(lang, merged);
   }

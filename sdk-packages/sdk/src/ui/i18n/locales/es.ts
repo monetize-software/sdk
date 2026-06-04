@@ -1,10 +1,10 @@
 /**
- * Static-translations для es. Сгенерировано из:
- *  - `online/lang/static-translations.ts` (legacy, через KEY_MAP)
- *  - `tools/sdk-translations.mjs` (SDK-specific строки)
+ * Static-translations for es. Generated from:
+ *  - `online/lang/static-translations.ts` (legacy, via KEY_MAP)
+ *  - `tools/sdk-translations.mjs` (SDK-specific strings)
  *
- * Не править вручную — изменения теряются при следующем `node tools/gen-locales.mjs`.
- * Чтобы исправить перевод — править legacy/sdk-translations.mjs и регенерить.
+ * Do not edit by hand — changes are lost on the next `node tools/gen-locales.mjs`.
+ * To fix a translation, edit legacy/sdk-translations.mjs and regenerate.
  */
 const es = {
   'anon.description_default': 'Configurando tu sesión de invitado…',
@@ -52,7 +52,6 @@ const es = {
   'auth.reset_password_title': 'Restablecer contraseña',
   'auth.reset_sent_message': 'Si ese correo existe, hemos enviado un código de restablecimiento.',
   'auth.reset_sent_subtitle': 'Te enviamos un enlace para restablecer tu contraseña. Sigue las instrucciones del correo.',
-  'auth.signup_sent_subtitle': 'Te enviamos un enlace de confirmación a tu correo. Haz clic en él para activar tu cuenta y luego inicia sesión.',
   'auth.restore_purchases_heading': 'Restaurar Compras',
   'auth.restore_purchases_subheading': 'Por favor, inicie sesión para restaurar sus compras.',
   'auth.send_reset': 'Enviar Correo de Restablecimiento',
@@ -81,9 +80,9 @@ const es = {
   'modal.continue': 'Continuar',
   'modal.error_generic': 'Algo salió mal',
   'modal.loading': 'Cargando…',
-  'modal.purchase_restored_subtitle': 'Bienvenido de nuevo — tu suscripción ya está activa.',
-  'modal.purchase_restored_title': 'Suscripción restaurada',
-  'modal.purchase_success_subtitle': 'Tu suscripción ahora está activa.',
+  'modal.purchase_restored_subtitle': '¡Todo listo — que lo disfrutes!',
+  'modal.purchase_restored_title': 'Bienvenido de nuevo',
+  'modal.purchase_success_subtitle': '¡Todo listo — que lo disfrutes!',
   'modal.purchase_success_title': 'Pago recibido',
   'modal.verifying_subscription': 'Verificando tu suscripción…',
   'nav.back': '← Atrás',

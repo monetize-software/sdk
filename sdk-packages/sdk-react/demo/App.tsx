@@ -12,12 +12,12 @@ import {
 } from '../src';
 
 /**
- * Демо-приложение для @monetize.software/sdk-react. Покрывает всё, что есть в
- * public API — служит и витриной для разработчиков, и тестовым полем для
+ * Demo app for @monetize.software/sdk-react. Covers everything in the public
+ * API — it serves both as a showcase for developers and as a test bed for
  * Playwright e2e.
  *
- * Структура — отдельная карточка на каждый хук/компонент, чтобы видно было,
- * что делает каждая часть в изоляции, и можно было кликать поодиночке.
+ * The structure is a separate card for each hook/component, so it's clear what
+ * each part does in isolation and they can be clicked one at a time.
  */
 export function App(): JSX.Element {
   return (

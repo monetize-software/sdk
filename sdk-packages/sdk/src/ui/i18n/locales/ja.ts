@@ -1,10 +1,10 @@
 /**
- * Static-translations для ja. Сгенерировано из:
- *  - `online/lang/static-translations.ts` (legacy, через KEY_MAP)
- *  - `tools/sdk-translations.mjs` (SDK-specific строки)
+ * Static-translations for ja. Generated from:
+ *  - `online/lang/static-translations.ts` (legacy, via KEY_MAP)
+ *  - `tools/sdk-translations.mjs` (SDK-specific strings)
  *
- * Не править вручную — изменения теряются при следующем `node tools/gen-locales.mjs`.
- * Чтобы исправить перевод — править legacy/sdk-translations.mjs и регенерить.
+ * Do not edit by hand — changes are lost on the next `node tools/gen-locales.mjs`.
+ * To fix a translation, edit legacy/sdk-translations.mjs and regenerate.
  */
 const ja = {
   'anon.description_default': 'ゲストセッションを設定中…',
@@ -52,7 +52,6 @@ const ja = {
   'auth.reset_password_title': 'パスワードをリセット',
   'auth.reset_sent_message': 'そのメールが存在する場合、リセットコードが送信されました。',
   'auth.reset_sent_subtitle': 'パスワードリセットのリンクをメールで送信しました。メール内の指示に従ってください。',
-  'auth.signup_sent_subtitle': '確認リンクをメールで送信しました。リンクをクリックしてアカウントを有効化し、サインインしてください。',
   'auth.restore_purchases_heading': '購入を復元',
   'auth.restore_purchases_subheading': '購入を復元するためにサインインしてください。',
   'auth.send_reset': 'リセットメールを送信',
@@ -85,9 +84,9 @@ const ja = {
   'modal.continue': '続ける',
   'modal.error_generic': 'エラーが発生しました',
   'modal.loading': '読み込み中…',
-  'modal.purchase_restored_subtitle': 'おかえりなさい — サブスクリプションはすでに有効です。',
-  'modal.purchase_restored_title': 'サブスクリプションを復元しました',
-  'modal.purchase_success_subtitle': 'サブスクリプションが有効になりました。',
+  'modal.purchase_restored_subtitle': '準備完了 — お楽しみください！',
+  'modal.purchase_restored_title': 'おかえりなさい',
+  'modal.purchase_success_subtitle': '準備完了 — お楽しみください！',
   'modal.purchase_success_title': 'お支払いが完了しました',
   'modal.verifying_subscription': 'サブスクリプションを確認中…',
   'nav.back': '← 戻る',

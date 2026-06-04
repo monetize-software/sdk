@@ -44,63 +44,68 @@ const CLOSED_STATE: PaywallStateSnapshot = {
   processing: false
 };
 
-// Контракт событий SDK. Клиент подписывается через paywall.on(event, handler).
-// Каждый event строго типизирован — IDE даёт автокомплит на payload.
+// The SDK's event contract. The client subscribes via paywall.on(event, handler).
+// Each event is strictly typed — the IDE gives autocomplete on the payload.
 export interface PaywallEventPayloads {
-  /** Модалка открыта (запрос на открытие — данные могут ещё грузиться). */
+  /** The modal is opened (an open request — data may still be loading). */
   open: void;
-  /** Модалка закрыта. */
+  /** The modal is closed. */
   close: void;
-  /** Bootstrap загружен, модалка показывает контент. Подходит для impression-метрик. */
+  /** Bootstrap is loaded, the modal shows content. Suitable for impression
+   *  metrics. */
   ready: PaywallBootstrap;
-  /** Любая ошибка SDK (bootstrap, checkout). */
+  /** Any SDK error (bootstrap, checkout). */
   error: PaywallError;
-  /** Юзер выбрал тариф (клик по плану), ещё не инициировал checkout. */
+  /** The user selected a plan (clicked a plan), hasn't yet initiated checkout. */
   price_selected: { priceId: string; price: PaywallPrice };
-  /** Checkout URL получен с бэка и открыт в новой вкладке. `acquiring` —
-   *  имя платёжного процессора, на который ушёл checkout (для конверсии
-   *  по эквайрингам в host-аналитике). */
+  /** The checkout URL was received from the backend and opened in a new tab.
+   *  `acquiring` — the name of the payment processor the checkout went to (for
+   *  conversion by acquiring in host analytics). */
   checkout_started: { priceId: string; url: string; acquiring?: Acquiring };
-  /** Юзер вернулся с успешной оплатой (через URL-маркеры или postMessage),
-   *  либо после signIn / попытки checkout-а выяснилось, что подписка уже
-   *  активна (`restored: true`). priceId = null когда payment-интент не
-   *  был привязан к конкретной цене (UserWatcher-tick, restore-flow). */
+  /** The user returned with a successful payment (via URL markers or
+   *  postMessage), or after signIn / a checkout attempt it turned out the
+   *  subscription is already active (`restored: true`). priceId = null when the
+   *  payment intent wasn't tied to a specific price (UserWatcher tick,
+   *  restore-flow). */
   purchase_completed: {
     priceId: string | null;
     sessionId: string | null;
-    /** true — это не свежая оплата, а активная подписка, которую SDK обнаружил
-     *  и показал juзеру success/restored view. Hostу полезно различать (для
-     *  metrics — «restore» vs «new purchase»). */
+    /** true — this isn't a fresh payment but an active subscription that the
+     *  SDK detected and showed the user a success/restored view. Useful for the
+     *  host to distinguish (for metrics — "restore" vs "new purchase"). */
     restored?: boolean;
   };
-  /** Юзер вернулся с ошибкой/cancel от провайдера. */
+  /** The user returned with an error/cancel from the provider. */
   purchase_failed: { reason: string | null };
-  /** User-state изменился (bootstrap snapshot, getUser refresh, watcher tick).
-   *  Дёргается также сразу с last-known user после первой подписки. */
+  /** User-state changed (bootstrap snapshot, getUser refresh, watcher tick).
+   *  Also fires right away with the last-known user after the first
+   *  subscription. */
   userChange: PaywallUser;
-  /** Auth-session изменилась. Payload содержит `event` (см. AuthChangeEvent —
-   *  INITIAL_SESSION / SIGNED_IN / SIGNED_OUT / TOKEN_REFRESHED / USER_UPDATED /
-   *  PASSWORD_RECOVERY) и `session` (null = разлогинен).
+  /** The auth session changed. The payload contains `event` (see
+   *  AuthChangeEvent — INITIAL_SESSION / SIGNED_IN / SIGNED_OUT /
+   *  TOKEN_REFRESHED / USER_UPDATED / PASSWORD_RECOVERY) and `session`
+   *  (null = signed out).
    *
-   *  Гарантированный контракт: первый callback каждому subscriber'у — всегда
-   *  INITIAL_SESSION с восстановленной из storage сессией (или null если нет).
-   *  Дальше — реальные переходы. Listener'у с побочными эффектами вроде
-   *  force-refetch balances ловить SIGNED_IN, а не любой truthy session,
-   *  иначе reload страницы будет триггерить лишний запрос. */
+   *  Guaranteed contract: the first callback to every subscriber is always
+   *  INITIAL_SESSION with the session restored from storage (or null if none).
+   *  After that — real transitions. A listener with side effects like
+   *  force-refetching balances should catch SIGNED_IN, not any truthy session,
+   *  otherwise a page reload would trigger an extra request. */
   authChange: { event: AuthChangeEvent; session: AuthSession | null };
-  /** Триал заблокировал показ модалки. payload содержит свежий статус (после
-   *  recordBlock). Для `mode: 'time'` — startedAt/expiresAt/remainingMs;
-   *  для `mode: 'opens'` — remainingActions/totalActions. Хост может
-   *  использовать payload для показа собственного UI («осталось 3 показа»). */
+  /** The trial blocked the modal from showing. The payload contains the fresh
+   *  status (after recordBlock). For `mode: 'time'` —
+   *  startedAt/expiresAt/remainingMs; for `mode: 'opens'` —
+   *  remainingActions/totalActions. The host can use the payload to show its
+   *  own UI ("3 views left"). */
   trial_blocked: TrialStatus;
-  /** Триал истёк, паывол показывается впервые после истечения. Эмитится
-   *  раз за жизнь PaywallUI-инстанса (не персистится между перезагрузками
-   *  страницы — на каждом page-load событие может стрельнуть один раз). */
+  /** The trial expired, the paywall is shown for the first time after expiry.
+   *  Emitted once per PaywallUI instance lifetime (not persisted across page
+   *  reloads — on each page-load the event may fire once). */
   trial_expired: void;
-  /** Targeting не сошёлся — паывол не открывается. payload содержит
-   *  server-computed snapshot из bootstrap (visible=false + reason + country +
-   *  tier). Хост может показать собственный fallback («сервис недоступен в
-   *  вашей стране») или просто залогировать impression для аналитики. */
+  /** Targeting didn't match — the paywall doesn't open. The payload contains a
+   *  server-computed snapshot from bootstrap (visible=false + reason + country
+   *  + tier). The host can show its own fallback ("the service isn't available
+   *  in your country") or simply log the impression for analytics. */
   visibility_blocked: VisibilityStatus;
 }
 
@@ -110,115 +115,120 @@ export type PaywallEventHandler<E extends PaywallEvent = PaywallEvent> = (
   payload: PaywallEventPayloads[E]
 ) => void;
 
-// Вспомогательный тип: `void` payload эмитится без аргумента (`emit('open')`),
-// непустой — с аргументом (`emit('ready', bootstrap)`).
+// Helper type: a `void` payload is emitted without an argument (`emit('open')`),
+// a non-empty one — with an argument (`emit('ready', bootstrap)`).
 type EmitArgs<E extends PaywallEvent> = PaywallEventPayloads[E] extends void
   ? []
   : [PaywallEventPayloads[E]];
 
 export interface AnalyticsOptions {
   enabled?: boolean;
-  /** Полный URL до /events. По умолчанию — `${apiOrigin}/api/v1/paywall/${id}/events`. */
+  /** Full URL to /events. Defaults to `${apiOrigin}/api/v1/paywall/${id}/events`. */
   endpoint?: string;
   flushIntervalMs?: number;
   maxBufferSize?: number;
-  /** Тестовый override fetch'а (jsdom/Vitest). */
+  /** Test override for fetch (jsdom/Vitest). */
   fetch?: typeof fetch;
-  /** Тестовый override sendBeacon'а. */
+  /** Test override for sendBeacon. */
   sendBeacon?: (url: string, data: BodyInit) => boolean;
 }
 
 /**
- * Managed-auth конфиг. Передай `auth: true` — PaywallUI создаёт `AuthClient`
- * сам (с тем же `paywallId/apiOrigin/storage`, как BillingClient). Передай
- * объект — те же дефолты + override опций. Передай готовый `AuthClient` —
- * PaywallUI просто прокинет его в BillingClient (полезно, если хост хочет
- * иметь общий AuthClient на несколько пейволов / делать manual signIn/signOut
- * из своего UI до открытия модалки).
+ * Managed-auth config. Pass `auth: true` — PaywallUI creates the `AuthClient`
+ * itself (with the same `paywallId/apiOrigin/storage` as BillingClient). Pass
+ * an object — the same defaults + option overrides. Pass a ready `AuthClient` —
+ * PaywallUI just forwards it to BillingClient (useful if the host wants a shared
+ * AuthClient across several paywalls / to do manual signIn/signOut from its own
+ * UI before opening the modal).
  *
- * Без `auth` опции SDK работает в hybrid-режиме: identity передаётся снаружи
- * через `opts.identity` или `paywall.open({identity})`.
+ * Without the `auth` option the SDK works in hybrid mode: identity is passed
+ * from outside via `opts.identity` or `paywall.open({identity})`.
  */
 export type AuthOption = true | AuthClient | Partial<Omit<AuthClientOptions, 'paywallId'>>;
 
 export interface PaywallUIOptions extends Omit<BillingClientOptions, 'auth'> {
   client?: BillingClient;
   host?: HTMLElement;
-  /** Подключить managed-auth слой. См. {@link AuthOption}. */
+  /** Connect the managed-auth layer. See {@link AuthOption}. */
   auth?: AuthOption;
   /**
-   * Автоматически парсить URL при создании PaywallUI, чтобы поймать возврат
-   * с checkout-провайдера (?paywall_status=paid|failed|cancelled). Дефолт: true.
-   * Эмитит purchase_completed / purchase_failed через microtask — подпишись синхронно.
+   * Automatically parse the URL when creating PaywallUI, to catch a return from
+   * a checkout provider (?paywall_status=paid|failed|cancelled). Default: true.
+   * Emits purchase_completed / purchase_failed via a microtask — subscribe
+   * synchronously.
    */
   autoDetectReturn?: boolean;
   /**
-   * Режим shadow DOM. По умолчанию `closed` — полная изоляция от хоста.
-   * Для e2e тестов (Playwright) и live-preview в админке передавать `open`.
+   * Shadow DOM mode. Defaults to `closed` — full isolation from the host. For
+   * e2e tests (Playwright) and live-preview in the admin panel pass `open`.
    */
   shadowMode?: 'open' | 'closed';
   /**
-   * Аналитика SDK 3.0. По умолчанию включена. Передай `false` для полного
-   * отключения (ничего не шлётся на бэк). Принимает объект с настройками
-   * batch'а или endpoint-override.
+   * SDK 3.0 analytics. Enabled by default. Pass `false` to fully disable it
+   * (nothing is sent to the backend). Accepts an object with batch settings or
+   * an endpoint override.
    */
   analytics?: boolean | AnalyticsOptions;
   /**
-   * Когда bootstrap не в кеше — модалку рендерить **сразу** со спиннером и
-   * прогонять gates (visibility/trial) после получения данных, или **ждать**
-   * bootstrap и монтировать только если gates прошли. Дефолт `true` —
-   * snappy open, кнопка «открыть» отзывается мгновенно.
+   * When bootstrap isn't cached — render the modal **immediately** with a
+   * spinner and run the gates (visibility/trial) after the data arrives, or
+   * **wait** for bootstrap and mount only if the gates pass. Default `true` —
+   * a snappy open, the "open" button responds instantly.
    *
-   * Trade-off: при `true` и блокирующем gate'е модалка моргнёт (открылась
-   * → закрылась через ~200-500мс). На extension'ах и сайтах с включённым
-   * targeting-fallback'ом это редкий путь, поэтому дефолт оптимизирован
-   * под основной 99%-кейс. Передай `false`, если для вашего use-case'а
-   * флеш на blocked-странах/устройствах хуже воспринимаемой латентности.
+   * Trade-off: with `true` and a blocking gate the modal flickers (opened →
+   * closed after ~200-500ms). On extensions and sites with the targeting
+   * fallback enabled this is a rare path, so the default is optimized for the
+   * main 99% case. Pass `false` if for your use-case a flash on
+   * blocked-countries/devices is worse than the perceived latency.
    */
   mountThenLoad?: boolean;
   /**
-   * Inline-режим для live-preview редактора админки. Host позиционируется
-   * `absolute inset:0` внутри родителя (вместо fixed-viewport'а), overlay
-   * Modal'а тоже становится absolute, body-scroll не лочится. ОБЯЗАТЕЛЬНО
-   * передавать `host` (HTMLElement) с positioned parent'ом — иначе absolute
-   * уйдёт к ближайшему positioned ancestor'у или к html. По умолчанию false.
+   * Inline mode for the admin panel editor's live-preview. The host is
+   * positioned `absolute inset:0` inside its parent (instead of
+   * fixed-viewport), the Modal's overlay also becomes absolute, and body-scroll
+   * isn't locked. You MUST pass a `host` (HTMLElement) with a positioned parent
+   * — otherwise absolute goes to the nearest positioned ancestor or to html.
+   * Defaults to false.
    *
-   * @internal Admin-only: используется в редакторе пейволов monetize.software
-   * для live-preview. Конечным интеграторам SDK включать не нужно — модалка
-   * сольётся с host'овым layout'ом вместо fullscreen-overlay'я.
+   * @internal Admin-only: used in the monetize.software paywall editor for
+   * live-preview. End SDK integrators don't need to enable it — the modal would
+   * blend into the host's layout instead of being a fullscreen overlay.
    */
   inline?: boolean;
   /**
-   * Explicit-override языка для I18nProvider. Используется live-preview
-   * редактором админки («Preview as user from <country>») — там browser-locale
-   * всегда EN, а нужно показать как для юзера из выбранной страны. Принимает
-   * BCP-47 base-tag из `BUNDLED_LOCALES` (ru/de/fr/…); EN, null, undefined —
-   * fallback на обычную резолв-логику (navigator.language → locale_default).
+   * Explicit language override for I18nProvider. Used by the admin panel
+   * editor's live-preview ("Preview as user from <country>") — there the
+   * browser-locale is always EN, but we need to show it as for a user from the
+   * chosen country. Accepts a BCP-47 base-tag from `BUNDLED_LOCALES`
+   * (ru/de/fr/…); EN, null, undefined — fall back to the normal resolution
+   * logic (navigator.language → locale_default).
    *
-   * Live-обновление — через {@link PaywallUI.setLocale}.
+   * Live updates — via {@link PaywallUI.setLocale}.
    *
-   * @internal Admin-only: для конечных интеграторов нет смысла форсить язык —
-   * SDK сам подстраивается под browser-locale.
+   * @internal Admin-only: for end integrators there's no point forcing the
+   * language — the SDK adapts to the browser-locale itself.
    */
   locale?: string | null;
 }
 
 /**
- * Результат `paywall.getAccess()` — отвечает на главный вопрос хоста: «нужно
- * ли блокировать фичу для этого юзера?». Без побочных эффектов: на trial-storage
- * `recordBlock` не вызывается (счётчики не двигаются), модалка не монтируется.
+ * Result of `paywall.getAccess()` — answers the host's main question: "do I
+ * need to block the feature for this user?". No side effects: `recordBlock`
+ * isn't called on trial-storage (counters don't move), the modal isn't mounted.
  *
- * Семантика `access`:
- *  - `granted` — фичу НЕ блокировать. Один из сценариев:
- *    - `has_subscription` — у юзера активная подписка/покупка;
- *    - `visibility_blocked` — таргетинг (страна/девайс/visibility-флаг) не
- *       сошёлся, юзер вне monetization-scope'а пейвола → монетизация неприменима;
- *    - `trial_blocked` — пре-пейвольный триал ещё активен.
- *  - `blocked` — фичу заблокировать и вызвать `paywall.open()`. Reason всегда
- *     `no_subscription`.
+ * `access` semantics:
+ *  - `granted` — do NOT block the feature. One of the scenarios:
+ *    - `has_subscription` — the user has an active subscription/purchase;
+ *    - `visibility_blocked` — targeting (country/device/visibility-flag) didn't
+ *       match, the user is outside the paywall's monetization scope →
+ *       monetization not applicable;
+ *    - `trial_blocked` — the pre-paywall trial is still active.
+ *  - `blocked` — block the feature and call `paywall.open()`. The reason is
+ *     always `no_subscription`.
  *
- * Discriminated union по `access`: type-narrowing на `result.access === 'blocked'`
- * сужает `reason` до `'no_subscription'`, на `'granted'` — до трёх granted-вариантов.
+ * Discriminated union on `access`: type-narrowing on `result.access === 'blocked'`
+ * narrows `reason` to `'no_subscription'`, on `'granted'` — to the three
+ * granted variants.
  */
 export type PaywallAccessResult =
   | {
@@ -242,37 +252,39 @@ export interface GetAccessOptions {
   signal?: AbortSignal;
 }
 
-/** Internal-only расширение `OpenOptions` — `authMode` мы не светим в публичный
- *  API (есть dedicated `openSignin`/`openSignup`), но через private-методы
- *  плюс mountAndShow прокидываем именно тут. */
+/** Internal-only extension of `OpenOptions` — we don't expose `authMode` in the
+ *  public API (there are dedicated `openSignin`/`openSignup`), but pass it
+ *  through here via private methods plus mountAndShow. */
 type InternalOpenOptions = OpenOptions & {
   authMode?: 'signin' | 'signup';
 };
 
 export interface OpenOptions {
   identity?: Identity;
-  /** Принудительно открыть, минуя pre-paywall trial check. По умолчанию SDK
-   *  читает `bootstrap.settings.trial` и блокирует open(), пока триал активен.
-   *  Эскейп-хатч для случаев типа «host решил показать всё-таки» или дев-режим. */
+  /** Force-open, bypassing the pre-paywall trial check. By default the SDK
+   *  reads `bootstrap.settings.trial` and blocks open() while the trial is
+   *  active. An escape hatch for cases like "the host decided to show it
+   *  anyway" or dev mode. */
   skipTrial?: boolean;
-  /** Принудительно открыть, минуя targeting-gate. По умолчанию SDK читает
-   *  `bootstrap.settings.visibility` и эмитит `visibility_blocked` без
-   *  открытия модалки, если visible=false (страна/девайс/visibility-флаг
-   *  не сошлись). Эскейп-хатч для дев-отладки. */
+  /** Force-open, bypassing the targeting gate. By default the SDK reads
+   *  `bootstrap.settings.visibility` and emits `visibility_blocked` without
+   *  opening the modal if visible=false (country/device/visibility-flag didn't
+   *  match). An escape hatch for dev debugging. */
   skipVisibility?: boolean;
-  /** Renewal/upgrade flow. По умолчанию (false) SDK после bootstrap'а или
-   *  signIn проверяет `user.has_active_subscription` и переключается в
-   *  restored success-view, не показывая тарифы — open() для уже подписанного
-   *  юзера превращается в подтверждение «у вас уже есть подписка». С
-   *  `renew: true` все эти проверки пропускаются: тарифы показываются всегда,
-   *  и при checkout SDK передаёт `ignoreActivePurchase: true` на бэк, чтобы
-   *  /start-checkout не вернул 409. Использовать когда host-UI явно
-   *  показывает кнопку «Renew»/«Upgrade plan». */
+  /** Renewal/upgrade flow. By default (false) the SDK, after bootstrap or
+   *  signIn, checks `user.has_active_subscription` and switches to the restored
+   *  success-view without showing the plans — open() for an already-subscribed
+   *  user turns into a confirmation "you already have a subscription". With
+   *  `renew: true` all these checks are skipped: the plans are always shown,
+   *  and on checkout the SDK passes `ignoreActivePurchase: true` to the backend
+   *  so /start-checkout doesn't return a 409. Use it when the host UI
+   *  explicitly shows a "Renew"/"Upgrade plan" button. */
   renew?: boolean;
 }
 
-// Маркеры в URL, по которым SDK определяет результат checkout.
-// Контракт общий с бэком — online добавляет их в success/cancel URLs.
+// URL markers by which the SDK determines the checkout result.
+// The contract is shared with the backend — online adds them to success/cancel
+// URLs.
 const URL_MARKERS = {
   status: 'paywall_status',
   priceId: 'paywall_price_id',
@@ -281,9 +293,9 @@ const URL_MARKERS = {
 
 export class PaywallUI {
   readonly billing: BillingClient;
-  /** AuthClient (managed-auth) или undefined в hybrid-режиме. Доступен публично:
-   *  host может вызывать `paywall.auth?.signOut()`, читать `getCachedSession()`,
-   *  подписываться на `onAuthChange` напрямую. */
+  /** AuthClient (managed-auth) or undefined in hybrid mode. Publicly available:
+   *  the host can call `paywall.auth?.signOut()`, read `getCachedSession()`,
+   *  subscribe to `onAuthChange` directly. */
   readonly auth: AuthClient | undefined;
   private ownsAuth: boolean;
   private host?: HTMLElement;
@@ -296,46 +308,49 @@ export class PaywallUI {
   private watcher: UserWatcher | null = null;
   private tracker: EventTracker | null = null;
   private purchased = false;
-  /** View, с которым последний раз монтировалась модалка. Гейтит аналитику
-   *  `paywall_viewed`/`paywall_closed` на реальный пейвол (`'layout'`): открытие
-   *  support / standalone-auth / awaiting_payment эмитит публичный `'ready'` и
-   *  `'close'`, но это не «пейвол просмотрен/закрыт» — иначе саппорт-клик шлёт
-   *  ложный `paywall_viewed`. */
+  /** The view the modal was last mounted with. Gates the `paywall_viewed`/
+   *  `paywall_closed` analytics to the real paywall (`'layout'`): opening
+   *  support / standalone-auth / awaiting_payment emits the public `'ready'`
+   *  and `'close'`, but that's not "paywall viewed/closed" — otherwise a
+   *  support click sends a false `paywall_viewed`. */
   private lastMountedView: PaywallView | null = null;
-  /** Lazy-инстанс TrialStore. Резолвится при первом open(), когда уже знаем
-   *  `bootstrap.settings.trial`. null — триал отключён в конфиге пейвола. */
+  /** Lazy TrialStore instance. Resolved on the first open(), when we already
+   *  know `bootstrap.settings.trial`. null — the trial is disabled in the
+   *  paywall config. */
   private trialStore: TrialStore | null = null;
-  /** Конфиг, под который создан текущий trialStore — пересобираем, если он
-   *  поменялся между bootstrap-фетчами (например, владелец переключил режим
-   *  в админке между сессиями SDK). */
+  /** The config the current trialStore was created for — we rebuild it if it
+   *  changed between bootstrap fetches (e.g. the owner switched the mode in the
+   *  admin panel between SDK sessions). */
   private trialStoreConfig: TrialConfig | null = null;
-  /** In-memory snapshot последнего check() — для синхронного getTrialStatus(). */
+  /** In-memory snapshot of the last check() — for synchronous getTrialStatus(). */
   private lastTrialStatus: TrialStatus | null = null;
-  /** Флаг dedupe для `trial_expired` события в рамках жизни инстанса. */
+  /** Dedupe flag for the `trial_expired` event within the instance's lifetime. */
   private trialExpiredFired = false;
-  /** In-memory snapshot последнего bootstrap'а — для синхронного getVisibility(). */
+  /** In-memory snapshot of the last bootstrap — for synchronous getVisibility(). */
   private lastVisibility: VisibilityStatus | null = null;
-  /** Поведение open() при холодном bootstrap'е. См. PaywallUIOptions.mountThenLoad. */
+  /** open() behavior on a cold bootstrap. See PaywallUIOptions.mountThenLoad. */
   private mountThenLoad: boolean;
-  /** Inline-режим (live-preview редактора). См. PaywallUIOptions.inline. */
+  /** Inline mode (editor's live-preview). See PaywallUIOptions.inline. */
   private inline: boolean;
-  /** Force-locale для I18nProvider. См. PaywallUIOptions.locale. */
+  /** Force-locale for I18nProvider. See PaywallUIOptions.locale. */
   private forceLocale: string | null;
-  /** Текущий snapshot UI state-machine. Обновляется PaywallRoot'ом через
-   *  `onState` prop; при close сбрасывается обратно в CLOSED_STATE. */
+  /** The current UI state-machine snapshot. Updated by PaywallRoot via the
+   *  `onState` prop; reset back to CLOSED_STATE on close. */
   private currentState: PaywallStateSnapshot = CLOSED_STATE;
   private stateListeners = new Set<PaywallStateListener>();
 
   constructor(opts: PaywallUIOptions) {
-    // Резолвим AuthClient: готовый инстанс / managed-конфиг (true|object) /
-    // undefined. ownsAuth=true → сами создавали и должны прибрать в destroy().
+    // Resolve the AuthClient: a ready instance / managed config (true|object) /
+    // undefined. ownsAuth=true → we created it ourselves and must clean it up
+    // in destroy().
     const { auth, ownsAuth } = resolveAuth(opts);
     this.auth = auth;
     this.ownsAuth = ownsAuth;
 
-    // Если auth есть — прокидываем в BillingClient (он сам подключит Bearer
-    // и auto-sync identity через onAuthChange). client из opts побеждает —
-    // считаем, что хост уже сконфигурировал его сам, не лезем перетирать auth.
+    // If auth exists — we forward it to BillingClient (which connects Bearer
+    // and auto-syncs identity via onAuthChange itself). The client from opts
+    // wins — we assume the host already configured it itself and don't overwrite
+    // its auth.
     this.billing =
       opts.client ?? new BillingClient({ ...opts, auth: this.auth });
     this.host = opts.host;
@@ -344,9 +359,9 @@ export class PaywallUI {
     this.inline = opts.inline === true;
     this.forceLocale = opts.locale ?? null;
 
-    // Форвардим user-change события из BillingClient на public-API PaywallUI.
-    // Один источник правды (BillingClient cache) — два consumer'а (host через
-    // paywall.onUserChange и сам watcher через billing.onUserChange).
+    // Forward user-change events from BillingClient to PaywallUI's public API.
+    // One source of truth (BillingClient cache) — two consumers (the host via
+    // paywall.onUserChange and the watcher itself via billing.onUserChange).
     this.userUnsub = this.billing.onUserChange((user) => {
       this.emit('userChange', user);
     });
@@ -360,8 +375,8 @@ export class PaywallUI {
     this.initTracker(opts.analytics);
 
     if (opts.autoDetectReturn !== false && typeof window !== 'undefined') {
-      // Microtask — клиент успевает подписаться синхронно после конструктора,
-      // до того как событие действительно стрельнёт.
+      // Microtask — the client has time to subscribe synchronously after the
+      // constructor, before the event actually fires.
       queueMicrotask(() => this.checkReturn());
     }
   }
@@ -388,14 +403,14 @@ export class PaywallUI {
       sendBeacon: cfg.sendBeacon
     });
 
-    // Биндим внутренние SDK-события на аналитический транспорт. Один эмиттер,
-    // один потребитель (трекер) — никто кроме трекера не должен трогать
-    // эти имена событий за пределами PaywallUI.
-    // paywall_viewed — только для реального пейвола ('layout'). Публичные
-    // 'ready'/'close' эмитятся и для support/auth/awaiting_payment, но это не
-    // «пейвол просмотрен» (см. lastMountedView). 'open' больше не трекаем
-    // отдельно: 'viewed' (на 'ready', после загрузки bootstrap) — единственный
-    // сигнал показа пейвола.
+    // Bind internal SDK events to the analytics transport. One emitter, one
+    // consumer (the tracker) — nobody but the tracker should touch these event
+    // names outside PaywallUI.
+    // paywall_viewed — only for the real paywall ('layout'). The public
+    // 'ready'/'close' are emitted for support/auth/awaiting_payment too, but
+    // that's not "paywall viewed" (see lastMountedView). 'open' is no longer
+    // tracked separately: 'viewed' (on 'ready', after bootstrap loads) is the
+    // single signal of a paywall view.
     this.on('ready', (b) => {
       if (this.lastMountedView !== 'layout') return;
       this.tracker?.track('paywall_viewed', {
@@ -446,63 +461,65 @@ export class PaywallUI {
     this.on('error', (e) =>
       this.tracker?.track('error', { code: e.code, message: e.message })
     );
-    // auth_signin_success / auth_signout пока не фаерим: authChange эмитится
-    // и на гидрации сессии (UI поднимает кеш из storage), и на token refresh,
-    // и при параллельных consumer'ах одного auth-state — даёт ложные signin'ы.
-    // Реальные login-события нужно ловить через прямые вызовы
-    // signInWithEmail/signUp/signInWithOAuth/signOut, а не через authChange.
+    // auth_signin_success / auth_signout aren't fired yet: authChange is
+    // emitted on session hydration (the UI restores the cache from storage), on
+    // token refresh, and with parallel consumers of one auth-state — it gives
+    // false signins. Real login events should be caught via direct
+    // signInWithEmail/signUp/signInWithOAuth/signOut calls, not via authChange.
   }
 
   /**
-   * Отправить произвольное аналитическое событие. Имена из системного whitelist'а
-   * (`app_opened`, `paywall_viewed`, ...) разрешены как есть. Кастомные —
-   * с префиксом `host:` (например `host:user_clicked_upgrade`). Сервер
-   * дропает события с неразрешёнными именами.
+   * Send an arbitrary analytics event. Names from the system whitelist
+   * (`app_opened`, `paywall_viewed`, ...) are allowed as-is. Custom ones —
+   * with a `host:` prefix (e.g. `host:user_clicked_upgrade`). The server drops
+   * events with disallowed names.
    *
-   * Самый частый кейс — `track('app_opened')` от хоста сразу после загрузки
-   * приложения, чтобы зафиксировать воронку до открытия пейвола.
+   * The most common case is `track('app_opened')` from the host right after the
+   * app loads, to record the funnel before the paywall opens.
    */
   track(name: string, props?: Record<string, unknown>): void {
     this.tracker?.track(name, props);
   }
 
   /**
-   * Удобный шорткат вместо `paywall.on('userChange', cb)` — самый частый
-   * паттерн в host-коде, поэтому отдельный named метод. Колбек получает
-   * last-known user из кеша синхронно через microtask, если он есть.
+   * A convenient shortcut for `paywall.on('userChange', cb)` — the most common
+   * pattern in host code, hence a separate named method. The callback receives
+   * the last-known user from the cache synchronously via a microtask, if any.
    */
   onUserChange(handler: PaywallEventHandler<'userChange'>): () => void {
     return this.on('userChange', handler);
   }
 
   /**
-   * Заменить cachedBootstrap живыми данными — для preview-режима в редакторе
-   * админки. Если модалка открыта, PaywallRoot подписан на onBootstrapChange
-   * и перерендерится мгновенно. До open() — затравка для bootstrap()-effect'а.
+   * Replace cachedBootstrap with live data — for preview mode in the admin
+   * panel editor. If the modal is open, PaywallRoot is subscribed to
+   * onBootstrapChange and re-renders instantly. Before open() — a seed for the
+   * bootstrap() effect.
    *
-   * См. {@link BillingClientOptions.preview} — обычно эту опцию ставят на
-   * клиент, чтобы заодно отключить сетевой revalidate. setBootstrap технически
-   * работает и в production-режиме, но конкуренция с revalidate'ом из сети
-   * почти всегда нежелательна.
+   * See {@link BillingClientOptions.preview} — usually this option is set on
+   * the client to also disable the network revalidate. setBootstrap technically
+   * works in production mode too, but competing with a revalidate from the
+   * network is almost always undesirable.
    */
   setBootstrap(partial: Partial<PaywallBootstrap>): void {
     this.billing.setBootstrap(partial);
   }
 
   /**
-   * Сменить force-locale на лету — для live-preview редактора админки, когда
-   * юзер переключает «Preview as user from <country>». Грузит соответствующий
-   * static-чанк и форсит re-render через handle.update. См. PaywallUIOptions.locale.
+   * Change the force-locale on the fly — for the admin panel editor's
+   * live-preview, when the user switches "Preview as user from <country>".
+   * Loads the corresponding static chunk and forces a re-render via
+   * handle.update. See PaywallUIOptions.locale.
    *
-   * Передай `null`/`undefined`, чтобы вернуть автоматическую резолв-логику
+   * Pass `null`/`undefined` to return to the automatic resolution logic
    * (navigator.language → locale_default).
    */
   setLocale(locale: string | null | undefined): void {
     const next = locale ?? null;
     if (next === this.forceLocale) return;
     this.forceLocale = next;
-    // handle есть, только если модалка открыта; иначе locale подхватится на
-    // следующем mountAndShow() из сохранённого this.forceLocale.
+    // handle exists only if the modal is open; otherwise the locale is picked
+    // up on the next mountAndShow() from the saved this.forceLocale.
     if (this.handle) {
       this.handle.update({ locale: next });
     }
@@ -540,55 +557,59 @@ export class PaywallUI {
   }
 
   /**
-   * Прогревает bootstrap-кеш и balance-кеш заранее, без открытия модалки.
-   * Полезно когда host знает, что юзер скоро откроет paywall (hover на CTA,
-   * mount компонента) — первый `open()` рендерится мгновенно, без loading-flash.
+   * Warms up the bootstrap cache and balance cache in advance, without opening
+   * the modal. Useful when the host knows the user will soon open the paywall
+   * (hover on the CTA, component mount) — the first `open()` renders instantly,
+   * without a loading flash.
    *
-   * Не throw'ает: если сеть упала, тихо игнорирует (повторный open() сделает
-   * fresh-bootstrap с error-state как обычно). `signal` для отмены — например,
-   * если хост размонтирует компонент быстрее, чем bootstrap вернётся.
+   * Doesn't throw: if the network failed, it silently ignores it (a repeat
+   * open() does a fresh bootstrap with an error-state as usual). `signal` for
+   * cancellation — e.g. if the host unmounts the component faster than bootstrap
+   * returns.
    *
-   * Вызывать можно сколько угодно раз — последующие вызовы возвращают cached
-   * Promise (BillingClient уже дедуплицирует).
+   * Can be called any number of times — subsequent calls return a cached
+   * Promise (BillingClient already deduplicates).
    */
   async preload(opts: { signal?: AbortSignal } = {}): Promise<void> {
     try {
       await this.billing.bootstrap({ signal: opts.signal });
-      // Балансы — best-effort: пейволы без `tokenization` отдают пустой
-      // массив, и getBalances не делает сетевого запроса для unauth-юзера.
+      // Balances — best-effort: paywalls without `tokenization` return an empty
+      // array, and getBalances doesn't make a network request for an unauth
+      // user.
       if (this.billing.auth) {
         await this.billing.getBalances({ signal: opts.signal });
       }
     } catch {
-      /* preload best-effort — open() сам покажет error-state */
+      /* preload is best-effort — open() will show the error-state itself */
     }
   }
 
   /**
-   * Открывает модалку сразу с саппорт-формой (минуя layout с тарифами).
-   * Полезно, когда host-приложение хочет дать юзеру кнопку «Help / Support»,
-   * не связанную с пейволом-апгрейдом. Back/Done в саппорт-форме закрывают
-   * модалку (не возвращают к тарифам), потому что юзер пришёл сюда напрямую.
+   * Opens the modal straight to the support form (bypassing the layout with
+   * plans). Useful when the host app wants to give the user a "Help / Support"
+   * button unrelated to a paywall upgrade. Back/Done in the support form close
+   * the modal (don't return to the plans), because the user came here directly.
    *
-   * Из обычного `paywall.open()`-flow саппорт всё равно доступен через
-   * Contact Support-ссылку в `current_session`-блоке (там Back возвращает
-   * к layout).
+   * From the regular `paywall.open()` flow support is still available via the
+   * Contact Support link in the `current_session` block (there Back returns to
+   * the layout).
    */
   openSupport(opts: OpenOptions = {}): void {
     this.openInternal('support', opts);
   }
 
   /**
-   * Открывает модалку сразу с auth-gate (логин/регистрация), без layout с
-   * тарифами. Сценарий: returning customer уже купил, ему просто нужно
-   * залогиниться, чтобы SDK подцепил его purchases. После signIn модалка
-   * закрывается; Back тоже закрывает (юзер пришёл только за логином).
+   * Opens the modal straight to the auth-gate (login/registration), without the
+   * layout with plans. Scenario: a returning customer already bought and just
+   * needs to sign in so the SDK picks up their purchases. After signIn the
+   * modal closes; Back also closes it (the user came only to log in).
    *
-   * Без `auth` (managed-auth не подключён) метод — no-op: некому делать
-   * signIn. Если юзер уже залогинен — модалка всё равно откроется и
-   * закроется через auto-resume в auth_gate effect'е (мгновение).
+   * Without `auth` (managed-auth not connected) the method is a no-op: there's
+   * no one to do signIn. If the user is already signed in — the modal still
+   * opens and closes via auto-resume in the auth_gate effect (instantly).
    *
-   * Триал не блокирует этот флоу — auth не connect'ится с trial-механикой.
+   * The trial doesn't block this flow — auth isn't connected to the trial
+   * mechanics.
    */
   openAuth(opts: OpenOptions = {}): void {
     if (!this.auth) return;
@@ -596,12 +617,12 @@ export class PaywallUI {
   }
 
   /**
-   * Шорткат над `openAuth()` — открывает модалку сразу на signin-форме.
-   * Эквивалент `openAuth()` (signin — дефолт). Существует для симметрии с
-   * `openSignup()` и читаемости host-кода:
-   *   - `paywall.openSignin()` — «вход в существующий аккаунт»
-   *   - `paywall.openSignup()` — «новая регистрация»
-   * Без managed-auth — no-op.
+   * A shortcut over `openAuth()` — opens the modal straight to the signin form.
+   * Equivalent to `openAuth()` (signin is the default). Exists for symmetry with
+   * `openSignup()` and host-code readability:
+   *   - `paywall.openSignin()` — "log in to an existing account"
+   *   - `paywall.openSignup()` — "new registration"
+   * Without managed-auth — a no-op.
    */
   openSignin(opts: OpenOptions = {}): void {
     if (!this.auth) return;
@@ -609,11 +630,11 @@ export class PaywallUI {
   }
 
   /**
-   * Открывает модалку с auth-gate сразу в режиме регистрации (signup-mode
-   * AuthPanel'а — email/password/repeat). Если в paywall layout админ
-   * отключил allow_signup, AuthPanel игнорит mode и стартует с signin —
-   * соблюдается admin-конфиг.
-   * Без managed-auth — no-op.
+   * Opens the modal with the auth-gate straight in registration mode (the
+   * AuthPanel's signup mode — email/password/repeat). If the admin disabled
+   * allow_signup in the paywall layout, AuthPanel ignores the mode and starts
+   * with signin — the admin config is respected.
+   * Without managed-auth — a no-op.
    */
   openSignup(opts: OpenOptions = {}): void {
     if (!this.auth) return;
@@ -621,57 +642,58 @@ export class PaywallUI {
   }
 
   /**
-   * Direct-checkout: создать checkout-URL по конкретной цене и сразу открыть
-   * платёжного провайдера, минуя layout с тарифами. Полезно когда
-   * host-приложение рендерит pricing-карточки/таблицу собственным UI и
-   * хочет, чтобы клик по «Buy / Get this plan» вёл прямо в Stripe/Paddle.
+   * Direct-checkout: create a checkout URL for a specific price and immediately
+   * open the payment provider, bypassing the layout with plans. Useful when the
+   * host app renders pricing cards/a table with its own UI and wants a click on
+   * "Buy / Get this plan" to lead straight to Stripe/Paddle.
    *
-   * **Late-mount UX.** В отличие от `open()`, модалка не появляется во время
-   * фоновой работы (bootstrap + visibility/trial gates + createCheckout).
-   * Хост на этой фазе показывает busy-state прямо на своей кнопке (через
-   * `state.processing === true` из `paywall.getState()` — или автоматически
-   * через `<PaywallButton priceId>` в sdk-react). Модалка монтируется
-   * ТОЛЬКО когда реально нужна UI:
-   *  - `checkout_mode='preauth'` + managed-auth + не залогинен → auth-gate
-   *    (форма signin'а); после успеха auto-resume в createCheckout.
-   *  - popup провайдера заблокирован браузером → popup_blocked view с
-   *    retry-кнопкой под fresh user gesture.
-   *  - popup открылся успешно → awaiting_payment view (индикатор «оплати
-   *    в новой вкладке» + I've paid).
+   * **Late-mount UX.** Unlike `open()`, the modal doesn't appear during the
+   * background work (bootstrap + visibility/trial gates + createCheckout). The
+   * host shows a busy-state right on its own button during this phase (via
+   * `state.processing === true` from `paywall.getState()` — or automatically via
+   * `<PaywallButton priceId>` in sdk-react). The modal is mounted ONLY when the
+   * UI is really needed:
+   *  - `checkout_mode='preauth'` + managed-auth + not signed in → auth-gate
+   *    (the signin form); after success, auto-resume into createCheckout.
+   *  - the provider's popup is blocked by the browser → a popup_blocked view
+   *    with a retry button under a fresh user gesture.
+   *  - the popup opened successfully → an awaiting_payment view (a "pay in the
+   *    new tab" indicator + I've paid).
    *
-   * Что эмитится без модалки:
-   *  - `purchase_completed{restored:true, priceId}` когда юзер уже подписан
-   *    (cached user, fresh bootstrap, или 409 hasActivePurchase от бэка) —
-   *    headless reject;
-   *  - `error` когда createCheckout упал или identity.email отсутствует;
-   *  - `visibility_blocked` / `trial_blocked` — стандартные gate-эвенты.
+   * What's emitted without the modal:
+   *  - `purchase_completed{restored:true, priceId}` when the user is already
+   *    subscribed (cached user, fresh bootstrap, or a 409 hasActivePurchase
+   *    from the backend) — a headless reject;
+   *  - `error` when createCheckout failed or identity.email is missing;
+   *  - `visibility_blocked` / `trial_blocked` — the standard gate events.
    *
-   * Что эмитится одновременно с модалкой:
-   *  - `checkout_started{priceId, url, acquiring}` ровно когда headless URL
-   *    получен, ДО mount'а awaiting_payment/popup_blocked.
+   * What's emitted together with the modal:
+   *  - `checkout_started{priceId, url, acquiring}` exactly when the headless URL
+   *    is received, BEFORE mounting awaiting_payment/popup_blocked.
    *
-   * Offer (countdown-скидка) автоматически резолвится из cached offers'ов
-   * через `getOfferForPrice(priceId)` и передаётся в createCheckout как
-   * `offerId` — чтобы duration_minutes-офферы тоже применились на бэке
-   * (для них нет server-side таймера, без явного offer-id скидка теряется).
+   * The offer (countdown discount) is automatically resolved from cached offers
+   * via `getOfferForPrice(priceId)` and passed into createCheckout as `offerId`
+   * — so duration_minutes offers also apply on the backend (there's no
+   * server-side timer for them, and without an explicit offer-id the discount is
+   * lost).
    *
-   * Требования:
-   *  - `identity.email` должен быть выставлен (через `opts.identity`, либо
-   *    managed-auth, либо ранний `setIdentity`/`paywall.open({identity})`).
-   *    Без email бэк `/start-checkout` 400'нёт; SDK эмитнет `error`.
-   *  - В `checkout_mode='preauth'` без managed-auth — backend требует
-   *    email-юзера; убедись что `identity.email` явно задан.
+   * Requirements:
+   *  - `identity.email` must be set (via `opts.identity`, or managed-auth, or an
+   *    early `setIdentity`/`paywall.open({identity})`). Without an email the
+   *    backend `/start-checkout` returns 400; the SDK emits `error`.
+   *  - In `checkout_mode='preauth'` without managed-auth — the backend requires
+   *    an email user; make sure `identity.email` is explicitly set.
    *
-   * Без модалки совсем (когда host рендерит свой awaiting-payment экран) —
-   * используй `paywall.billing.createCheckout({priceId, offerId})` напрямую,
-   * но тогда auth-gate / popup_blocked / awaiting_payment придётся рисовать
-   * самостоятельно.
+   * Without a modal at all (when the host renders its own awaiting-payment
+   * screen) — use `paywall.billing.createCheckout({priceId, offerId})` directly,
+   * but then you'll have to draw auth-gate / popup_blocked / awaiting_payment
+   * yourself.
    */
   checkout(priceId: string, opts: OpenOptions = {}): void {
     if (opts.identity) this.billing.setIdentity(opts.identity);
 
-    // Cached user → already-paid: ничего не монтируем, эмитим headless.
-    // renew пропускает все pre-check'и — host явно делает upgrade.
+    // Cached user → already-paid: we mount nothing and emit headless.
+    // renew skips all pre-checks — the host is explicitly doing an upgrade.
     if (opts.renew !== true) {
       const cachedUser = this.billing.getCachedUser();
       if (cachedUser?.has_active_subscription) {
@@ -684,22 +706,23 @@ export class PaywallUI {
       }
     }
 
-    // Late-mount: всё дальше — async. Включаем processing-флаг, host
-    // через state.processing видит «SDK что-то делает» и дизейблит кнопку.
-    // Сбрасываем processing в false только в no-mount-возвратах (headless
-    // reject, gate-блок, error). Для путей, заканчивающихся mountAndShow,
-    // PaywallRoot.onState сам отрапортует processing=false первым же
-    // snapshot'ом — если бы мы здесь делали .finally, между applyProcessing(false)
-    // и PaywallRoot.onState был бы flicker «processing=false, view=null»
-    // (выглядит как «ничего не происходит»).
+    // Late-mount: everything from here is async. We turn on the processing
+    // flag, and via state.processing the host sees "the SDK is doing something"
+    // and disables the button. We reset processing to false only in the
+    // no-mount returns (headless reject, gate-block, error). For paths ending in
+    // mountAndShow, PaywallRoot.onState reports processing=false itself with its
+    // very first snapshot — if we did .finally here, there'd be a flicker
+    // "processing=false, view=null" between applyProcessing(false) and
+    // PaywallRoot.onState (which looks like "nothing is happening").
     void this.runDirectCheckout(priceId, opts);
   }
 
-  /** Headless prep-work для `checkout(priceId, opts)`: bootstrap → gates →
-   *  preauth check → createCheckout → mount модалки с финальным view.
-   *  Вынесено отдельным методом ради чистого async/await flow вместо вложенных
-   *  then-chain'ов (5+ ветвей). Любая ошибка не пробрасывается наружу: эмитим
-   *  через `paywall.emit('error')` и выходим — host подписан на `error`-event. */
+  /** Headless prep-work for `checkout(priceId, opts)`: bootstrap → gates →
+   *  preauth check → createCheckout → mount the modal with the final view.
+   *  Extracted into a separate method for a clean async/await flow instead of
+   *  nested then-chains (5+ branches). Any error isn't propagated outward: we
+   *  emit via `paywall.emit('error')` and exit — the host is subscribed to the
+   *  `error` event. */
   private async runDirectCheckout(
     priceId: string,
     opts: OpenOptions
@@ -708,16 +731,16 @@ export class PaywallUI {
     const skipTrial = opts.skipTrial === true;
     const skipVisibility = opts.skipVisibility === true;
 
-    // Включаем processing для host'овской кнопки.
+    // Turn on processing for the host's button.
     this.applyProcessing(true);
 
-    // Helper: emit/headless-выход — обязательно сбрасываем processing перед
-    // return'ом, иначе host'овский UI зависнет в busy-state навсегда.
+    // Helper: emit/headless exit — we must reset processing before returning,
+    // otherwise the host's UI hangs in busy-state forever.
     const exitHeadless = (): void => {
       this.applyProcessing(false);
     };
 
-    // 1. Bootstrap. Cached path — мгновенно; cold — RTT 200-500ms.
+    // 1. Bootstrap. Cached path — instant; cold — RTT 200-500ms.
     let bootstrap: PaywallBootstrap;
     try {
       bootstrap = await this.billing.bootstrap();
@@ -731,8 +754,8 @@ export class PaywallUI {
       return;
     }
 
-    // 2. Gates (visibility → trial). НЕ монтируем модалку: блокирующий gate
-    //    → emit и выход. Идентичная семантика open(): trial_blocked /
+    // 2. Gates (visibility → trial). We do NOT mount the modal: a blocking gate
+    //    → emit and exit. Identical semantics to open(): trial_blocked /
     //    visibility_blocked.
     if (!skipVisibility) {
       const v = bootstrap.settings.visibility;
@@ -753,8 +776,9 @@ export class PaywallUI {
       }
     }
 
-    // 3. Fresh bootstrap user — переиспроверяем active subscription.
-    //    Cached path выше мог быть устаревшим (signOut на другом табе и т.п.).
+    // 3. Fresh bootstrap user — we re-check the active subscription.
+    //    The cached path above may have been stale (signOut in another tab,
+    //    etc.).
     if (!renew && bootstrap.user?.has_active_subscription) {
       this.emit('purchase_completed', {
         priceId,
@@ -765,12 +789,12 @@ export class PaywallUI {
       return;
     }
 
-    // 4. Preauth check. Если требуется realsignin — монтируем модалку с
-    //    auth-gate; PaywallRoot после signin'а сделает createCheckout
-    //    самостоятельно (runCheckout внутри auth-resume effect'а), и offer
-    //    туда резолвится тем же путём. processing сбросит PaywallRoot.onState
-    //    своим первым snapshot'ом (processing=false в computePaywallSnapshot),
-    //    нам тут руками не надо.
+    // 4. Preauth check. If a real signin is required — we mount the modal with
+    //    the auth-gate; after signin PaywallRoot does createCheckout itself
+    //    (runCheckout inside the auth-resume effect), and the offer is resolved
+    //    there the same way. PaywallRoot.onState resets processing with its
+    //    first snapshot (processing=false in computePaywallSnapshot), so we
+    //    don't need to do it by hand here.
     const mode = bootstrap.settings.checkout_mode ?? 'guest';
     const cachedSession = this.auth?.getCachedSession() ?? null;
     const hasRealSession = !!cachedSession && !cachedSession.user.is_anonymous;
@@ -785,8 +809,9 @@ export class PaywallUI {
       return;
     }
 
-    // 5. Headless createCheckout. Резолвим offer тут же — без явного offerId
-    //    duration-офферы (countdown в clientStorage) на бэке не применятся.
+    // 5. Headless createCheckout. We resolve the offer right here — without an
+    //    explicit offerId, duration offers (countdown in clientStorage) won't
+    //    apply on the backend.
     const offer = this.getOfferForPrice(priceId);
     let result;
     try {
@@ -803,7 +828,7 @@ export class PaywallUI {
         try {
           await this.billing.getUser({ force: true });
         } catch {
-          /* offline — host'у getUser сам отрапортует */
+          /* offline — getUser will report to the host itself */
         }
         this.emit('purchase_completed', {
           priceId,
@@ -822,11 +847,12 @@ export class PaywallUI {
       return;
     }
 
-    // 6. Эмитим checkout_started ДО mount'а — host'овский аналитический
-    //    listener срабатывает синхронно (модалка ещё не на экране, но event
-    //    уже произошёл). Также запускаем UserWatcher через onEvent в mountAndShow
-    //    (он вешает обработчик на checkout_started), но startUserWatcher
-    //    идемпотентен — повторный вызов тут не сломает.
+    // 6. We emit checkout_started BEFORE mounting — the host's analytics
+    //    listener fires synchronously (the modal isn't on screen yet, but the
+    //    event already happened). We also start UserWatcher via onEvent in
+    //    mountAndShow (it attaches a handler to checkout_started), but
+    //    startUserWatcher is idempotent — a repeat call here won't break
+    //    anything.
     this.emit('checkout_started', {
       priceId,
       url: result.url,
@@ -834,8 +860,9 @@ export class PaywallUI {
     });
     this.startUserWatcher();
 
-    // 7. Открываем popup и монтируем соответствующий view. SSR/no-window —
-    //    awaiting без попытки window.open (host сам редиректит из своего env).
+    // 7. Open the popup and mount the corresponding view. SSR/no-window —
+    //    awaiting without attempting window.open (the host redirects from its
+    //    own env).
     if (typeof window === 'undefined' || !result.url) {
       this.mountAndShow('awaiting_payment', {
         renew,
@@ -858,9 +885,9 @@ export class PaywallUI {
         checkoutUrl: result.url
       });
     } else {
-      // Popup blocked — обычно после async signin (transient activation
-      // потерян). Модалка остаётся со своей retry-кнопкой; клик =
-      // fresh gesture, попап откроется.
+      // Popup blocked — usually after an async signin (the transient activation
+      // is lost). The modal stays with its retry button; a click = a fresh
+      // gesture and the popup will open.
       this.mountAndShow('popup_blocked', {
         renew,
         checkoutPriceId: priceId,
@@ -869,9 +896,9 @@ export class PaywallUI {
     }
   }
 
-  /** Trial-check без mount'а (для late-mount direct-checkout). Возвращает
-   *  true если trial заблокировал — caller должен прекратить flow. На любой
-   *  storage-ошибке log+продолжаем (не блокируем продажу). */
+  /** Trial check without mounting (for late-mount direct-checkout). Returns
+   *  true if the trial blocked — the caller must stop the flow. On any storage
+   *  error we log+continue (we don't block the sale). */
   private async checkTrialBeforeCheckout(
     bootstrap: PaywallBootstrap
   ): Promise<boolean> {
@@ -903,23 +930,23 @@ export class PaywallUI {
 
   private applyProcessing(value: boolean): void {
     if (this.currentState.processing === value) return;
-    // Мутируем processing на текущем snapshot'е сохраняя остальные поля.
-    // PaywallRoot эмитит свои snapshot'ы с processing=false; здесь мы
-    // обновляем поле перед/после mount'а — между этими точками state
-    // не меняется через PaywallRoot.onState.
+    // We mutate processing on the current snapshot while keeping the other
+    // fields. PaywallRoot emits its snapshots with processing=false; here we
+    // update the field before/after mounting — between these points the state
+    // doesn't change via PaywallRoot.onState.
     this.applyState({ ...this.currentState, processing: value });
   }
 
   /**
-   * Headless anonymous signin без открытия модалки. Внутри:
-   * idempotent (если уже анон — instant return) → resume через сохранённый
-   * refresh_token → fresh /auth/anonymous/signin. Дедуплицирует
-   * параллельные вызовы внутри AuthClient'а.
+   * Headless anonymous signin without opening the modal. Internally:
+   * idempotent (if already anon — instant return) → resume via the saved
+   * refresh_token → fresh /auth/anonymous/signin. Deduplicates parallel calls
+   * inside the AuthClient.
    *
-   * Удобно для host-кнопок типа «Continue as guest» — host сам управляет
-   * loading-стейтом на своей кнопке, без полупустой модалки со спиннером.
-   * Без managed-auth — резолвится rejected promise'ом (нет AuthClient'а
-   * чтобы делать signin).
+   * Convenient for host buttons like "Continue as guest" — the host manages the
+   * loading-state on its own button, without a half-empty modal with a spinner.
+   * Without managed-auth — resolves with a rejected promise (there's no
+   * AuthClient to do signin).
    */
   signInAnonymously(): Promise<AuthSession> {
     if (!this.auth) {
@@ -935,15 +962,15 @@ export class PaywallUI {
 
   private openInternal(view: PaywallView, opts: InternalOpenOptions): void {
     if (opts.identity) this.billing.setIdentity(opts.identity);
-    // Сбрасываем флаг success-вью — повторное открытие должно стартовать
-    // с обычного layout, а не с прошлого "Payment received".
+    // Reset the success-view flag — a repeat open should start from the regular
+    // layout, not from a previous "Payment received".
     this.purchased = false;
 
-    // support и auth-standalone флоу обходят оба гейта (триал и таргетинг):
-    // юзер пришёл за саппортом или за логином к уже купленной подписке —
-    // блокировать его по trial-stage'у или таргетингу неуместно. openAuth
-    // дополнительно передаёт skipTrial:true для совместимости с прежней
-    // семантикой; здесь skip-флаги нормализуем единообразно.
+    // The support and auth-standalone flows bypass both gates (trial and
+    // targeting): the user came for support or to log in to an already-bought
+    // subscription — blocking them by trial-stage or targeting is inappropriate.
+    // openAuth additionally passes skipTrial:true for compatibility with the
+    // former semantics; here we normalize the skip flags uniformly.
     const skipTrial = opts.skipTrial === true || view === 'support';
     const skipVisibility =
       opts.skipVisibility === true ||
@@ -956,34 +983,36 @@ export class PaywallUI {
       return;
     }
 
-    // Cache hit — sync путь, gates до mount как раньше. Никаких компромиссов:
-    // когда bootstrap уже в памяти, мы знаем за один tick можно открывать
-    // или нет, без флеша.
+    // Cache hit — the sync path, gates before mount as before. No compromises:
+    // when bootstrap is already in memory, we know in one tick whether we can
+    // open or not, without a flash.
     const cached = this.billing.getCachedBootstrap();
     if (cached) {
       this.runOpenGates(view, cached, { skipTrial, skipVisibility, renew });
       return;
     }
 
-    // Cold bootstrap. Два режима:
+    // Cold bootstrap. Two modes:
     //
-    // mountThenLoad=true (default): монтируем модалку немедленно — юзер видит
-    //   спиннер, кнопка отзывается мгновенно. Bootstrap идёт параллельно.
-    //   Когда придёт — гоняем gates, и если блокирует, закрываем модалку с
-    //   эмиссией *_blocked. Цена — флеш «открылась → закрылась» в редком
-    //   случае visibility/trial-блока. Для extension'ов и сайтов с включённым
-    //   targeting'ом большинство open()'ов проходят, флеш — edge case.
+    // mountThenLoad=true (default): we mount the modal immediately — the user
+    //   sees a spinner, the button responds instantly. Bootstrap runs in
+    //   parallel. When it arrives — we run the gates, and if one blocks, we
+    //   close the modal with a *_blocked emission. The price is a flash "opened
+    //   → closed" in the rare case of a visibility/trial block. For extensions
+    //   and sites with targeting enabled most open()s pass, so the flash is an
+    //   edge case.
     //
-    // mountThenLoad=false (legacy): ждём bootstrap до mount'а. Гарантия
-    //   отсутствия флеша на блоке, но кнопка кажется «мёртвой» 200-500мс
-    //   на холодном кеше.
+    // mountThenLoad=false (legacy): we wait for bootstrap before mounting.
+    //   Guaranteed no flash on a block, but the button feels "dead" for
+    //   200-500ms on a cold cache.
     if (this.mountThenLoad) {
       this.mountAndShow(view, { renew });
       this.billing
         .bootstrap()
         .then((b) => this.runDelayedGates(b, { skipTrial, skipVisibility }))
         .catch(() => {
-          // Bootstrap упал — модалка уже открыта, PaywallRoot сам в error-state.
+          // Bootstrap failed — the modal is already open, PaywallRoot is in the
+          // error-state itself.
         });
       return;
     }
@@ -994,14 +1023,14 @@ export class PaywallUI {
         this.runOpenGates(view, b, { skipTrial, skipVisibility, renew })
       )
       .catch(() => {
-        // Bootstrap упал — открываем без gates; PaywallRoot покажет error.
+        // Bootstrap failed — we open without gates; PaywallRoot shows the error.
         this.mountAndShow(view, { renew });
       });
   }
 
-  /** Применить gates ПОСЛЕ того, как модалка уже смонтирована (mount-then-load
-   *  путь). Если gate блокирует — close() + emit. Если юзер уже сам закрыл
-   *  модалку до резолва bootstrap'а — no-op (isOpen=false). */
+  /** Apply gates AFTER the modal is already mounted (the mount-then-load path).
+   *  If a gate blocks — close() + emit. If the user already closed the modal
+   *  themselves before bootstrap resolved — a no-op (isOpen=false). */
   private runDelayedGates(
     bootstrap: PaywallBootstrap,
     flags: { skipTrial: boolean; skipVisibility: boolean }
@@ -1049,10 +1078,10 @@ export class PaywallUI {
       });
   }
 
-  // Порядок гейтов: visibility → trial. Country-mismatch ≠ trial-block, и
-  // вести trial-стейт «осталось N показов» под юзером, который вообще не
-  // должен увидеть пейвол по таргетингу — бессмысленно: при возврате в
-  // правильную страну он окажется со «слипшимся» триал-счётчиком.
+  // Gate order: visibility → trial. A country-mismatch ≠ a trial-block, and
+  // keeping a trial-state "N views left" under a user who shouldn't see the
+  // paywall at all by targeting is pointless: when they return to the correct
+  // country they'd end up with a "stuck" trial counter.
   private runOpenGates(
     view: PaywallView,
     bootstrap: PaywallBootstrap,
@@ -1100,16 +1129,16 @@ export class PaywallUI {
           return;
         }
         if (status.blocked) {
-          // recordBlock делает запись (init firstOpen / inc skipTimes) и
-          // возвращает обновлённый snapshot — его и эмитим, чтобы хост
-          // получил актуальный счётчик.
+          // recordBlock writes (init firstOpen / inc skipTimes) and returns the
+          // updated snapshot — we emit it so the host gets an up-to-date
+          // counter.
           const updated = await store.recordBlock();
           this.lastTrialStatus = updated;
           this.emit('trial_blocked', updated);
           return;
         }
-        // Триал в конфиге, но не блокирует → истёк. Эмитим один раз за
-        // сессию, дальше открываем как обычно.
+        // The trial is in the config but doesn't block → it expired. We emit
+        // once per session, then open as usual.
         if (!this.trialExpiredFired) {
           this.trialExpiredFired = true;
           this.emit('trial_expired');
@@ -1117,8 +1146,8 @@ export class PaywallUI {
         this.mountAndShow(view, { renew });
       })
       .catch((e) => {
-        // Storage недоступен (privacy mode, quota) — не блокируем юзера,
-        // открываем модалку и не теряем продажу.
+        // Storage is unavailable (privacy mode, quota) — we don't block the
+        // user, we open the modal and don't lose the sale.
         if (typeof console !== 'undefined') console.warn('[paywall] trial check failed', e);
         this.mountAndShow(view, { renew });
       });
@@ -1129,9 +1158,10 @@ export class PaywallUI {
       return this.trialStore;
     }
     this.trialStoreConfig = config;
-    // Duck-type: если billing-клиент предоставляет свой factory (extension'овский
-    // RemoteBillingClient — атомарный TrialStore через offscreen + navigator.locks),
-    // используем его. Иначе — обычный path через storage-adapter.
+    // Duck-type: if the billing client provides its own factory (the
+    // extension's RemoteBillingClient — an atomic TrialStore via offscreen +
+    // navigator.locks), we use it. Otherwise — the regular path via the
+    // storage-adapter.
     const factoryFn = (this.billing as { createTrialStore?: (cfg: TrialConfig) => TrialStore })
       .createTrialStore;
     this.trialStore =
@@ -1146,25 +1176,25 @@ export class PaywallUI {
     mountOpts: {
       renew?: boolean;
       authMode?: 'signin' | 'signup';
-      /** Direct-checkout контекст. Прокидывается в PaywallRoot для двух режимов:
-       *   - `view='auth'` + priceId → preauth-flow: gate стартует в
-       *     auth_gate с pendingCheckout.direct=true;
+      /** Direct-checkout context. Passed into PaywallRoot for two modes:
+       *   - `view='auth'` + priceId → preauth-flow: the gate starts in
+       *     auth_gate with pendingCheckout.direct=true;
        *   - `view='awaiting_payment'|'popup_blocked'` + priceId + url →
-       *     headless-checkout уже выписал URL, модалка показывает финальный
-       *     экран без loading-флеша. */
+       *     the headless checkout already issued the URL, the modal shows the
+       *     final screen without a loading flash. */
       checkoutPriceId?: string;
       checkoutUrl?: string;
     } = {}
   ): void {
-    // Запоминаем view для гейта аналитики (paywall_viewed/paywall_closed) —
-    // эмитим их только когда реально показываем пейвол ('layout').
+    // We remember the view for the analytics gate (paywall_viewed/paywall_closed)
+    // — we emit them only when we actually show the paywall ('layout').
     this.lastMountedView = view;
     const renew = mountOpts.renew === true;
     const initialAuthMode = mountOpts.authMode;
-    // priceId имеет смысл только для auth (preauth direct-checkout) и
-    // awaiting_payment/popup_blocked (post-headless mount). На остальных
-    // view'ах нормализуем в null чтобы handle.update не переносил stale
-    // priceId с предыдущей direct-checkout сессии.
+    // priceId only makes sense for auth (preauth direct-checkout) and
+    // awaiting_payment/popup_blocked (post-headless mount). On the other views
+    // we normalize it to null so handle.update doesn't carry a stale priceId
+    // from a previous direct-checkout session.
     const carriesCheckoutContext =
       view === 'auth' || view === 'awaiting_payment' || view === 'popup_blocked';
     const initialCheckoutPriceId = carriesCheckoutContext
@@ -1204,8 +1234,8 @@ export class PaywallUI {
         onClose: () => this.close(),
         onEvent: (event, payload) => {
           this.emit(event as PaywallEvent, payload as never);
-          // Поднимаем watcher как только начался checkout — отсюда уже
-          // полагаемся на server-confirmed flow, а не URL-маркеры.
+          // We start the watcher as soon as checkout begins — from here on we
+          // rely on the server-confirmed flow, not URL markers.
           if (event === 'checkout_started') this.startUserWatcher();
         },
         onState: (snapshot) => this.applyState(snapshot),
@@ -1230,26 +1260,27 @@ export class PaywallUI {
   }
 
   /**
-   * Sync-snapshot текущего состояния модалки. Подходит для `useSyncExternalStore`
-   * в React (`useSyncExternalStore(paywall.onStateChange, paywall.getState)`)
-   * и для одноразовых проверок («открыт ли пейвол сейчас?»).
+   * A sync snapshot of the modal's current state. Suitable for
+   * `useSyncExternalStore` in React
+   * (`useSyncExternalStore(paywall.onStateChange, paywall.getState)`) and for
+   * one-off checks ("is the paywall open right now?").
    *
-   * Snapshot стабилен — пока state не изменился, повторный getState() вернёт
-   * `===`-равный объект (важно для useSyncExternalStore чтобы не ре-рендерить).
+   * The snapshot is stable — as long as the state hasn't changed, a repeat
+   * getState() returns a `===`-equal object (important for useSyncExternalStore
+   * to avoid re-rendering).
    */
   getState(): PaywallStateSnapshot {
     return this.currentState;
   }
 
   /**
-   * Подписка на изменения state. Колбек вызывается при каждом реальном
-   * изменении (closed → loading → ready → ...). По умолчанию initial snapshot
-   * отдаётся через microtask после подписки; через `{immediate: 'sync'|'none'}`
-   * можно сделать sync-доставку (для useSyncExternalStore — там она не нужна,
-   * snapshot читается через getSnapshot отдельно) или вовсе пропустить
-   * initial.
+   * Subscribe to state changes. The callback is called on every real change
+   * (closed → loading → ready → ...). By default the initial snapshot is
+   * delivered via a microtask after subscribing; via `{immediate: 'sync'|'none'}`
+   * you can do sync delivery (not needed for useSyncExternalStore — there the
+   * snapshot is read via getSnapshot separately) or skip the initial entirely.
    *
-   * Возвращает unsubscribe.
+   * Returns an unsubscribe function.
    */
   onStateChange(
     cb: PaywallStateListener,
@@ -1276,58 +1307,61 @@ export class PaywallUI {
     };
   }
 
-  /** Sync-доступ к последнему известному статусу триала. null — `paywall.open()`
-   *  ещё не вызывался либо триал отключён в конфиге пейвола. Удобно для
-   *  собственного UI хоста («осталось 3 показа», «триал истечёт через 2ч»). */
+  /** Sync access to the last known trial status. null — `paywall.open()` hasn't
+   *  been called yet or the trial is disabled in the paywall config. Convenient
+   *  for the host's own UI ("3 views left", "the trial expires in 2h"). */
   getTrialStatus(): TrialStatus | null {
     return this.lastTrialStatus;
   }
 
-  /** Sync-доступ к последнему server-computed visibility-статусу. null —
-   *  bootstrap ещё не загружен или сервер не отдаёт `settings.visibility`
-   *  (например, старая версия online без targeting-патча). Хост может
-   *  использовать для собственного fallback'а: «сервис недоступен в вашей
-   *  стране». Обновляется на каждом open(), который проходит через gate. */
+  /** Sync access to the last server-computed visibility status. null —
+   *  bootstrap isn't loaded yet or the server doesn't return
+   *  `settings.visibility` (e.g. an old version of online without the targeting
+   *  patch). The host can use it for its own fallback: "the service isn't
+   *  available in your country". Updated on every open() that passes through the
+   *  gate. */
   getVisibility(): VisibilityStatus | null {
     return this.lastVisibility;
   }
 
   /**
-   * Цены пейвола — шорткат над `bootstrap()`. Локали уже применены, кэш и
-   * stale-while-revalidate идентичны `billing.bootstrap()`. Подходит для
-   * pricing-страниц/карточек на сайте, где host хочет показать те же цены,
-   * что и в модалке, не вытаскивая bootstrap руками.
+   * The paywall's prices — a shortcut over `bootstrap()`. Locales are already
+   * applied, and the cache and stale-while-revalidate are identical to
+   * `billing.bootstrap()`. Suitable for pricing pages/cards on the site, where
+   * the host wants to show the same prices as in the modal without pulling
+   * bootstrap by hand.
    */
   getPrices(opts: { force?: boolean; signal?: AbortSignal } = {}): Promise<PaywallPrice[]> {
     return this.billing.getPrices(opts);
   }
 
-  /** Sync-снимок цен. null — bootstrap ещё не загружали. */
+  /** A sync snapshot of the prices. null — bootstrap hasn't been loaded yet. */
   getCachedPrices(): PaywallPrice[] | null {
     return this.billing.getCachedPrices();
   }
 
-  /** Sync-снимок офферов. null = bootstrap не загружали, [] = пейвол без офферов.
-   *  Бэк уже применил серверный targeting (страны/email/режим) — наружу
-   *  выезжает только то, что применимо к текущему юзеру. */
+  /** A sync snapshot of the offers. null = bootstrap not loaded, [] = a paywall
+   *  without offers. The backend already applied server-side targeting
+   *  (countries/email/mode) — only what's applicable to the current user comes
+   *  out. */
   getCachedOffers(): PaywallOffer[] | null {
     return this.billing.getCachedOffers();
   }
 
   /**
-   * Резолвит активный offer для конкретной цены: price_id-таргетинг +
-   * countdown (`expires_at` ИЛИ `duration_minutes` от первого открытия
-   * пейвола, см. clientStorage `pw-offer-{id}-start`).
+   * Resolves the active offer for a specific price: price_id targeting +
+   * countdown (`expires_at` OR `duration_minutes` from the first paywall open,
+   * see clientStorage `pw-offer-{id}-start`).
    *
-   * Read-only — НЕ записывает start для `duration_minutes`-офферов. Запись
-   * стартует только когда модалка реально открыта (renderer'ом). До этого
-   * `getOfferForPrice` вернёт `null` для duration-only офферов, чтобы
-   * страницы-хосты вне модалки (pricing, landing) не активировали countdown
-   * раньше времени.
+   * Read-only — does NOT write the start for `duration_minutes` offers. The
+   * write starts only when the modal is actually open (by the renderer). Before
+   * that `getOfferForPrice` returns `null` for duration-only offers, so host
+   * pages outside the modal (pricing, landing) don't activate the countdown
+   * prematurely.
    *
-   * Хост-странице нужен countdown, который тикает каждую секунду — для
-   * этого использовать React-хук `usePaywallOffer(priceId)` из sdk-react
-   * либо обёртку поверх `setInterval(1000)` + повторный вызов этого метода.
+   * A host page that needs a countdown ticking every second should use the React
+   * hook `usePaywallOffer(priceId)` from sdk-react, or a wrapper over
+   * `setInterval(1000)` + a repeat call to this method.
    */
   getOfferForPrice(priceId: string): ResolvedOffer | null {
     const offers = this.billing.getCachedOffers();
@@ -1340,33 +1374,35 @@ export class PaywallUI {
     });
   }
 
-  /** Снимок текущего «языка юзера» — proxy над `billing.getUserLanguage()`.
-   *  Используй, чтобы синхронизировать i18n host'а с тем, что фактически
-   *  показывает пейвол. См. подробности в `BillingClient.getUserLanguage`. */
+  /** A snapshot of the current "user language" — a proxy over
+   *  `billing.getUserLanguage()`. Use it to sync the host's i18n with what the
+   *  paywall actually shows. See the details in `BillingClient.getUserLanguage`. */
   getUserLanguage(): UserLanguageInfo {
     return this.billing.getUserLanguage();
   }
 
   /**
-   * Решает, нужно ли блокировать фичу для текущего юзера. Без побочных эффектов
-   * (на trial-storage `recordBlock` не вызывается, модалка не монтируется).
+   * Decides whether the feature should be blocked for the current user. No side
+   * effects (`recordBlock` isn't called on trial-storage, the modal isn't
+   * mounted).
    *
-   * Порядок проверок (первый сработавший — финальный):
-   *  1. `has_active_subscription` — самый сильный сигнал, перебивает остальные.
-   *     Юзер с подпиской получает доступ независимо от visibility/trial.
-   *  2. `visibility` (страна/девайс/disabled-флаг) — юзер вне monetization-scope'а
-   *     пейвола, гейтить нельзя.
-   *  3. `trial` — пре-пейвольный бесплатный период активен.
-   *  4. Иначе — `blocked`, host лочит фичу и зовёт `paywall.open()`.
+   * Check order (the first one that triggers is final):
+   *  1. `has_active_subscription` — the strongest signal, overrides the rest.
+   *     A user with a subscription gets access regardless of visibility/trial.
+   *  2. `visibility` (country/device/disabled-flag) — the user is outside the
+   *     paywall's monetization scope, can't be gated.
+   *  3. `trial` — the pre-paywall free period is active.
+   *  4. Otherwise — `blocked`, the host locks the feature and calls
+   *     `paywall.open()`.
    *
-   * Bootstrap кешируется в BillingClient — `getAccess()` можно дёргать на
-   * каждый рендер host-компонента, /bootstrap не дублируется. При упавшей сети
-   * fallback на persistent-cached user из storage: юзер с прошлой подпиской
-   * получает `granted` офлайн, иначе `blocked` (host покажет пейвол с
-   * error-state, юзер сможет ретрайнуть). Side-эффект: обновляются
-   * `lastVisibility` / `lastTrialStatus`, чтобы синхронные геттеры
-   * `getVisibility()` / `getTrialStatus()` видели свежие данные после первого
-   * `getAccess()`, а не только после первого `open()`.
+   * Bootstrap is cached in BillingClient — `getAccess()` can be called on every
+   * render of the host component, /bootstrap isn't duplicated. On a failed
+   * network it falls back to the persistent-cached user from storage: a user
+   * with a past subscription gets `granted` offline, otherwise `blocked` (the
+   * host shows the paywall with an error-state, the user can retry). Side
+   * effect: `lastVisibility` / `lastTrialStatus` are updated so the synchronous
+   * getters `getVisibility()` / `getTrialStatus()` see fresh data after the
+   * first `getAccess()`, not only after the first `open()`.
    */
   async getAccess(opts: GetAccessOptions = {}): Promise<PaywallAccessResult> {
     let bootstrap = this.billing.getCachedBootstrap();
@@ -1374,9 +1410,10 @@ export class PaywallUI {
       try {
         bootstrap = await this.billing.bootstrap({ signal: opts.signal });
       } catch {
-        // Сеть упала. Fallback на persistent-cached user (TTL 30 мин в storage).
-        // Юзер с прошлой подпиской → granted (офлайн-friendly), иначе → blocked
-        // (open() покажет пейвол с error-state, юзер ретрайнет).
+        // The network failed. Fall back to the persistent-cached user (TTL 30
+        // min in storage). A user with a past subscription → granted
+        // (offline-friendly), otherwise → blocked (open() shows the paywall
+        // with an error-state, the user retries).
         const cached = this.billing.getCachedUser();
         if (cached?.has_active_subscription) {
           return {
@@ -1397,16 +1434,16 @@ export class PaywallUI {
       }
     }
 
-    // Cached bootstrap содержит user-снимок С МОМЕНТА его fetch'а — после
-    // покупки этот снимок stale (has_active_subscription=false), хотя
-    // UserWatcher уже обновил `billing.cachedUser` до true и эмитнул
-    // userChange. `getCachedBootstrap()` намеренно отдаёт raw структуру
-    // (она же не должна каждый раз пересобираться), поэтому overlay
-    // делаем здесь: предпочитаем cachedUser, fallback на bootstrap.user
-    // если cachedUser ещё не загружен (cold start или после signOut).
-    // Без этого фикса usePaywallAccess реагирует на userChange-event,
-    // дёргает getAccess, но получает stale-bootstrap.user — host'овский
-    // <PaywallGate> остаётся blocked при реально активной подписке.
+    // Cached bootstrap contains a user-snapshot FROM THE MOMENT of its fetch —
+    // after a purchase this snapshot is stale (has_active_subscription=false),
+    // even though UserWatcher already updated `billing.cachedUser` to true and
+    // emitted userChange. `getCachedBootstrap()` intentionally returns the raw
+    // structure (it shouldn't be rebuilt every time), so we do the overlay here:
+    // we prefer cachedUser, falling back to bootstrap.user if cachedUser isn't
+    // loaded yet (cold start or after signOut). Without this fix usePaywallAccess
+    // reacts to a userChange event, calls getAccess, but gets a
+    // stale-bootstrap.user — the host's <PaywallGate> stays blocked while the
+    // subscription is actually active.
     const user = this.billing.getCachedUser() ?? bootstrap.user ?? null;
 
     if (user?.has_active_subscription) {
@@ -1451,8 +1488,8 @@ export class PaywallUI {
     return { access: 'blocked', reason: 'no_subscription', visibility, trial, user };
   }
 
-  /** Сбросить состояние триала в storage. Полезно для дев-режима / админ-кнопки
-   *  «прогнать сценарий заново». В проде хост обычно не дёргает. */
+  /** Reset the trial state in storage. Useful for dev mode / an admin button
+   *  "run the scenario again". In prod the host usually doesn't call it. */
   async resetTrial(): Promise<void> {
     if (!this.trialStore) return;
     await this.trialStore.reset();
@@ -1460,12 +1497,12 @@ export class PaywallUI {
     this.trialExpiredFired = false;
   }
 
-  // Запускает polling user-state до has_active_subscription=true либо до
-  // таймаута. Идемпотентен: повторный вызов на уже работающем watcher'е —
-  // no-op (юзер мог нажать Continue повторно после возврата).
+  // Starts polling user-state until has_active_subscription=true or a timeout.
+  // Idempotent: a repeat call on an already-running watcher is a no-op (the user
+  // might press Continue again after returning).
   //
-  // В extension popup runtime — no-op (popup не доживёт). Там полагаемся на
-  // bootstrap при следующем открытии.
+  // In the extension popup runtime — a no-op (the popup won't survive). There we
+  // rely on bootstrap on the next open.
   private startUserWatcher(): void {
     if (this.watcher) return;
     if (!shouldRunUserWatcher()) return;
@@ -1474,16 +1511,17 @@ export class PaywallUI {
       client: this.billing,
       onActive: (user) => {
         this.watcher = null;
-        // Серверная правда — эмитим финальный purchase_completed
-        // (server-confirmed), чтобы host получил согласованный сигнал
-        // независимо от того, был ли URL-маркер. userChange эмитит сам
-        // billing-listener.
+        // The server truth — we emit the final purchase_completed
+        // (server-confirmed) so the host gets a consistent signal regardless of
+        // whether there was a URL marker. userChange is emitted by the
+        // billing-listener itself.
         this.emit('purchase_completed', { priceId: null, sessionId: null });
-        // success_redirect_url из settings — host явно попросил отправить
-        // юзера в свой apps-flow после оплаты. Редирект имеет приоритет
-        // над PurchaseSuccessView: рисовать success ради 200мс перед
-        // переходом — мерцание. Берём snapshot из cached bootstrap
-        // (он гарантированно загружен — иначе watcher не запустился бы).
+        // success_redirect_url from settings — the host explicitly asked to
+        // send the user into its apps-flow after payment. The redirect takes
+        // priority over PurchaseSuccessView: drawing success for 200ms before
+        // the transition would flicker. We take the snapshot from cached
+        // bootstrap (it's guaranteed loaded — otherwise the watcher wouldn't
+        // have started).
         const redirect = this.billing
           .getCachedBootstrap()
           ?.settings.success_redirect_url;
@@ -1492,18 +1530,19 @@ export class PaywallUI {
             window.location.assign(redirect);
             return;
           } catch {
-            /* navigation заблокирована — fallback на success-view */
+            /* navigation blocked — fall back to the success-view */
           }
         }
-        // Если пейвол открыт — переключаем во вью «Payment received» с
-        // кнопкой Continue. Молчаливое закрытие сбивало юзера с толку:
-        // окно просто исчезало, без подтверждения, что оплата прошла.
-        // Если пейвол закрыт — событие уже эмитнуто, host решит сам.
+        // If the paywall is open — we switch to the "Payment received" view
+        // with a Continue button. A silent close confused the user: the window
+        // just disappeared, without confirmation that the payment went through.
+        // If the paywall is closed — the event has already been emitted, the
+        // host decides itself.
         if (this.isOpen && this.handle) {
           this.purchased = true;
           this.handle.update({ purchased: true });
         }
-        void user; // shape доступен через paywall.billing.getCachedUser()
+        void user; // the shape is available via paywall.billing.getCachedUser()
       },
       onTimeout: () => {
         this.watcher = null;
@@ -1517,18 +1556,19 @@ export class PaywallUI {
     this.isOpen = false;
     this.purchased = false;
     this.handle.update({ open: false, purchased: false });
-    // PaywallRoot эмитит onState с open=false при handle.update, но из-за
-    // microtask'ов хост может прочитать getState() до того, как PaywallRoot
-    // useEffect отстреляет. Применяем закрытое состояние сразу.
+    // PaywallRoot emits onState with open=false on handle.update, but due to
+    // microtasks the host may read getState() before PaywallRoot's useEffect
+    // fires. We apply the closed state right away.
     this.applyState(CLOSED_STATE);
     this.emit('close');
   }
 
   /**
-   * Сканирует текущий URL на маркеры возврата с checkout и эмитит
-   * purchase_completed / purchase_failed. Маркеры удаляются из URL
-   * через history.replaceState. Ищет и в hash, и в search (hash приоритетнее —
-   * защита от клиентских SPA-роутеров, перехватывающих query).
+   * Scans the current URL for checkout-return markers and emits
+   * purchase_completed / purchase_failed. The markers are removed from the URL
+   * via history.replaceState. It looks in both the hash and the search (the
+   * hash takes priority — protection against client SPA routers that intercept
+   * the query).
    */
   checkReturn(): void {
     if (typeof window === 'undefined') return;
@@ -1544,10 +1584,11 @@ export class PaywallUI {
         priceId: markers.priceId,
         sessionId: markers.sessionId
       });
-      // Acceleration: если страница загружена в новой вкладке от исходного
-      // приложения (typical Stripe success_url flow), шлём opener'у postMessage.
-      // Watcher в исходной вкладке среагирует мгновенно, не дожидаясь focus
-      // event. Если opener'а нет (юзер закрыл/не было) — fallback на polling.
+      // Acceleration: if the page is loaded in a new tab from the original app
+      // (the typical Stripe success_url flow), we send the opener a postMessage.
+      // The watcher in the original tab reacts instantly, without waiting for a
+      // focus event. If there's no opener (the user closed it / there was none)
+      // — fall back to polling.
       notifyOpenerOfPurchase(markers);
     } else if (markers.status === 'failed' || markers.status === 'cancelled') {
       this.emit('purchase_failed', { reason: markers.status });
@@ -1567,13 +1608,14 @@ export class PaywallUI {
     this.userUnsub = null;
     this.authUnsub?.();
     this.authUnsub = null;
-    // Если AuthClient был передан хостом — его жизненный цикл не наш,
-    // ничего не дёргаем. Если создавали мы — отписываемся через BillingClient
-    // (он сам держит listener на onAuthChange) и оставляем session в storage,
-    // чтобы следующее открытие подхватило её через hydrate.
+    // If the AuthClient was supplied by the host — its lifecycle isn't ours, we
+    // don't touch anything. If we created it — we unsubscribe via BillingClient
+    // (which holds the onAuthChange listener itself) and leave the session in
+    // storage so the next open picks it up via hydrate.
     if (this.ownsAuth && this.auth) {
-      // Если AuthClient создавали мы — destroy сами, чтобы snapshot listener
-      // отписался и не висел дальше. Externally-supplied auth не трогаем.
+      // If we created the AuthClient — we destroy it ourselves so the snapshot
+      // listener unsubscribes and doesn't hang around. We don't touch
+      // externally-supplied auth.
       this.auth.destroy?.();
     }
     this.ownsAuth = false;
@@ -1590,18 +1632,19 @@ function resolveAuth(opts: PaywallUIOptions): {
   ownsAuth: boolean;
 } {
   if (!opts.auth) return { auth: undefined, ownsAuth: false };
-  // Duck-typing: AuthClient ИЛИ структурный совместимец (RemoteAuthClient из
-  // @monetize/sdk-extension). Проверяем по public-методам, которые
-  // PaywallUI использует — если все на месте, доверяем. Это позволяет host'у
-  // подставить proxy-реализацию (offscreen-architecture) без изменений в
-  // PaywallUI. instanceof не подходит — runtime в content-script'е и в
-  // sdk-extension'е разные, классы не nominally равны.
+  // Duck-typing: AuthClient OR a structural look-alike (RemoteAuthClient from
+  // @monetize/sdk-extension). We check by the public methods PaywallUI uses — if
+  // they're all present, we trust it. This lets the host plug in a proxy
+  // implementation (offscreen architecture) without changes in PaywallUI.
+  // instanceof doesn't fit — the runtime in the content-script and in
+  // sdk-extension are different, so the classes aren't nominally equal.
   if (opts.auth instanceof AuthClient || isAuthClientLike(opts.auth)) {
     return { auth: opts.auth as AuthClient, ownsAuth: false };
   }
-  // true | partial-options → создаём свой AuthClient. apiOrigin/storage/fetch
-  // подхватываем из общих опций PaywallUI, чтобы конфиг был "одно поле — вся
-  // система". Юзер может перебить точечно через opts.auth = { apiOrigin: ... }.
+  // true | partial-options → we create our own AuthClient. We pick up
+  // apiOrigin/storage/fetch from PaywallUI's shared options, so the config is
+  // "one field — the whole system". The user can override individual fields via
+  // opts.auth = { apiOrigin: ... }.
   const cfg = opts.auth === true ? {} : opts.auth;
   return {
     auth: new AuthClient({
@@ -1615,10 +1658,10 @@ function resolveAuth(opts: PaywallUIOptions): {
   };
 }
 
-// Проверяет «AuthClient-подобность» переданного объекта по public-методам,
-// которые PaywallUI трогает (`onAuthChange`, `getCachedSession`, `signOut`).
-// Partial<AuthClientOptions> этих методов не имеет — пересечения с этим
-// объединением нет, ложноположительных не будет.
+// Checks the "AuthClient-likeness" of the passed object by the public methods
+// PaywallUI touches (`onAuthChange`, `getCachedSession`, `signOut`).
+// Partial<AuthClientOptions> doesn't have these methods — there's no overlap
+// with this union, so there will be no false positives.
 function isAuthClientLike(value: unknown): value is AuthClient {
   if (typeof value !== 'object' || value === null) return false;
   const v = value as Record<string, unknown>;
@@ -1659,9 +1702,9 @@ function parseMarkers(
   };
 }
 
-// Контракт сообщения должен совпадать с UserWatcher.handleMessage:
-// `{ type: 'paywall_purchase' }`. opener — исходная вкладка хоста, на ней живёт
-// PaywallUI с активным watcher'ом, ждущим этого сигнала.
+// The message contract must match UserWatcher.handleMessage:
+// `{ type: 'paywall_purchase' }`. opener — the host's original tab, where
+// PaywallUI lives with an active watcher waiting for this signal.
 function notifyOpenerOfPurchase(markers: {
   status: string;
   priceId: string | null;
@@ -1679,7 +1722,7 @@ function notifyOpenerOfPurchase(markers: {
       '*'
     );
   } catch {
-    /* opener из другого origin или закрыт — watcher через focus подхватит */
+    /* the opener is from another origin or closed — the watcher will catch it via focus */
   }
 }
 

@@ -2,24 +2,25 @@ import { useCallback, useEffect, useState } from 'react';
 import type { PaywallUI } from '@monetize.software/sdk';
 import { usePaywall } from './usePaywall';
 
-// `VisibilityStatus` локально не экспортируется из SDK — получаем через
-// ReturnType от публичного `getVisibility()`. См. usePaywallTrial для тех же
-// соображений.
+// `VisibilityStatus` is not exported locally from the SDK — we derive it via
+// ReturnType of the public `getVisibility()`. See usePaywallTrial for the same
+// reasoning.
 type VisibilityStatus = NonNullable<ReturnType<PaywallUI['getVisibility']>>;
 
 /**
- * Server-computed visibility-снимок ({@link VisibilityStatus}): попадает ли
- * юзер в monetization-scope пейвола (страна, девайс, ручной visibility-флаг).
+ * Server-computed visibility snapshot ({@link VisibilityStatus}): whether the
+ * user falls within the paywall's monetization scope (country, device, manual
+ * visibility flag).
  *
- * Возвращает `null`, пока bootstrap не загружен или сервер не отдал
- * `settings.visibility` (старый online без targeting-патча).
+ * Returns `null` until bootstrap has loaded or the server has not returned
+ * `settings.visibility` (older online without the targeting patch).
  *
- * Использовать чтобы:
- *  - показать собственный fallback («сервис недоступен в вашей стране») вместо
- *    модалки, когда `visible === false`;
- *  - залогировать impression для аналитики страны/tier'а юзера;
- *  - принять решение какой CTA рисовать, не дёргая open() и не дожидаясь
- *    visibility_blocked event.
+ * Use it to:
+ *  - show your own fallback ("service unavailable in your country") instead of
+ *    the modal when `visible === false`;
+ *  - log an impression for analytics on the user's country/tier;
+ *  - decide which CTA to render without calling open() and without waiting for
+ *    the visibility_blocked event.
  *
  * ```tsx
  * const visibility = usePaywallVisibility();
@@ -49,9 +50,9 @@ export function usePaywallVisibility(): VisibilityStatus | null {
     }
     sync();
 
-    // `ready` event летит после успешного bootstrap'а — там обновляется
-    // `lastVisibility` в PaywallUI. `visibility_blocked` — когда блокировка
-    // реально срабатывает на gate'е. Оба меняют snapshot.
+    // The `ready` event fires after a successful bootstrap — that's when
+    // `lastVisibility` in PaywallUI is updated. `visibility_blocked` fires when
+    // the block actually triggers at the gate. Both change the snapshot.
     const unsubReady = paywall.on('ready', sync);
     const unsubBlocked = paywall.on('visibility_blocked', sync);
 

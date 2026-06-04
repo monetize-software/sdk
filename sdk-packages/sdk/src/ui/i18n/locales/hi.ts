@@ -1,10 +1,10 @@
 /**
- * Static-translations для hi. Сгенерировано из:
- *  - `online/lang/static-translations.ts` (legacy, через KEY_MAP)
- *  - `tools/sdk-translations.mjs` (SDK-specific строки)
+ * Static-translations for hi. Generated from:
+ *  - `online/lang/static-translations.ts` (legacy, via KEY_MAP)
+ *  - `tools/sdk-translations.mjs` (SDK-specific strings)
  *
- * Не править вручную — изменения теряются при следующем `node tools/gen-locales.mjs`.
- * Чтобы исправить перевод — править legacy/sdk-translations.mjs и регенерить.
+ * Do not edit by hand — changes are lost on the next `node tools/gen-locales.mjs`.
+ * To fix a translation, edit legacy/sdk-translations.mjs and regenerate.
  */
 const hi = {
   'anon.heading_default': 'अतिथि के रूप में जारी रखें',
@@ -47,7 +47,6 @@ const hi = {
   'auth.reset_password_title': 'पासवर्ड रीसेट करें',
   'auth.reset_sent_message': 'यदि वह ईमेल मौजूद है, तो रीसेट कोड भेज दिया गया है।',
   'auth.reset_sent_subtitle': 'हमने पासवर्ड रीसेट लिंक भेजा है। ईमेल में दिए निर्देशों का पालन करें।',
-  'auth.signup_sent_subtitle': 'हमने आपके ईमेल पर एक पुष्टिकरण लिंक भेजा है। अपना खाता सक्रिय करने के लिए उस पर क्लिक करें, फिर साइन इन करें।',
   'auth.restore_purchases_heading': 'खरीदारी पुनर्स्थापित करें',
   'auth.restore_purchases_subheading': 'कृपया अपनी खरीदारी पुनर्स्थापित करने के लिए साइन इन करें।',
   'auth.send_reset': 'रीसेट ईमेल भेजें',
@@ -79,9 +78,9 @@ const hi = {
   'modal.continue': 'जारी रखें',
   'modal.error_generic': 'कुछ गलत हो गया',
   'modal.loading': 'लोड हो रहा है…',
-  'modal.purchase_restored_subtitle': 'वापसी पर स्वागत है — आपकी सदस्यता पहले से सक्रिय है।',
-  'modal.purchase_restored_title': 'सदस्यता बहाल की गई',
-  'modal.purchase_success_subtitle': 'आपकी सदस्यता अब सक्रिय है।',
+  'modal.purchase_restored_subtitle': 'सब कुछ तैयार है — आनंद लें!',
+  'modal.purchase_restored_title': 'वापसी पर स्वागत है',
+  'modal.purchase_success_subtitle': 'सब कुछ तैयार है — आनंद लें!',
   'modal.purchase_success_title': 'भुगतान प्राप्त हुआ',
   'modal.verifying_subscription': 'आपकी सदस्यता जाँची जा रही है…',
   'nav.back': '← वापस',

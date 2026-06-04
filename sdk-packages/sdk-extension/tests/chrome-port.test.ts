@@ -1,6 +1,6 @@
-// Unit-тест для chrome-port адаптера. Mock'аем chrome.runtime.Port
-// (минимальный интерфейс из @types/chrome) и проверяем что portToChannel
-// корректно мостит его в MessageChannel-абстракцию.
+// Unit test for the chrome-port adapter. We mock chrome.runtime.Port
+// (the minimal interface from @types/chrome) and verify that portToChannel
+// correctly bridges it into the MessageChannel abstraction.
 
 import { describe, it, expect, vi } from 'vitest';
 import { portToChannel } from '../src/shared/chrome-port';
@@ -9,7 +9,7 @@ import type { Envelope } from '../src/shared/protocol';
 interface FakePortListener<T> {
   addListener: (cb: T) => void;
   removeListener: (cb: T) => void;
-  /** Тестовый утилит: фаер всем подписчикам. Не часть chrome.runtime.Port API. */
+  /** Test utility: fire to all subscribers. Not part of the chrome.runtime.Port API. */
   __fire: (...args: unknown[]) => void;
 }
 

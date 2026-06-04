@@ -1,10 +1,10 @@
 /**
- * Static-translations для pt. Сгенерировано из:
- *  - `online/lang/static-translations.ts` (legacy, через KEY_MAP)
- *  - `tools/sdk-translations.mjs` (SDK-specific строки)
+ * Static-translations for pt. Generated from:
+ *  - `online/lang/static-translations.ts` (legacy, via KEY_MAP)
+ *  - `tools/sdk-translations.mjs` (SDK-specific strings)
  *
- * Не править вручную — изменения теряются при следующем `node tools/gen-locales.mjs`.
- * Чтобы исправить перевод — править legacy/sdk-translations.mjs и регенерить.
+ * Do not edit by hand — changes are lost on the next `node tools/gen-locales.mjs`.
+ * To fix a translation, edit legacy/sdk-translations.mjs and regenerate.
  */
 const pt = {
   'anon.description_default': 'Configurando sua sessão de convidado…',
@@ -52,7 +52,6 @@ const pt = {
   'auth.reset_password_title': 'Redefinir senha',
   'auth.reset_sent_message': 'Se esse e-mail existir, um código de redefinição foi enviado.',
   'auth.reset_sent_subtitle': 'Enviamos um link para redefinir sua senha. Siga as instruções no e-mail.',
-  'auth.signup_sent_subtitle': 'Enviámos um link de confirmação para o seu e-mail. Clique nele para ativar a sua conta e depois inicie sessão.',
   'auth.restore_purchases_heading': 'Restaurar Compras',
   'auth.restore_purchases_subheading': 'Por favor, faça login para restaurar suas compras.',
   'auth.send_reset': 'Enviar E-mail de Redefinição',
@@ -81,9 +80,9 @@ const pt = {
   'modal.continue': 'Continuar',
   'modal.error_generic': 'Algo deu errado',
   'modal.loading': 'Carregando…',
-  'modal.purchase_restored_subtitle': 'Bem-vindo de volta — sua assinatura já está ativa.',
-  'modal.purchase_restored_title': 'Assinatura restaurada',
-  'modal.purchase_success_subtitle': 'Sua assinatura está ativa.',
+  'modal.purchase_restored_subtitle': 'Tudo pronto — aproveite!',
+  'modal.purchase_restored_title': 'Bem-vindo de volta',
+  'modal.purchase_success_subtitle': 'Tudo pronto — aproveite!',
   'modal.purchase_success_title': 'Pagamento recebido',
   'modal.verifying_subscription': 'Verificando sua assinatura…',
   'nav.back': '← Voltar',

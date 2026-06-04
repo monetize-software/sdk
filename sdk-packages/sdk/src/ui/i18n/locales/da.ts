@@ -1,10 +1,10 @@
 /**
- * Static-translations для da. Сгенерировано из:
- *  - `online/lang/static-translations.ts` (legacy, через KEY_MAP)
- *  - `tools/sdk-translations.mjs` (SDK-specific строки)
+ * Static-translations for da. Generated from:
+ *  - `online/lang/static-translations.ts` (legacy, via KEY_MAP)
+ *  - `tools/sdk-translations.mjs` (SDK-specific strings)
  *
- * Не править вручную — изменения теряются при следующем `node tools/gen-locales.mjs`.
- * Чтобы исправить перевод — править legacy/sdk-translations.mjs и регенерить.
+ * Do not edit by hand — changes are lost on the next `node tools/gen-locales.mjs`.
+ * To fix a translation, edit legacy/sdk-translations.mjs and regenerate.
  */
 const da = {
   'anon.heading_default': 'Fortsæt som gæst',
@@ -47,7 +47,6 @@ const da = {
   'auth.reset_password_title': 'Nulstil adgangskode',
   'auth.reset_sent_message': 'Hvis den e-mail findes, er der sendt en nulstillingskode.',
   'auth.reset_sent_subtitle': 'Vi har sendt et link til at nulstille adgangskoden. Følg instruktionerne i e-mailen.',
-  'auth.signup_sent_subtitle': 'Vi har sendt et bekræftelseslink til din e-mail. Klik på det for at aktivere din konto, og log derefter ind.',
   'auth.restore_purchases_heading': 'Gendan Køb',
   'auth.restore_purchases_subheading': 'Log ind for at gendanne dine køb.',
   'auth.send_reset': 'Send Nulstillingsmail',
@@ -75,9 +74,9 @@ const da = {
   'modal.continue': 'Fortsæt',
   'modal.error_generic': 'Noget gik galt',
   'modal.loading': 'Indlæser…',
-  'modal.purchase_restored_subtitle': 'Velkommen tilbage — dit abonnement er allerede aktivt.',
-  'modal.purchase_restored_title': 'Abonnement gendannet',
-  'modal.purchase_success_subtitle': 'Dit abonnement er nu aktivt.',
+  'modal.purchase_restored_subtitle': 'Alt er klar — god fornøjelse!',
+  'modal.purchase_restored_title': 'Velkommen tilbage',
+  'modal.purchase_success_subtitle': 'Alt er klar — god fornøjelse!',
   'modal.purchase_success_title': 'Betaling modtaget',
   'modal.verifying_subscription': 'Kontrollerer abonnement…',
   'nav.back': '← Tilbage',

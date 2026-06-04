@@ -7,41 +7,40 @@ import {
   generateState
 } from './pkce';
 
-// AuthClient — клиент SDK 3.0 для эндпоинтов /api/v1/paywall/[id]/auth/*.
-// Хранит auth-сессию в StorageAdapter (localStorage / chrome.storage.local /
-// memory), отдаёт access_token для Authorization-хедера в `api.ts` через
-// getAccessToken() с lazy refresh, дедупит параллельные refresh'ы, эмитит
-// onAuthChange при login/logout/refresh.
+// AuthClient — the SDK 3.0 client for the /api/v1/paywall/[id]/auth/* endpoints.
+// Stores the auth session in a StorageAdapter (localStorage / chrome.storage.local /
+// memory), provides the access_token for the Authorization header in `api.ts` via
+// getAccessToken() with lazy refresh, dedupes parallel refreshes, and emits
+// onAuthChange on login/logout/refresh.
 //
-// Не зависит от BillingClient: AuthClient можно использовать standalone
-// (например, для собственного ui без bundled-пейвола). BillingClient в свою
-// очередь принимает AuthClient опционально и подключает Bearer + auto-sync
-// identity.
+// It doesn't depend on BillingClient: AuthClient can be used standalone (e.g. for
+// your own ui without the bundled paywall). BillingClient, in turn, accepts
+// AuthClient optionally and wires up Bearer + auto-sync of identity.
 
-// За REFRESH_LEEWAY_MS до expiry начинаем refresh — буфер на сетевую
-// задержку и часовой дрейф клиента. 60s достаточно: GoTrue access живёт 1ч,
-// шанс реально подсунуть истёкший токен в API-запрос ≈ 0.
+// REFRESH_LEEWAY_MS before expiry we start a refresh — a buffer for network
+// latency and the client's clock drift. 60s is enough: GoTrue access lives for
+// 1h, the chance of actually slipping an expired token into an API request ≈ 0.
 const REFRESH_LEEWAY_MS = 60_000;
-// TTL для pending OAuth-flow между startOAuthFlow и completeOAuthFlow.
-// 10мин — больше чем юзеру нужно прокликать Google/Apple/etc; меньше чем
-// reasonable «отошёл и вернулся».
+// TTL for a pending OAuth flow between startOAuthFlow and completeOAuthFlow.
+// 10min — more than a user needs to click through Google/Apple/etc; less than a
+// reasonable "stepped away and came back".
 const OAUTH_FLOW_TTL_MS = 10 * 60 * 1000;
 
 export interface AuthUser {
   id: string;
-  /** null для анонимного юзера (signInAnonymously). Для всех остальных flow — заполнен. */
+  /** null for an anonymous user (signInAnonymously). For all other flows — filled in. */
   email: string | null;
   country?: string | null;
-  /** true — Supabase anonymous user. UI использует, чтобы решать «sign in» vs
-   *  «signed in as ...», и чтобы при OAuth-апгрейде звать linkIdentity вместо
-   *  signInWithOAuth (зеркалит легаси StartAuthPage.tsx). */
+  /** true — a Supabase anonymous user. The UI uses it to decide "sign in" vs
+   *  "signed in as ...", and to call linkIdentity instead of signInWithOAuth on an
+   *  OAuth upgrade (mirrors the legacy StartAuthPage.tsx). */
   is_anonymous?: boolean;
 }
 
 export interface AuthSession {
   access_token: string;
   refresh_token: string;
-  /** Absolute timestamp в ms (Date.now() сравнимо). null/0 не пишем. */
+  /** An absolute timestamp in ms (comparable to Date.now()). We don't write null/0. */
   expires_at: number;
   user: AuthUser;
 }
@@ -50,11 +49,11 @@ export type SignUpResult =
   | { kind: 'signed_in'; session: AuthSession }
   | { kind: 'confirmation_required'; user: { id: string; email: string } };
 
-/** Результат `upgradeAnonymousToEmail`. `updated` — confirmation off либо
- *  прошёл; session.user.email уже обновлён, is_anonymous=false. `confirmation_required` —
- *  GoTrue отправил confirmation на новый email; session всё ещё анонимная,
- *  юзер должен кликнуть ссылку (после чего может вызвать `auth.refresh()` —
- *  токены обновятся с email'ом и is_anonymous=false). */
+/** The result of `upgradeAnonymousToEmail`. `updated` — confirmation is off or
+ *  already passed; session.user.email is updated, is_anonymous=false. `confirmation_required` —
+ *  GoTrue sent a confirmation to the new email; the session is still anonymous,
+ *  the user must click the link (after which they can call `auth.refresh()` —
+ *  the tokens refresh with the email and is_anonymous=false). */
 export type UpgradeAnonymousResult =
   | { kind: 'updated'; session: AuthSession }
   | { kind: 'confirmation_required'; email: string };
@@ -63,11 +62,11 @@ export type OtpVerifyType = 'email' | 'recovery' | 'signup' | 'magiclink' | 'inv
 
 export type OAuthProvider = 'google' | 'apple' | 'github' | 'facebook';
 
-/** Метод, которым юзер залогинился в последний раз на этом пейволе.
- *  Хранится per-paywall в storage и используется UI чтобы:
- *   - предзаполнить email-инпут last-known email'ом;
- *   - подсветить ту же OAuth-кнопку / email-форму бейджем "Last used".
- *  `email` — email/password forms (signin или signup → confirm). */
+/** The method the user last logged in with on this paywall. Stored per-paywall
+ *  in storage and used by the UI to:
+ *   - pre-fill the email input with the last-known email;
+ *   - highlight the same OAuth button / email form with a "Last used" badge.
+ *  `email` — email/password forms (signin or signup → confirm). */
 export type LastLoginMethod = OAuthProvider | 'email';
 
 export interface LastLogin {
@@ -75,25 +74,25 @@ export interface LastLogin {
   email: string | null;
 }
 
-/** Дискриминатор для `onAuthChange`. Позволяет listener'у отличать первый
- *  callback (восстановление сессии из storage / синтетический snapshot для
- *  свежей подписки) от реальных переходов. Конвенция Supabase, минус события,
- *  которых у нас нет (MFA, EMAIL_VERIFIED).
+/** The discriminator for `onAuthChange`. Lets the listener distinguish the first
+ *  callback (session restored from storage / a synthetic snapshot for a fresh
+ *  subscription) from real transitions. The Supabase convention, minus events we
+ *  don't have (MFA, EMAIL_VERIFIED).
  *
- *  - INITIAL_SESSION — единственный гарантированный первый callback на каждую
- *    подписку. Дёргается через microtask после resolve hydrated-promise, даже
- *    если session=null. Listener'ы по этому event'у НЕ должны делать побочные
- *    эффекты типа force-refetch — это просто доставка стартового state'а.
- *  - SIGNED_IN — свежий вход: email/OAuth/anon, или появление session в этом
- *    инстансе из другого контекста (storage.watch), когда раньше был null.
- *  - SIGNED_OUT — signOut, revokeAllSessions, 401 на refresh, удаление session
- *    из другого контекста.
- *  - TOKEN_REFRESHED — тот же user, обновлённые токены: refresh(), либо
- *    storage.watch когда содержимое сменилось но user.id остался.
- *  - USER_UPDATED — изменился user.email / user.user_metadata (updatePassword,
- *    upgradeAnonymousToEmail) при том же user.id.
- *  - PASSWORD_RECOVERY — verifyOtp(type='recovery'). Listener знает, что надо
- *    показать «set new password» UI вместо обычного post-login flow'а. */
+ *  - INITIAL_SESSION — the only guaranteed first callback per subscription.
+ *    Triggered via a microtask after the hydrated promise resolves, even if
+ *    session=null. Listeners on this event must NOT do side effects like
+ *    force-refetch — it's just delivery of the starting state.
+ *  - SIGNED_IN — a fresh login: email/OAuth/anon, or the appearance of a session
+ *    in this instance from another context (storage.watch) when it was null before.
+ *  - SIGNED_OUT — signOut, revokeAllSessions, a 401 on refresh, deletion of the
+ *    session from another context.
+ *  - TOKEN_REFRESHED — the same user, refreshed tokens: refresh(), or
+ *    storage.watch when the content changed but user.id stayed.
+ *  - USER_UPDATED — user.email / user.user_metadata changed (updatePassword,
+ *    upgradeAnonymousToEmail) with the same user.id.
+ *  - PASSWORD_RECOVERY — verifyOtp(type='recovery'). The listener knows it should
+ *    show the "set new password" UI instead of the usual post-login flow. */
 export type AuthChangeEvent =
   | 'INITIAL_SESSION'
   | 'SIGNED_IN'
@@ -106,13 +105,13 @@ export type AuthChangeListener = (event: AuthChangeEvent, session: AuthSession |
 
 export interface AuthClientOptions {
   paywallId: string;
-  /** Origin серверного API SDK — обязательное поле, тот же `custom_domain`, что
-   *  у BillingClient. См. {@link BillingClientOptions.apiOrigin}. */
+  /** Origin of the SDK server API — required, the same `custom_domain` as in
+   *  BillingClient. See {@link BillingClientOptions.apiOrigin}. */
   apiOrigin: string;
   storage?: StorageAdapter;
   fetch?: typeof fetch;
-  // Inject для тестов и для Chrome-extension'ов (там popup можно открыть
-  // через chrome.windows.create, а не window.open). По дефолту — window.open.
+  // Injectable for tests and for Chrome extensions (there a popup can be opened
+  // via chrome.windows.create rather than window.open). Default — window.open.
   openPopup?: (url: string, name: string) => Window | null;
 }
 
@@ -134,15 +133,15 @@ export class AuthClient {
   private session: AuthSession | null = null;
   private hydrated: Promise<void>;
   private inflightRefresh: Promise<AuthSession | null> | null = null;
-  /** Дедупликация параллельных signInAnonymously: два click'а на «Войти как
-   *  гость» должны попасть в одного юзера, не плодить двух (двойная капча +
-   *  второй /signup создал бы вторую запись с потерянным trial-балансом). */
+  /** Deduplication of parallel signInAnonymously: two clicks on "Sign in as
+   *  guest" must land in one user, not spawn two (a double captcha + a second
+   *  /signup would create a second record with a lost trial balance). */
   private inflightAnonSignin: Promise<AuthSession> | null = null;
   private listeners = new Set<AuthChangeListener>();
   private storageUnwatch: (() => void) | null = null;
   private destroyed = false;
-  /** Pending OAuth flows: state → {verifier, userMeta, startedAt}. Между
-   *  startOAuthFlow и completeOAuthFlow. GC'атся через OAUTH_FLOW_TTL_MS. */
+  /** Pending OAuth flows: state → {verifier, userMeta, startedAt}. Between
+   *  startOAuthFlow and completeOAuthFlow. GC'd via OAUTH_FLOW_TTL_MS. */
   private oauthFlows = new Map<
     string,
     {
@@ -166,9 +165,9 @@ export class AuthClient {
     this.paywallId = opts.paywallId;
     this.apiOrigin = opts.apiOrigin;
     this.storage = createStorage(opts.storage);
-    // Без getAuthToken — auth-эндпоинты либо публичные, либо мы кладём
-    // Authorization вручную в headers (signOut). ApiClient не перетрёт его,
-    // если getAuthToken отсутствует.
+    // Without getAuthToken — auth endpoints are either public, or we set
+    // Authorization manually in the headers (signOut). ApiClient won't overwrite
+    // it if getAuthToken is absent.
     this.api = new ApiClient({
       apiOrigin: this.apiOrigin,
       paywallId: opts.paywallId,
@@ -185,16 +184,16 @@ export class AuthClient {
   }
 
   /**
-   * Подписывается на изменения session-ключа в storage из других контекстов:
-   *  - Chrome Extension: `chrome.storage.onChanged` шарится popup ↔ background ↔
-   *    options ↔ content script. Логин в одном контексте → остальные сразу
-   *    эмитят onAuthChange и в getAccessToken отдают свежий Bearer.
-   *  - Web: `window.storage` event фаерится в ДРУГИХ вкладках того же origin'а
-   *    (своя вкладка свой setItem не получает — петель нет).
+   * Subscribes to changes of the session key in storage from other contexts:
+   *  - Chrome Extension: `chrome.storage.onChanged` is shared across popup ↔
+   *    background ↔ options ↔ content script. A login in one context → the others
+   *    immediately emit onAuthChange and serve a fresh Bearer in getAccessToken.
+   *  - Web: the `window.storage` event fires in OTHER tabs of the same origin
+   *    (a tab doesn't receive its own setItem — no loops).
    *
-   * Loop-guard: сравниваем content по полям session перед applySession, чтобы
-   * не фрить лишних onAuthChange при идентичной перезаписи. Вызовы из других
-   * контекстов с тем же содержимым (пересохранение) — no-op.
+   * Loop-guard: we compare the content by session fields before applySession, so
+   * as not to fire extra onAuthChange on an identical overwrite. Calls from other
+   * contexts with the same content (a re-save) — a no-op.
    */
   private startStorageWatch(): void {
     if (typeof this.storage.watch !== 'function') return;
@@ -205,12 +204,12 @@ export class AuthClient {
 
   private async applyExternalSession(raw: string | null): Promise<void> {
     if (this.destroyed) return;
-    // Дожидаемся первичной hydrate'а — иначе можем перетереть session, которая
-    // ещё не успела загрузиться при construction'е.
+    // We wait for the initial hydrate — otherwise we could overwrite a session
+    // that hasn't finished loading at construction time.
     await this.hydrated;
     if (this.destroyed) return;
     if (raw == null) {
-      // Удалили в другом контексте → logout всем подписчикам.
+      // Deleted in another context → logout for all subscribers.
       if (this.session) {
         this.setSession(null, { skipPersist: true, event: 'SIGNED_OUT' });
       }
@@ -227,32 +226,32 @@ export class AuthClient {
       ) {
         return;
       }
-      // Cross-context update: классифицируем по тому, что было локально.
-      // - Не было session → новый login из другой вкладки = SIGNED_IN.
-      // - Был тот же user — это refresh-rotation = TOKEN_REFRESHED.
-      // - Другой user.id — фактический switch аккаунта, тоже SIGNED_IN
-      //   (для consumer'а это новый юзер).
+      // Cross-context update: we classify by what was local.
+      // - There was no session → a new login from another tab = SIGNED_IN.
+      // - It was the same user — this is a refresh-rotation = TOKEN_REFRESHED.
+      // - A different user.id — an actual account switch, also SIGNED_IN
+      //   (for the consumer it's a new user).
       const event: AuthChangeEvent =
         !this.session || this.session.user.id !== parsed.user.id
           ? 'SIGNED_IN'
           : 'TOKEN_REFRESHED';
       this.setSession(parsed, { skipPersist: true, event });
     } catch {
-      /* corrupted payload — игнорируем */
+      /* corrupted payload — ignore */
     }
   }
 
   /**
-   * Promise гидратации session из storage. До его resolve getCachedSession()
-   * может ещё вернуть null. getAccessToken/refresh/signOut/sign* awaitят его
-   * сами, наружу выставляем для UI'я, чтобы он мог дождаться initial state
-   * прежде чем рисовать «logged-out» вспышку.
+   * The promise of hydrating the session from storage. Before it resolves,
+   * getCachedSession() may still return null. getAccessToken/refresh/signOut/sign*
+   * await it themselves; we expose it for the UI so it can wait for the initial
+   * state before rendering a "logged-out" flash.
    */
   ready(): Promise<void> {
     return this.hydrated;
   }
 
-  /** Sync snapshot без сетевых запросов. null = разлогинен или ещё не гидрировались. */
+  /** Sync snapshot with no network requests. null = logged out or not hydrated yet. */
   getCachedSession(): AuthSession | null {
     return this.session;
   }
@@ -262,21 +261,21 @@ export class AuthClient {
   }
 
   /**
-   * access_token для Authorization-хедера. Если до expiry < REFRESH_LEEWAY_MS,
-   * делает lazy refresh. null = разлогинен или refresh упал на 401 (refresh
-   * token revoked) — вызывающему стоит редиректить на логин.
+   * The access_token for the Authorization header. If time-to-expiry <
+   * REFRESH_LEEWAY_MS, it does a lazy refresh. null = logged out or the refresh
+   * failed with 401 (refresh token revoked) — the caller should redirect to login.
    *
-   * Сетевые/5xx ошибки refresh бросаются — текущий access ещё валиден,
-   * вызывающий может попробовать запрос с ним; следующий getAccessToken
-   * попробует refresh снова.
+   * Network/5xx refresh errors are thrown — the current access is still valid,
+   * the caller can try a request with it; the next getAccessToken will try the
+   * refresh again.
    */
   async getAccessToken(): Promise<string | null> {
     await this.hydrated;
     if (!this.session) {
-      // Race window: другой контекст (popup) залогинился, но storage-watch
-      // event ещё не долетел до этого инстанса (chrome.storage.onChanged
-      // async). Один лишний storage read для разлогиненного case'а — приемлемая
-      // плата за то, что background не отдаёт null когда токен уже есть.
+      // Race window: another context (a popup) logged in, but the storage-watch
+      // event hasn't reached this instance yet (chrome.storage.onChanged is
+      // async). One extra storage read for the logged-out case is an acceptable
+      // price for the background not returning null when a token already exists.
       await this.rehydrateFromStorage();
       if (!this.session) return null;
     }
@@ -285,7 +284,7 @@ export class AuthClient {
       const refreshed = await this.refresh();
       return refreshed?.access_token ?? null;
     } catch {
-      // Сеть упала — отдаём текущий (возможно скоро истечёт, но лучше чем null).
+      // The network failed — we return the current one (it may expire soon, but better than null).
       return this.session?.access_token ?? null;
     }
   }
@@ -294,10 +293,10 @@ export class AuthClient {
     email: string;
     password: string;
     userMeta?: Record<string, string>;
-    /** Idempotency-key (UUID) — повторный submit при двойном клике вернёт
-     *  тот же результат вместо второго запроса в GoTrue. Без передачи
-     *  inflight-дедупликации нет; SDK не дедуплицирует auth по умолчанию,
-     *  потому что email/password можно поменять между кликами. */
+    /** Idempotency-key (UUID) — a repeated submit on a double-click returns the
+     *  same result instead of a second request to GoTrue. Without passing it
+     *  there's no inflight dedup; the SDK doesn't dedupe auth by default, because
+     *  email/password can be changed between clicks. */
     idempotencyKey?: string;
   }): Promise<AuthSession> {
     await this.hydrated;
@@ -325,18 +324,18 @@ export class AuthClient {
   }
 
   /**
-   * Signup. Если в Supabase включён email confirm — сервер возвращает
-   * `{status: 'confirmation_required', user}` и НЕ выдаёт токены. В этом
-   * случае setSession не зовётся, юзер должен пройти OTP/magic-link
-   * (отдельная фича следующего PR).
+   * Signup. If email confirm is enabled in Supabase — the server returns
+   * `{status: 'confirmation_required', user}` and does NOT issue tokens. In that
+   * case setSession isn't called, the user must go through OTP/magic-link (a
+   * separate feature in the next PR).
    */
   async signUp(input: {
     email: string;
     password: string;
     userMeta?: Record<string, string>;
-    /** Idempotency-key (UUID). Защита от двойного клика на «Sign Up» —
-     *  без неё бэк может создать trial-balances и отправить confirmation-email
-     *  дважды. */
+    /** Idempotency-key (UUID). Protection against a double-click on "Sign Up" —
+     *  without it the backend may create trial-balances and send a confirmation
+     *  email twice. */
     idempotencyKey?: string;
   }): Promise<SignUpResult> {
     await this.hydrated;
@@ -360,9 +359,9 @@ export class AuthClient {
       }
     );
     if (resp.status === 'confirmation_required') {
-      // Email-метод фиксируем заранее: после verifyOtp юзер вернётся уже без
-      // нашего знания о выбранном flow (verifyOtp общий и для recovery), а
-      // method хочется записать именно для UI-бейджа «Last used».
+      // We record the email method ahead of time: after verifyOtp the user comes
+      // back without our knowledge of the chosen flow (verifyOtp is shared with
+      // recovery too), and we want to record method specifically for the "Last used" UI badge.
       this.recordLastLogin('email', input.email);
       return { kind: 'confirmation_required', user: resp.user };
     }
@@ -373,15 +372,15 @@ export class AuthClient {
   }
 
   /**
-   * Повторная отправка confirmation-email после signUp с включённым
-   * email-confirm. Использует GoTrue `/resend` type='signup'. Бэк всегда
-   * отдаёт ok (anti-enumeration), кроме 429 при rate-limit (~1 раз/мин на
-   * email на стороне Supabase). Host обрабатывает 429 показом «подождите
-   * минуту»; остальное — как success.
+   * Resends the confirmation email after a signUp with email-confirm enabled.
+   * Uses GoTrue `/resend` type='signup'. The backend always returns ok
+   * (anti-enumeration), except 429 on rate-limit (~once/min per email on the
+   * Supabase side). The host handles 429 by showing "wait a minute"; everything
+   * else — as success.
    */
   async resendConfirmation(input: {
     email: string;
-    /** Защита от двойного клика. */
+    /** Protection against a double-click. */
     idempotencyKey?: string;
   }): Promise<void> {
     await this.hydrated;
@@ -398,12 +397,12 @@ export class AuthClient {
   }
 
   /**
-   * Email-OTP / signin без password. Шлёт 6-значный код юзеру на email.
-   * Anti-enumeration: бэк всегда отдаёт ok, поэтому метод не различает
-   * «email не существует» и «отправлено» — следующий шаг (verifyOtp) сам
-   * упадёт invalid_otp если юзера нет. Под капотом GoTrue с create_user=true,
-   * так что новые юзеры через OTP логинятся за один шаг (отправка → ввод
-   * кода → session).
+   * Email-OTP / signin without a password. Sends a 6-digit code to the user's
+   * email. Anti-enumeration: the backend always returns ok, so the method doesn't
+   * distinguish "email doesn't exist" from "sent" — the next step (verifyOtp)
+   * fails with invalid_otp itself if the user doesn't exist. Under the hood it's
+   * GoTrue with create_user=true, so new users log in via OTP in one step
+   * (send → enter code → session).
    */
   async sendOtp(input: {
     email: string;
@@ -425,11 +424,11 @@ export class AuthClient {
   }
 
   /**
-   * Верификация OTP. type='email' (signin/signup-by-otp) — после успеха
-   * setSession и onAuthChange. type='recovery' — после /requestPasswordReset:
-   * выдаётся короткоживущий access_token для последующего updatePassword.
-   * Мы храним recovery-session так же, как обычную: SDK не различает «можно
-   * залогиниться» vs «можно сменить пароль» — это одна и та же session.
+   * OTP verification. type='email' (signin/signup-by-otp) — on success,
+   * setSession and onAuthChange. type='recovery' — after /requestPasswordReset:
+   * a short-lived access_token is issued for the subsequent updatePassword. We
+   * store the recovery session the same as a regular one: the SDK doesn't
+   * distinguish "can log in" vs "can change password" — it's the same session.
    */
   async verifyOtp(input: {
     email: string;
@@ -454,9 +453,9 @@ export class AuthClient {
       }
     );
     const session = this.toSession(resp, resp.user);
-    // type='recovery' — это session с короткоживущим токеном для последующего
-    // updatePassword'а. PASSWORD_RECOVERY даёт UI знать, что надо показать
-    // «set new password» вместо обычного post-login flow'а.
+    // type='recovery' — this is a session with a short-lived token for the
+    // subsequent updatePassword. PASSWORD_RECOVERY lets the UI know it should show
+    // "set new password" instead of the usual post-login flow.
     const event: AuthChangeEvent =
       input.type === 'recovery' ? 'PASSWORD_RECOVERY' : 'SIGNED_IN';
     this.setSession(session, { event });
@@ -464,9 +463,9 @@ export class AuthClient {
   }
 
   /**
-   * Запрос recovery email. Бэк всегда ok, чтобы не палить enumeration.
-   * Юзер вводит код из письма в SDK-ui → verifyOtp({type:'recovery'}) →
-   * получает session → updatePassword.
+   * Requests a recovery email. The backend always returns ok so as not to give
+   * away enumeration. The user enters the code from the email into the SDK ui →
+   * verifyOtp({type:'recovery'}) → gets a session → updatePassword.
    */
   async requestPasswordReset(input: { email: string }): Promise<void> {
     await this.hydrated;
@@ -480,10 +479,11 @@ export class AuthClient {
   }
 
   /**
-   * Меняет пароль текущей session. Работает после verifyOtp({type:'recovery'})
-   * (recovery-session) и после обычного логина — оба случая дают валидный
-   * access_token. Если session нет — бросаем PaywallError('not_authenticated')
-   * до сетевого запроса, чтобы UI не дёргал бэк впустую.
+   * Changes the password of the current session. Works after
+   * verifyOtp({type:'recovery'}) (a recovery session) and after a regular login —
+   * both cases give a valid access_token. If there's no session — we throw
+   * PaywallError('not_authenticated') before the network request, so the UI
+   * doesn't hit the backend in vain.
    */
   async updatePassword(input: { password: string }): Promise<void> {
     await this.hydrated;
@@ -502,34 +502,34 @@ export class AuthClient {
   }
 
   /**
-   * Анонимный signin (Supabase user без email). Лестница попыток:
+   * Anonymous signin (a Supabase user without an email). The ladder of attempts:
    *
-   *   1. Если уже залогинены анонимно (session.user.is_anonymous === true) —
-   *      no-op, возвращаем текущую session. Идемпотентно для UI'я, который
-   *      может звать signInAnonymously() в render-loop'е, не отслеживая state.
+   *   1. If already logged in anonymously (session.user.is_anonymous === true) —
+   *      a no-op, we return the current session. Idempotent for a UI that may
+   *      call signInAnonymously() in a render loop without tracking state.
    *
-   *   2. Resume через сохранённый anon refresh_token (`STORAGE_KEYS.anonRefreshToken`).
-   *      Если токен есть — пробуем `/auth/refresh` им. Success → setSession,
-   *      возвращаем юзера ТОГО ЖЕ id что был при предыдущем anon signin'е
-   *      (обещание из user-фидбека: «если разлогинился из анонимного —
-   *      логинить в этот же акк»).
+   *   2. Resume via the saved anon refresh_token (`STORAGE_KEYS.anonRefreshToken`).
+   *      If the token exists — we try `/auth/refresh` with it. Success →
+   *      setSession, we return the user with the SAME id as at the previous anon
+   *      signin (the promise from user feedback: "if I logged out from anonymous —
+   *      log me into the same account").
    *
-   *   3. Иначе → POST /auth/anonymous/signin → setSession + сохраняем
-   *      refresh_token в anonRefreshToken.
+   *   3. Otherwise → POST /auth/anonymous/signin → setSession + save the
+   *      refresh_token in anonRefreshToken.
    *
-   * `captchaToken` сейчас не требуется — captcha protection в Supabase
-   * отключена, защита от per-IP abuse держится на rate-limit'е Supabase'а
-   * (30/час per real-IP, см. IP forwarding setup в supabaseAuthRest.ts) +
-   * CF Bot Fight Mode на edge. Поле оставлено optional для forward-compat:
-   * когда сервер начнёт возвращать challenge_required в риск-сценариях,
-   * SDK сможет передать proof-of-something обратно без breaking change.
+   * `captchaToken` isn't required right now — captcha protection in Supabase is
+   * disabled, protection against per-IP abuse rests on Supabase's rate limit
+   * (30/hour per real-IP, see the IP forwarding setup in supabaseAuthRest.ts) +
+   * CF Bot Fight Mode at the edge. The field is left optional for forward-compat:
+   * when the server starts returning challenge_required in risk scenarios, the
+   * SDK can pass proof-of-something back without a breaking change.
    *
-   * `forceNewAnon: true` пропускает шаги 1-2 и сразу делает /signin (создаёт
-   * нового anon-юзера). Используется в switch-account flow.
+   * `forceNewAnon: true` skips steps 1-2 and does /signin straight away (creates
+   * a new anon user). Used in the switch-account flow.
    *
-   * Параллельные вызовы дедуплицируются через `inflightAnonSignin` — два
-   * click'а на «Войти как гость» не создадут двух anon-юзеров (два /signup =
-   * два user_id, второй trial-баланс улетает в нирвану).
+   * Parallel calls are deduplicated via `inflightAnonSignin` — two clicks on
+   * "Sign in as guest" won't create two anon users (two /signup = two user_ids,
+   * the second trial balance flies into oblivion).
    */
   async signInAnonymously(input: {
     captchaToken?: string;
@@ -541,7 +541,7 @@ export class AuthClient {
     this.inflightAnonSignin = (async () => {
       await this.hydrated;
 
-      // 1. Уже анон — не дёргаем сеть.
+      // 1. Already anon — don't hit the network.
       if (
         !input.forceNewAnon &&
         this.session?.user.is_anonymous === true
@@ -549,14 +549,14 @@ export class AuthClient {
         return this.session;
       }
 
-      // 2. Resume через сохранённый refresh_token.
+      // 2. Resume via the saved refresh_token.
       if (!input.forceNewAnon) {
         const resumed = await this.resumeAnonymous();
         if (resumed) return resumed;
       }
 
-      // 3. Fresh signin. captcha_token шлём только если host явно передал
-      //    (forward-compat для будущего challenge-response механизма).
+      // 3. Fresh signin. We send captcha_token only if the host passed it
+      //    explicitly (forward-compat for a future challenge-response mechanism).
       const visitorId = await this.readVisitorId();
       type Resp = RawTokens & { user: AuthUser };
       const resp = await this.api.request<Resp>(
@@ -571,8 +571,8 @@ export class AuthClient {
         }
       );
 
-      // Бэк не выставляет is_anonymous=true в user-объекте? Подстраховка для
-      // SDK-side флага: всегда true для этого роута.
+      // The backend doesn't set is_anonymous=true in the user object? A safeguard
+      // for the SDK-side flag: always true for this route.
       const user: AuthUser = {
         ...resp.user,
         email: resp.user.email ?? null,
@@ -580,8 +580,8 @@ export class AuthClient {
       };
       const session = this.toSession(resp, user);
       this.setSession(session, { event: 'SIGNED_IN' });
-      // Persist refresh для будущих resume — в writeAnonRefreshToken,
-      // так же `setSession` уже сохранил полную session в authSession-storage.
+      // Persist refresh for future resumes — in writeAnonRefreshToken; likewise
+      // `setSession` has already saved the full session into authSession storage.
       await this.writeAnonRefreshToken(session.refresh_token);
       return session;
     })();
@@ -594,10 +594,10 @@ export class AuthClient {
   }
 
   /**
-   * Внутренний resume — пробует /auth/refresh с сохранённым anon refresh_token.
-   * Возвращает session при успехе, null если токена нет или он отозван (401).
-   * Сетевые ошибки бросает наружу — caller сам решает, ретраить или просить
-   * пользователя пройти капчу.
+   * Internal resume — tries /auth/refresh with the saved anon refresh_token.
+   * Returns a session on success, null if there's no token or it's revoked (401).
+   * It throws network errors out — the caller decides whether to retry or ask the
+   * user to pass a captcha.
    */
   private async resumeAnonymous(): Promise<AuthSession | null> {
     const rt = await this.readAnonRefreshToken();
@@ -607,62 +607,62 @@ export class AuthClient {
         `/api/v1/paywall/${this.paywallId}/auth/refresh`,
         { method: 'POST', body: JSON.stringify({ refresh_token: rt }) }
       );
-      // /auth/refresh не возвращает user — реконструируем минимально из текущей
-      // session (если был anon в storage) или ставим заглушку. Для полного
-      // профиля host может позвать BillingClient.getUser().
+      // /auth/refresh doesn't return user — we reconstruct it minimally from the
+      // current session (if there was anon in storage) or set a stub. For the full
+      // profile the host can call BillingClient.getUser().
       const fallbackUser: AuthUser =
         this.session?.user.is_anonymous === true
           ? this.session.user
           : { id: '', email: null, is_anonymous: true };
       const session = this.toSession(resp, fallbackUser);
-      // resumeAnonymous вызывается только из signInAnonymously, где до этого
-      // session=null. Для listener'а это вход нового анон-юзера — SIGNED_IN.
-      // Если был тот же анон до hydrate'а — sameSession отфильтрует emit.
+      // resumeAnonymous is called only from signInAnonymously, where session=null
+      // before this. For the listener it's a login of a new anon user — SIGNED_IN.
+      // If it was the same anon before hydrate — sameSession filters out the emit.
       this.setSession(session, { event: 'SIGNED_IN' });
-      // Rotation: GoTrue выдаёт новый refresh_token, обновляем persisted.
+      // Rotation: GoTrue issues a new refresh_token, we update the persisted one.
       await this.writeAnonRefreshToken(session.refresh_token);
       return session;
     } catch (e) {
       if (e instanceof PaywallError && e.status === 401) {
-        // Токен отозван — чистим, fallthrough в caller'е сделает fresh signin
-        // на /auth/anonymous/signin (создаст нового anon-юзера).
+        // The token is revoked — we clear it, the fallthrough in the caller does
+        // a fresh signin to /auth/anonymous/signin (creates a new anon user).
         await this.clearAnonRefreshToken();
         return null;
       }
-      // Сеть/5xx — не трогаем токен, пусть юзер ретрайит.
+      // Network/5xx — we don't touch the token, let the user retry.
       throw e;
     }
   }
 
   /**
-   * Анон → email/password upgrade. Сохраняет тот же auth.user.id, балансы
-   * и trial-quotas остаются. Поведение зависит от Supabase email-confirm
-   * настройки проекта:
+   * Anon → email/password upgrade. Keeps the same auth.user.id, the balances and
+   * trial-quotas remain. The behavior depends on the project's Supabase
+   * email-confirm setting:
    *
-   *  - Confirmation OFF → backend сразу обновляет email + password в auth.users.
-   *    Возвращаем `kind: 'updated'`, локально патчим session.user.email +
-   *    is_anonymous=false (текущий access_token остаётся валидным, перевыдавать
-   *    не нужно — GoTrue не вращает токены на updateUser).
+   *  - Confirmation OFF → the backend immediately updates email + password in
+   *    auth.users. We return `kind: 'updated'`, locally patch session.user.email +
+   *    is_anonymous=false (the current access_token stays valid, no need to
+   *    reissue — GoTrue doesn't rotate tokens on updateUser).
    *
-   *  - Confirmation ON → backend отдаёт `confirmation_required`. Текущая
-   *    session ОСТАЁТСЯ анонимной до клика юзером по confirmation-ссылке.
-   *    Password применяется сразу (можно дальше логиниться по нему даже до
-   *    confirm'а). После клика — следующий /auth/refresh подтянет обновлённый
-   *    is_anonymous=false из JWT (refresh не возвращает user, так что
-   *    UI может явно подёргать `auth.refresh()` через минуту-другую, либо
-   *    дождаться lazy-refresh при истечении access).
+   *  - Confirmation ON → the backend returns `confirmation_required`. The current
+   *    session STAYS anonymous until the user clicks the confirmation link. The
+   *    password is applied right away (you can keep logging in with it even before
+   *    confirm). After the click — the next /auth/refresh pulls the updated
+   *    is_anonymous=false from the JWT (refresh doesn't return user, so the UI can
+   *    explicitly poke `auth.refresh()` a minute or two later, or wait for the
+   *    lazy-refresh at access expiry).
    *
-   * Без активной session бросает `not_authenticated`. Дедупликации нет —
-   * двойной submit формы UI должен предотвратить idempotencyKey'ом.
+   * Without an active session it throws `not_authenticated`. There's no dedup —
+   * a double form submit must be prevented by the UI with idempotencyKey.
    */
   async upgradeAnonymousToEmail(input: {
     email: string;
     password: string;
     userMeta?: Record<string, string>;
-    /** Idempotency-key для защиты от двойного клика. GoTrue PUT /user не
-     *  идемпотентен сам по себе — повторный submit при двойном клике может
-     *  вызвать race с email-confirmation (две confirmation-ссылки на тот же
-     *  адрес). UI должен передать UUID. */
+    /** Idempotency-key to protect against a double-click. GoTrue PUT /user isn't
+     *  idempotent by itself — a repeated submit on a double-click can cause a race
+     *  with email-confirmation (two confirmation links to the same address). The
+     *  UI must pass a UUID. */
     idempotencyKey?: string;
   }): Promise<UpgradeAnonymousResult> {
     await this.hydrated;
@@ -694,18 +694,18 @@ export class AuthClient {
     );
 
     if (resp.status === 'confirmation_required') {
-      // Не трогаем local session — она ещё анонимная по факту.
+      // We don't touch the local session — it's still anonymous in fact.
       return { kind: 'confirmation_required', email: resp.email };
     }
 
-    // Confirmation off: патчим локальную user-часть session. Токены те же,
-    // но user.email и is_anonymous теперь правильные — UI должен сразу
-    // показывать «Signed in as <email>» вместо «Guest».
+    // Confirmation off: we patch the local user part of the session. The tokens
+    // are the same, but user.email and is_anonymous are now correct — the UI must
+    // immediately show "Signed in as <email>" instead of "Guest".
     const current = this.session;
     if (!current) {
-      // Race: session ушёл между getAccessToken и сюда (signOut в другой
-      // вкладке). Бэк уже обновил auth.users — но локально ничего не
-      // меняем, host увидит чистое logged-out состояние.
+      // Race: the session went away between getAccessToken and here (signOut in
+      // another tab). The backend already updated auth.users — but we change
+      // nothing locally, the host will see a clean logged-out state.
       throw new PaywallError(
         'not_authenticated',
         'session disappeared during upgrade'
@@ -718,40 +718,40 @@ export class AuthClient {
       is_anonymous: resp.user.is_anonymous ?? false
     };
     const updatedSession: AuthSession = { ...current, user: updatedUser };
-    // Тот же набор токенов — изменился только user (anonymous→named).
-    // USER_UPDATED, не SIGNED_IN: listener не должен трактовать это как
-    // «появился новый юзер», это апгрейд того же сеанса.
+    // The same set of tokens — only user changed (anonymous→named).
+    // USER_UPDATED, not SIGNED_IN: the listener must not interpret this as "a new
+    // user appeared", it's an upgrade of the same session.
     this.setSession(updatedSession, { event: 'USER_UPDATED' });
 
-    // Юзер больше не анонимный — anon refresh_token «принадлежит» теперь
-    // обычному акку. Не имеет смысла держать его как «вернуть в анона»:
-    // на signOut он всё равно теперь полноценный logout. Чистим, чтобы
-    // следующий signInAnonymously попросил новую капчу (не залогинит в
-    // upgraded аккаунт случайно).
+    // The user is no longer anonymous — the anon refresh_token now "belongs" to a
+    // regular account. There's no point keeping it as "return to anon": on signOut
+    // it's now a full logout anyway. We clear it so the next signInAnonymously
+    // asks for a new captcha (doesn't accidentally log into the upgraded account).
     await this.clearAnonRefreshToken();
 
     return { kind: 'updated', session: updatedSession };
   }
 
   /**
-   * OAuth signin через popup с PKCE. Жизненный цикл:
-   * 1. Генерим verifier+challenge+state локально (verifier не уходит на бэк
-   *    до /exchange — это защита от перехвата code'а).
-   * 2. POST /oauth/init с challenge → бэк отдаёт authorize_url.
-   * 3. Открываем popup, ждём postMessage с типом 'pw-oauth' и нашим state.
-   * 4. POST /oauth/exchange с {auth_code, code_verifier} → session.
+   * OAuth signin via a popup with PKCE. Lifecycle:
+   * 1. Generate verifier+challenge+state locally (the verifier doesn't go to the
+   *    backend until /exchange — this protects against interception of the code).
+   * 2. POST /oauth/init with the challenge → the backend returns authorize_url.
+   * 3. Open the popup, wait for a postMessage of type 'pw-oauth' with our state.
+   * 4. POST /oauth/exchange with {auth_code, code_verifier} → session.
    *
-   * Таймаут — 5 минут от открытия popup'а. Если юзер закрыл popup до конца
-   * флоу (window.closed → true) — бросаем PaywallError('oauth_cancelled').
-   * Параллельные вызовы НЕ дедупятся — каждый открывает свой popup; вызывать
-   * параллельно не имеет смысла, но защищаться от этого код не должен.
+   * Timeout — 5 minutes from opening the popup. If the user closed the popup
+   * before the flow finished (window.closed → true) — we throw
+   * PaywallError('oauth_cancelled'). Parallel calls are NOT deduped — each opens
+   * its own popup; calling in parallel makes no sense, but the code shouldn't
+   * defend against it.
    *
-   * onPopupOpened вызывается сразу после успешного window.open (до ожидания
-   * code'а). UI использует это, чтобы сбросить loading-state кнопки: дальше
-   * ответственность за флоу у popup'а, основная страница не должна висеть.
-   * Если popup'ом не вернулся code (юзер закрыл вкладку, closed-detection
-   * не сработал из-за COOP-severance) — promise дойдёт до oauth_timeout
-   * через 5 минут, но кнопка к этому моменту уже свободна.
+   * onPopupOpened is called right after a successful window.open (before waiting
+   * for the code). The UI uses it to reset the button's loading state: from here
+   * responsibility for the flow is on the popup, the main page shouldn't hang. If
+   * the popup didn't return a code (the user closed the tab, closed-detection
+   * didn't fire due to a COOP severance) — the promise reaches oauth_timeout after
+   * 5 minutes, but by then the button is already free.
    */
   async signInWithOAuth(input: {
     provider: OAuthProvider;
@@ -763,10 +763,10 @@ export class AuthClient {
       throw new PaywallError('oauth_unavailable', 'window is required for OAuth');
     }
 
-    // Single-process путь: start → openPopup → waitForOAuthCode → complete.
-    // Состояние flow живёт у нас на heap'е до complete'а; для split-режима
-    // (offscreen-architecture в @monetize/sdk-extension) start и complete
-    // вызываются отдельными запросами — verifier остаётся внутри AuthClient'а.
+    // Single-process path: start → openPopup → waitForOAuthCode → complete. The
+    // flow state lives on our heap until complete; for the split mode
+    // (offscreen-architecture in @monetize/sdk-extension) start and complete are
+    // called as separate requests — the verifier stays inside AuthClient.
     const { authorize_url, state } = await this.startOAuthFlow({
       provider: input.provider,
       scopes: input.scopes,
@@ -775,7 +775,7 @@ export class AuthClient {
 
     const popup = this.openPopup(authorize_url, `pw-oauth-${state}`);
     if (!popup) {
-      // Cleanup pending flow — без popup'а complete никогда не позовут.
+      // Cleanup pending flow — without a popup, complete will never be called.
       this.oauthFlows.delete(state);
       throw new PaywallError(
         'popup_blocked',
@@ -795,18 +795,18 @@ export class AuthClient {
   }
 
   /**
-   * Шаг 1 OAuth split-API: инициирует flow на бэке, генерит PKCE verifier
-   * + state, сохраняет их у себя, возвращает `{authorize_url, state}` для
-   * открытия popup'а. Верификатор НЕ выходит наружу — его держит AuthClient
-   * до `completeOAuthFlow`.
+   * Step 1 of the OAuth split-API: initiates the flow on the backend, generates
+   * the PKCE verifier + state, stores them itself, returns `{authorize_url, state}`
+   * for opening the popup. The verifier does NOT leave — AuthClient holds it until
+   * `completeOAuthFlow`.
    *
-   * Используется в offscreen-архитектуре (@monetize/sdk-extension): start
-   * вызывается через RPC из content-script'а, content открывает popup
-   * нативно (gesture preserved), затем зовёт completeOAuthFlow с code'ом.
-   * AuthClient (в offscreen'е) делает /exchange с сохранённым verifier'ом.
+   * Used in the offscreen architecture (@monetize/sdk-extension): start is called
+   * via RPC from the content-script, content opens the popup natively (gesture
+   * preserved), then calls completeOAuthFlow with the code. AuthClient (in the
+   * offscreen) does /exchange with the saved verifier.
    *
-   * Pending flows GC'атся через 10мин — больше чем юзеру нужно прокликать
-   * Google. Без cleanup'а Map бы рос на каждый закрытый popup.
+   * Pending flows are GC'd after 10min — more than a user needs to click through
+   * Google. Without cleanup the Map would grow for every closed popup.
    */
   async startOAuthFlow(input: {
     provider: OAuthProvider;
@@ -820,16 +820,16 @@ export class AuthClient {
     const challenge = await deriveCodeChallenge(verifier);
     const state = generateState();
 
-    // Anon-upgrade hand-off: если у нас уже есть session (обычно — анонимная
-    // после signInAnonymously()), шлём её access_token на /oauth/init. Бэк
-    // пойдёт через GoTrue `linkIdentity` вместо `signInWithOAuth` — после
-    // OAuth callback'а user_id останется тот же, что был у анона, и
-    // привязанные к нему trial-balances/purchases никуда не денутся.
-    // Зеркалит legacy StartAuthPage.tsx (is_anonymous → linkIdentity).
+    // Anon-upgrade hand-off: if we already have a session (usually — anonymous
+    // after signInAnonymously()), we send its access_token to /oauth/init. The
+    // backend will go through GoTrue `linkIdentity` instead of `signInWithOAuth` —
+    // after the OAuth callback the user_id stays the same as the anon's, and the
+    // trial-balances/purchases linked to it don't go anywhere.
+    // Mirrors the legacy StartAuthPage.tsx (is_anonymous → linkIdentity).
     //
-    // Если host хочет именно «свич аккаунт» (новый user_id) — он должен
-    // сначала signOut({forgetAnonymous: true}), тогда session=null, Bearer
-    // не уйдёт, и /oauth/init вернёт обычный signin-flow.
+    // If the host wants specifically a "switch account" (a new user_id) — it must
+    // first signOut({forgetAnonymous: true}), then session=null, Bearer won't go,
+    // and /oauth/init returns the usual signin flow.
     const headers: Record<string, string> = {};
     const accessToken = await this.getAccessToken().catch((): string | null => null);
     if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
@@ -855,23 +855,23 @@ export class AuthClient {
       startedAt: Date.now()
     });
 
-    // Method фиксируем до popup'а: provider в input явно указан юзером, в этой
-    // точке мы 100% знаем что он выбрал. Не делать через app_metadata.provider
-    // после exchange'а — для уже зарегистрированного юзера GoTrue возвращает
-    // ПЕРВЫЙ зарегистрированный provider, а не текущий (зеркало легаси-фикса
-    // в online/app/paywall/auth/callback/AuthCallback.tsx).
+    // We record method before the popup: the provider in input is explicitly
+    // chosen by the user, at this point we 100% know what they selected. Don't do
+    // it via app_metadata.provider after the exchange — for an already-registered
+    // user GoTrue returns the FIRST registered provider, not the current one (a
+    // mirror of the legacy fix in online/app/paywall/auth/callback/AuthCallback.tsx).
     this.recordLastLoginMethod(input.provider);
 
     return { authorize_url, state };
   }
 
   /**
-   * Шаг 2 OAuth split-API: обменивает code (полученный из popup) на session,
-   * используя verifier, сохранённый при startOAuthFlow. После успеха — set
-   * session и эмит onAuthChange.
+   * Step 2 of the OAuth split-API: exchanges the code (obtained from the popup)
+   * for a session, using the verifier saved at startOAuthFlow. On success — set
+   * session and emit onAuthChange.
    *
-   * Если flow не найден (state не из startOAuthFlow или GC'нулся за TTL'ом) —
-   * бросает `oauth_invalid_state`. Caller должен начать заново через
+   * If the flow isn't found (the state isn't from startOAuthFlow or was GC'd past
+   * the TTL) — it throws `oauth_invalid_state`. The caller must start over via
    * startOAuthFlow.
    */
   async completeOAuthFlow(input: { state: string; code: string }): Promise<AuthSession> {
@@ -904,10 +904,10 @@ export class AuthClient {
     }
     const session = this.toSession(resp, resp.user);
     this.setSession(session, { event: 'SIGNED_IN' });
-    // Email из session.user пишем только если бэк его вернул. У Apple email
-    // приходит только на первом signin (если юзер не "Hide my email"); во всех
-    // последующих login'ах session.user.email может быть null — тогда сохраняем
-    // только method (он уже записан в startOAuthFlow).
+    // We write email from session.user only if the backend returned it. With
+    // Apple the email arrives only on the first signin (unless the user uses "Hide
+    // my email"); on all subsequent logins session.user.email may be null — then
+    // we save only method (it's already recorded in startOAuthFlow).
     if (session.user.email) this.recordLastLoginEmail(session.user.email);
     return session;
   }
@@ -920,13 +920,13 @@ export class AuthClient {
   }
 
   /**
-   * Refresh access/refresh пары через текущий refresh_token. Дедуплицирует
-   * параллельные вызовы (один in-flight promise на весь клиент).
+   * Refreshes the access/refresh pair via the current refresh_token. Deduplicates
+   * parallel calls (one in-flight promise for the whole client).
    *
-   * - 401 → refresh_token отозван/невалиден → чистим session, эмитим logout.
-   * - Сеть/5xx → пробрасываем ошибку, session оставляем — юзер не должен
-   *   разлогиниваться из-за временной сетевой проблемы.
-   * - Нет session → возвращаем null без сетевого запроса.
+   * - 401 → refresh_token revoked/invalid → we clear the session, emit logout.
+   * - Network/5xx → we propagate the error, keep the session — the user shouldn't
+   *   be logged out due to a temporary network problem.
+   * - No session → we return null without a network request.
    */
   async refresh(): Promise<AuthSession | null> {
     await this.hydrated;
@@ -945,21 +945,21 @@ export class AuthClient {
             body: JSON.stringify({ refresh_token: refreshToken })
           }
         );
-        // Сервер user в /refresh не возвращает — переносим из текущей session.
+        // The server doesn't return user in /refresh — we carry it over from the current session.
         const session = this.toSession(resp, currentUser);
         this.setSession(session, { event: 'TOKEN_REFRESHED' });
-        // Anon-rotation: refresh_token вращается на каждый refresh, держим
-        // persisted-копию синхронной, иначе при signOut() и попытке resume
-        // будет старый, уже отозванный токен → 401 → потеря анон-аккаунта.
+        // Anon-rotation: the refresh_token rotates on every refresh, we keep the
+        // persisted copy in sync, otherwise on signOut() and a resume attempt
+        // there'd be an old, already-revoked token → 401 → loss of the anon account.
         if (currentUser.is_anonymous === true) {
           await this.writeAnonRefreshToken(session.refresh_token);
         }
         return session;
       } catch (e) {
         if (e instanceof PaywallError && e.status === 401) {
-          // Если refresh упал на анон-юзере — чистим anonRefreshToken тоже,
-          // он невалиден. Иначе следующий resumeAnonymous() пойдёт по тому
-          // же мёртвому токену и снова получит 401.
+          // If the refresh failed on an anon user — we clear anonRefreshToken too,
+          // it's invalid. Otherwise the next resumeAnonymous() would go through the
+          // same dead token and get 401 again.
           if (currentUser.is_anonymous === true) {
             await this.clearAnonRefreshToken();
           }
@@ -976,19 +976,18 @@ export class AuthClient {
   }
 
   /**
-   * Глобальный logout — инвалидирует ВСЕ refresh-токены юзера на всех
-   * устройствах/контекстах через GoTrue `/logout?scope=global`. Используется
-   * для compromise-account флоу («подозрительная активность, разлогинить
-   * везде»).
+   * Global logout — invalidates ALL of the user's refresh tokens across all
+   * devices/contexts via GoTrue `/logout?scope=global`. Used for the
+   * compromise-account flow ("suspicious activity, log out everywhere").
    *
-   * Local-side: чистим текущую session, остальные контексты (другие вкладки
-   * / extension popup и background) подхватят logout через storage-watch
-   * автоматически. Active access-токены в других контекстах останутся валидны
-   * до их естественного истечения (1 час max), но refresh уже не сработает —
-   * после первого `getAccessToken()` каждый контекст разлогинится сам.
+   * Local-side: we clear the current session, the other contexts (other tabs /
+   * extension popup and background) pick up the logout via storage-watch
+   * automatically. Active access tokens in other contexts stay valid until their
+   * natural expiry (1 hour max), but refresh no longer works — after the first
+   * `getAccessToken()` each context logs itself out.
    *
-   * Безопасность: бэк не принимает целевой user_id — резолвит юзера из
-   * Bearer, нельзя разлогинить чужой аккаунт.
+   * Security: the backend doesn't accept a target user_id — it resolves the user
+   * from Bearer, you can't log out someone else's account.
    */
   async revokeAllSessions(): Promise<void> {
     await this.hydrated;
@@ -996,11 +995,10 @@ export class AuthClient {
     if (!accessToken) {
       throw new PaywallError('not_authenticated', 'no active session');
     }
-    // Сначала сетевой запрос, потом local clear — обратный порядок относительно
-    // signOut(). Если бэк упадёт, оставляем юзера залогиненным локально (он
-    // может попробовать ещё раз); UX-преимущество мгновенного logout'а здесь
-    // меньше, чем риск думать что устройство разлогинено когда оно не
-    // разлогинено реально.
+    // First the network request, then the local clear — the reverse order
+    // relative to signOut(). If the backend fails, we leave the user logged in
+    // locally (they can try again); the UX advantage of an instant logout here is
+    // smaller than the risk of thinking the device is logged out when it really isn't.
     await this.api.request<{ ok: true }>(
       `/api/v1/paywall/${this.paywallId}/auth/revoke-all`,
       {
@@ -1012,19 +1010,19 @@ export class AuthClient {
   }
 
   /**
-   * Signout: чистит локальную session СРАЗУ (UX — мгновенный logout без
-   * ожидания сети), потом best-effort POST /auth/signout с текущим access.
-   * Ошибка сети/5xx тут уже не критична — на бэке токен и так истечёт.
+   * Signout: clears the local session IMMEDIATELY (UX — an instant logout without
+   * waiting for the network), then a best-effort POST /auth/signout with the
+   * current access. A network/5xx error here is no longer critical — the token
+   * will expire on the backend anyway.
    *
-   * Anon-aware: по умолчанию anonRefreshToken сохраняется. Это позволяет
-   * после signOut() позвать signInAnonymously() и попасть в ТОТ ЖЕ
-   * анон-аккаунт без капчи (см. resumeAnonymous). Поведение предсказуемое
-   * для UX'а «гость → залогинился → разлогинился → снова гость с теми же
-   * балансами».
+   * Anon-aware: by default anonRefreshToken is kept. This allows calling
+   * signInAnonymously() after signOut() and landing in the SAME anon account
+   * without a captcha (see resumeAnonymous). The behavior is predictable for the
+   * UX "guest → logged in → logged out → guest again with the same balances".
    *
-   * `forgetAnonymous: true` — полное забытие, вместе с anonRefreshToken.
-   * Нужно для сценариев типа «свич аккаунта на устройстве» или жалоб на
-   * приватность («очисти все мои следы»).
+   * `forgetAnonymous: true` — full forgetting, including anonRefreshToken. Needed
+   * for scenarios like "switch account on the device" or privacy complaints
+   * ("erase all my traces").
    */
   async signOut(opts: { forgetAnonymous?: boolean } = {}): Promise<void> {
     await this.hydrated;
@@ -1035,13 +1033,13 @@ export class AuthClient {
       await this.clearAnonRefreshToken();
     }
     if (!accessToken) return;
-    // Тонкий момент: GoTrue `/logout` (scope=local default) инвалидирует
-    // текущий refresh_token. Для анона текущий refresh_token = anonRefreshToken
-    // в нашем storage'е; если позвать /logout — anonRefreshToken станет
-    // невалиден, и следующий signInAnonymously() не сможет resume этого
-    // юзера. Поэтому при signOut'е анона БЕЗ forgetAnonymous пропускаем
-    // /logout — токен остаётся живым для будущего возврата. Local-side
-    // юзер уже разлогинен (setSession(null)), что и нужно UX'у.
+    // A subtle point: GoTrue `/logout` (scope=local default) invalidates the
+    // current refresh_token. For an anon the current refresh_token =
+    // anonRefreshToken in our storage; if we call /logout — anonRefreshToken
+    // becomes invalid, and the next signInAnonymously() can't resume this user.
+    // So on an anon signOut WITHOUT forgetAnonymous we skip /logout — the token
+    // stays alive for a future return. Local-side the user is already logged out
+    // (setSession(null)), which is what the UX needs.
     if (wasAnonymous && !opts.forgetAnonymous) return;
     try {
       await this.api.request(
@@ -1052,35 +1050,35 @@ export class AuthClient {
         }
       );
     } catch {
-      /* swallow — local state уже чистый */
+      /* swallow — the local state is already clean */
     }
   }
 
   /**
-   * Подписка на изменения session: signin/signup/refresh/signOut/expired-401.
+   * Subscribe to session changes: signin/signup/refresh/signOut/expired-401.
    *
-   * Гарантированный контракт: ПЕРВЫЙ callback каждому subscriber'у — всегда
-   * `event = 'INITIAL_SESSION'`, дёргается асинхронно после resolve hydrate'а
-   * (даже если session=null — listener получает explicit «нет сессии», а не
-   * молчание). Все последующие callback'и — реальные переходы с конкретным
-   * event'ом (SIGNED_IN / SIGNED_OUT / TOKEN_REFRESHED / USER_UPDATED /
+   * Guaranteed contract: the FIRST callback to each subscriber is always
+   * `event = 'INITIAL_SESSION'`, triggered asynchronously after the hydrate
+   * resolves (even if session=null — the listener gets an explicit "no session",
+   * not silence). All subsequent callbacks are real transitions with a concrete
+   * event (SIGNED_IN / SIGNED_OUT / TOKEN_REFRESHED / USER_UPDATED /
    * PASSWORD_RECOVERY).
    *
-   * Это позволяет listener'у безопасно делать «only on real signin» побочные
-   * эффекты (force refetch balances и т.п.) через `event === 'SIGNED_IN'`,
-   * не путая их с восстановлением из storage.
+   * This lets the listener safely do "only on real signin" side effects (force
+   * refetch balances, etc.) via `event === 'SIGNED_IN'` without confusing them
+   * with a restore from storage.
    *
-   * Возвращает unsubscribe.
+   * Returns an unsubscribe.
    */
   onAuthChange(cb: AuthChangeListener): () => void {
     this.listeners.add(cb);
-    // INITIAL_SESSION после hydrate'а: даём время storage.getItem отработать,
-    // чтобы listener получил настоящий restored state, а не пустоту. Если до
-    // resolve'а уже произошёл setSession (cross-context signin прилетел через
-    // applyExternalSession, или сразу sign-in пользователем) — это ок,
-    // listener сначала получит INITIAL_SESSION с текущим (уже обновлённым)
-    // snapshot'ом, потом — событие самого перехода. Дубль snapshot'а не страшен,
-    // главное что event'ы различимы.
+    // INITIAL_SESSION after hydrate: we give storage.getItem time to run so the
+    // listener gets the real restored state, not emptiness. If a setSession
+    // already happened before the resolve (a cross-context signin arrived via
+    // applyExternalSession, or an immediate sign-in by the user) — that's ok, the
+    // listener first gets INITIAL_SESSION with the current (already updated)
+    // snapshot, then the event of the transition itself. A duplicate snapshot is
+    // harmless, the key thing is that the events are distinguishable.
     void this.hydrated.then(() => {
       if (this.destroyed || !this.listeners.has(cb)) return;
       const snapshot = this.session;
@@ -1100,8 +1098,8 @@ export class AuthClient {
   }
 
   private toSession(raw: RawTokens, user: AuthUser): AuthSession {
-    // GoTrue отдаёт expires_at в секундах (unix), expires_in — в секундах.
-    // SDK хранит абсолютный ms, чтобы isFresh() был тривиальным сравнением.
+    // GoTrue returns expires_at in seconds (unix), expires_in in seconds. The SDK
+    // stores absolute ms so that isFresh() is a trivial comparison.
     const expiresAt =
       raw.expires_at != null
         ? raw.expires_at * 1000
@@ -1121,9 +1119,9 @@ export class AuthClient {
     if (this.destroyed) return;
     const before = this.session;
     this.session = s;
-    // skipPersist: применяем session, пришедшую из storage-watch'а
-    // (другой контекст уже записал ровно это в storage). Без флага мы бы
-    // делали лишний writeback и в Chrome Extension получили бы петлю
+    // skipPersist: we apply a session that came from storage-watch (another
+    // context already wrote exactly this to storage). Without the flag we'd do an
+    // extra writeback and in a Chrome Extension get a loop
     // onChanged → applyExternalSession → setSession → persist → onChanged.
     if (!opts.skipPersist) void this.persist();
     if (!sameSession(before, s)) this.emit(opts.event);
@@ -1157,24 +1155,24 @@ export class AuthClient {
       ) {
         return;
       }
-      // Просроченный access — оставляем session, lazy refresh подберёт.
-      // Если refresh_token тоже мёртв (>30 дней неактивности), refresh
-      // упадёт 401 и AuthClient разлогинит сам.
+      // Expired access — we keep the session, the lazy refresh picks it up. If the
+      // refresh_token is dead too (>30 days of inactivity), the refresh fails with
+      // 401 and AuthClient logs out itself.
       //
-      // НЕ зовём emit() — listener'ы получат восстановленную session
-      // отдельным INITIAL_SESSION callback'ом из onAuthChange после resolve
-      // hydrated. Это разделяет «сессия восстановилась из storage» от
-      // «реальный signin», что важно для consumer'ов вроде demo content'а,
-      // которые на signin делают force-refetch balances.
+      // We do NOT call emit() — listeners get the restored session as a separate
+      // INITIAL_SESSION callback from onAuthChange after hydrated resolves. This
+      // separates "the session was restored from storage" from "a real signin",
+      // which matters for consumers like the demo content that force-refetch
+      // balances on signin.
       this.session = parsed;
     } catch {
-      /* corrupted entry — игнорируем, юзер просто увидит logged-out */
+      /* corrupted entry — ignore, the user just sees logged-out */
     }
   }
 
-  // Используется как race-fallback в getAccessToken: между construction'ом
-  // (когда storage был пуст) и onChanged-доставкой могло произойти signin
-  // в другом контексте. Не дублирует watch — тот про push, этот про pull.
+  // Used as a race-fallback in getAccessToken: between construction (when storage
+  // was empty) and onChanged delivery, a signin could have happened in another
+  // context. It doesn't duplicate watch — that one is about push, this one about pull.
   private async rehydrateFromStorage(): Promise<void> {
     try {
       const raw = await this.storage.getItem(this.storageKey());
@@ -1189,9 +1187,9 @@ export class AuthClient {
       ) {
         return;
       }
-      // Вызывается только когда `this.session` был null и юзер где-то залогинился
-      // вне этого контекста — для listener'а это SIGNED_IN (того же класса
-      // событие, что и cross-context login в applyExternalSession).
+      // Called only when `this.session` was null and the user logged in somewhere
+      // outside this context — for the listener it's SIGNED_IN (the same class of
+      // event as the cross-context login in applyExternalSession).
       this.setSession(parsed, { skipPersist: true, event: 'SIGNED_IN' });
     } catch {
       /* ignore */
@@ -1199,13 +1197,12 @@ export class AuthClient {
   }
 
   /**
-   * Освобождает ресурсы AuthClient'а: отписывает storage-watch, чистит
-   * listener'ы, выставляет destroyed-флаг. После destroy все async-операции
-   * (inflight refresh, OAuth popup, applyExternalSession) early-return'ят
-   * через `isDestroyed()` guard'ы — никаких write-back'ов в storage,
-   * никаких эмитов на пустые listener'ы.
+   * Releases AuthClient's resources: unsubscribes storage-watch, clears
+   * listeners, sets the destroyed flag. After destroy all async operations
+   * (inflight refresh, OAuth popup, applyExternalSession) early-return via
+   * `isDestroyed()` guards — no write-backs to storage, no emits to empty listeners.
    *
-   * destroy() идемпотентен: повторный вызов — no-op.
+   * destroy() is idempotent: a repeated call is a no-op.
    */
   destroy(): void {
     this.destroyed = true;
@@ -1214,13 +1211,13 @@ export class AuthClient {
       this.storageUnwatch = null;
     }
     this.listeners.clear();
-    // inflightRefresh не отменяется (Promise нельзя cancel'нуть), но его
-    // success-handler проверяет destroyed и пропускает setSession. То же
-    // для waitForOAuthCode — добавляется guard в signInWithOAuth.
+    // inflightRefresh isn't canceled (a Promise can't be canceled), but its
+    // success handler checks destroyed and skips setSession. Same for
+    // waitForOAuthCode — a guard is added in signInWithOAuth.
     this.inflightRefresh = null;
   }
 
-  /** Sync-проверка: был ли вызван destroy(). Полезно для UI / тестов. */
+  /** Sync check: was destroy() called. Useful for UI / tests. */
   isDestroyed(): boolean {
     return this.destroyed;
   }
@@ -1236,7 +1233,7 @@ export class AuthClient {
         await this.storage.removeItem(this.storageKey());
       }
     } catch {
-      /* quota / disabled — не критично, in-memory состояние верное */
+      /* quota / disabled — not critical, the in-memory state is correct */
     }
   }
 
@@ -1256,7 +1253,7 @@ export class AuthClient {
         token
       );
     } catch {
-      /* quota / disabled — anon resume сломается, но текущая session жива */
+      /* quota / disabled — anon resume will break, but the current session is alive */
     }
   }
 
@@ -1271,10 +1268,10 @@ export class AuthClient {
   }
 
   /**
-   * Last-used auth method + email — для UI бейджа "Last used" и pre-fill'а
-   * email-инпута. Storage paywall-scoped, поэтому переключение между
-   * пейволами на одном host'е не пересекает данные. Чтение всегда возвращает
-   * объект — отсутствующие поля = null. */
+   * Last-used auth method + email — for the "Last used" UI badge and pre-filling
+   * the email input. Storage is paywall-scoped, so switching between paywalls on
+   * one host doesn't cross the data. A read always returns an object — missing
+   * fields = null. */
   async getLastLogin(): Promise<LastLogin | null> {
     try {
       const [method, email] = await Promise.all([
@@ -1289,17 +1286,17 @@ export class AuthClient {
     }
   }
 
-  /** Запись method и email атомарно (для email/password flows — оба известны
-   *  на момент signin/signup'а). OAuth-flows используют раздельные
-   *  recordLastLoginMethod (до popup) и recordLastLoginEmail (после exchange). */
+  /** Records method and email atomically (for email/password flows — both are
+   *  known at signin/signup time). OAuth flows use separate recordLastLoginMethod
+   *  (before the popup) and recordLastLoginEmail (after the exchange). */
   private recordLastLogin(method: LastLoginMethod, email: string | null): void {
     this.recordLastLoginMethod(method);
     if (email) this.recordLastLoginEmail(email);
   }
 
   private recordLastLoginMethod(method: LastLoginMethod): void {
-    // Fire-and-forget — UI-фича, не блокируем signin flow. Ошибки storage
-    // (quota / private mode) ломают только бейдж, не сам signin.
+    // Fire-and-forget — a UI feature, we don't block the signin flow. Storage
+    // errors (quota / private mode) break only the badge, not the signin itself.
     this.storage
       .setItem(STORAGE_KEYS.lastLoginMethod(this.paywallId), method)
       .catch(() => {});
@@ -1312,11 +1309,11 @@ export class AuthClient {
   }
 
   /**
-   * Читает stable visitor_id из storage если он там уже есть. НЕ генерит:
-   * AuthClient может быть инстанцирован раньше BillingClient, а синтетический
-   * visitor_id без касания пейвола не имеет смысла (нет гостевых покупок,
-   * которые надо бы линковать). undefined → бэк сам пропустит ветку
-   * "merge guest purchases".
+   * Reads the stable visitor_id from storage if it's already there. Does NOT
+   * generate it: AuthClient may be instantiated before BillingClient, and a
+   * synthetic visitor_id without touching the paywall is meaningless (there are no
+   * guest purchases to link). undefined → the backend itself skips the
+   * "merge guest purchases" branch.
    */
   private async readVisitorId(): Promise<string | undefined> {
     try {
@@ -1328,13 +1325,13 @@ export class AuthClient {
   }
 }
 
-// Таймаут OAuth-флоу. 5 минут с запасом покрывают: 2FA в Google, ручной
-// switch-account в Apple, медленную сеть. Дольше — почти гарантированно
-// зависший popup, лучше показать ошибку.
+// OAuth flow timeout. 5 minutes comfortably cover: 2FA in Google, a manual
+// switch-account in Apple, a slow network. Longer — almost certainly a hung
+// popup, better to show an error.
 const OAUTH_TIMEOUT_MS = 5 * 60_000;
-// Период проверки window.closed. Браузер не эмитит событие закрытия popup'а
-// для cross-origin окон, поэтому опрашиваем поллингом. 500ms — компромисс
-// между отзывчивостью и cpu.
+// The window.closed check interval. The browser doesn't emit a close event for a
+// popup of cross-origin windows, so we poll. 500ms is a compromise between
+// responsiveness and cpu.
 const OAUTH_POLL_MS = 500;
 
 interface OAuthMessage {
@@ -1346,9 +1343,9 @@ interface OAuthMessage {
   messageId?: string;
 }
 
-/** Ожидает OAuth-callback в popup'е и резолвится с code'ом. Используется
- *  в `signInWithOAuth` и при split-API flow (где popup открывается извне,
- *  например в content-script'е extension'а с offscreen-AuthClient'ом). */
+/** Waits for the OAuth callback in the popup and resolves with the code. Used in
+ *  `signInWithOAuth` and in the split-API flow (where the popup is opened
+ *  externally, e.g. in the extension's content-script with an offscreen AuthClient). */
 export function waitForOAuthCode(popup: Window, expectedState: string): Promise<string> {
   return new Promise((resolve, reject) => {
     let settled = false;
@@ -1364,10 +1361,10 @@ export function waitForOAuthCode(popup: Window, expectedState: string): Promise<
       if (settled) return;
       const data = e.data as OAuthMessage | null;
       if (!data || data.type !== 'pw-oauth') return;
-      // Origin не валидируем: callback page отсылает с targetOrigin='*' из-за
-      // COOP-ограничений в popup'е. state — единственный нонc, привязанный
-      // к открытому popup'у в этой странице, так что defence именно через
-      // него: чужой постмессадж не знает наш state.
+      // We don't validate origin: the callback page sends with targetOrigin='*'
+      // due to COOP restrictions in the popup. state is the only nonce tied to the
+      // popup opened in this page, so the defense is exactly through it: a foreign
+      // postMessage doesn't know our state.
       if (data.messageId !== expectedState) return;
 
       if (data.status === 'success' && data.code) {
@@ -1386,16 +1383,16 @@ export function waitForOAuthCode(popup: Window, expectedState: string): Promise<
       }
     };
 
-    // window.closed — true когда юзер закрыл popup сам или браузер закрыл его
-    // из-за провайдерской ошибки (некоторые провайдеры так делают). Закрытие
-    // без message = отмена.
+    // window.closed — true when the user closed the popup themselves or the
+    // browser closed it due to a provider error (some providers do that). Closing
+    // without a message = cancellation.
     const closedTimer = setInterval(() => {
       if (settled) return;
       let closed: boolean;
       try {
         closed = popup.closed;
       } catch {
-        // Cross-origin доступ запрещён — лучше игнорировать, чем падать.
+        // Cross-origin access is forbidden — better to ignore than to crash.
         return;
       }
       if (closed) {

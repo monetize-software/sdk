@@ -4,9 +4,9 @@ import tailwindcss from '@tailwindcss/vite';
 import dts from 'vite-plugin-dts';
 
 export default defineConfig(({ command, mode }) => {
-  // vite.config.ts исполняется в Node до подгрузки .env*, поэтому переменные оттуда
-  // в process.env не попадают. loadEnv читает .env / .env.local / .env.[mode] вручную,
-  // чтобы VITE_API_TARGET из .env.local реально влиял на proxy.target ниже.
+  // vite.config.ts runs in Node before .env* is loaded, so variables from there
+  // do not end up in process.env. loadEnv reads .env / .env.local / .env.[mode]
+  // manually, so VITE_API_TARGET from .env.local actually affects proxy.target below.
   const env = { ...process.env, ...loadEnv(mode, process.cwd(), '') };
 
   return {
@@ -57,12 +57,12 @@ export default defineConfig(({ command, mode }) => {
   },
 
   server: {
-    // 5060 — SIP unsafe port в Chromium (ERR_UNSAFE_PORT), 5070 не блокируется.
+    // 5060 is a SIP unsafe port in Chromium (ERR_UNSAFE_PORT); 5070 is not blocked.
     port: 5070,
     open: '/demo/',
     proxy: {
-      // Куда бьёт demo/main.ts в real-backend режиме. По умолчанию локальный online
-      // (нужен `cd online && pnpm dev`). Переопределяется через VITE_API_TARGET.
+      // Where demo/main.ts hits in real-backend mode. Defaults to local online
+      // (requires `cd online && pnpm dev`). Overridable via VITE_API_TARGET.
       '/api': {
         target: env.VITE_API_TARGET ?? 'https://local.paywall.app:5050',
         changeOrigin: true,

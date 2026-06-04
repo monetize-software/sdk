@@ -6,22 +6,22 @@ import { useI18n, type TFn } from '../../i18n';
 type PriceGridBlock = Extract<LayoutBlock, { type: 'price_grid' }>;
 
 interface FormattedPrice {
-  /** Символ валюты (или ISO-код, если символ не определился). */
+  /** Currency symbol (or ISO code if the symbol could not be resolved). */
   currency: string;
-  /** Целая часть, без разделителей дробной. */
+  /** Integer part, without fractional separators. */
   amount: string;
-  /** Original (без discount), formatted — для strike-through. null если
-   *  скидки нет или discount=0%. */
+  /** Original (without discount), formatted — for strike-through. null if
+   *  there is no discount or discount=0%. */
   originalAmount: string | null;
 }
 
-// Year-план показывает per-month эквивалент сразу в основной цене:
-//   YEARLY PLAN €4.99 / month   (вместо €59.99 / year)
-// Это легаси-UX из online/PaywallPricing.tsx (`unit_amount / 12`):
-// юзеру важна стоимость в месяц для сравнения с monthly-планом, а годовое
-// списание — деталь, которая не должна доминировать в типографике. planLabel
-// остаётся "YEARLY PLAN", так что billed-cadence по-прежнему понятен из
-// названия.
+// The year plan shows the per-month equivalent right in the main price:
+//   YEARLY PLAN €4.99 / month   (instead of €59.99 / year)
+// This is legacy UX from online/PaywallPricing.tsx (`unit_amount / 12`):
+// the user cares about the monthly cost to compare with the monthly plan, while the yearly
+// charge is a detail that should not dominate the typography. planLabel
+// stays "YEARLY PLAN", so the billed cadence is still clear from the
+// name.
 function displayedAmount(price: PaywallPrice): { amount: number; currency: string } {
   const display = price.local ?? { currency: price.currency, amount: price.amount };
   if (price.interval === 'year') {
@@ -31,11 +31,11 @@ function displayedAmount(price: PaywallPrice): { amount: number; currency: strin
   return { amount: display.amount, currency: display.currency };
 }
 
-// Форматирует число в currency-string без литералов, разделяет currency-symbol
-// и числовую часть. Используется и для основной цены, и для strike-through
-// original (тогда discount применять не нужно — value уже base).
-// Дробная часть авто: целое → "$8", нецелое → "$4.99". Целые без .00 заметнее
-// конвертят — глаз быстрее цепляет короткое число.
+// Formats a number into a currency string without literals, splitting the currency symbol
+// from the numeric part. Used both for the main price and for the strike-through
+// original (in which case no discount needs to be applied — the value is already base).
+// Fractional part is automatic: integer → "$8", non-integer → "$4.99". Integers without .00 convert
+// better — the eye catches a short number faster.
 function formatCurrencyParts(value: number, currency: string): {
   currency: string;
   amount: string;
@@ -73,8 +73,8 @@ function formatPriceParts(price: PaywallPrice, discountPercent: number | null): 
   const discounted = base * (1 - discountPercent / 100);
   const main = formatCurrencyParts(discounted, cur);
   const original = formatCurrencyParts(base, cur);
-  // Strike-through показываем полностью (`€59.99`/`€9.99` — с currency-знаком),
-  // чтобы юзер сразу видел старую цену в той же валюте, без догадок.
+  // We show the strike-through in full (`€59.99`/`€9.99` — with the currency sign),
+  // so the user immediately sees the old price in the same currency, no guessing.
   return {
     currency: main.currency,
     amount: main.amount,
@@ -82,9 +82,9 @@ function formatPriceParts(price: PaywallPrice, discountPercent: number | null): 
   };
 }
 
-// Подбор активного offer'а вынесен в `core/offer.ts:findLiveOffer` —
-// expiry-aware обёртка над findApplicableOffer (режет просроченные офферы,
-// чтобы strike-through/скидка исчезали синхронно с countdown-баннером).
+// Selecting the active offer is extracted into `core/offer.ts:findLiveOffer` —
+// an expiry-aware wrapper over findApplicableOffer (it drops expired offers,
+// so the strike-through/discount disappear in sync with the countdown banner).
 
 function planLabel(price: PaywallPrice, t: TFn): string {
   if (price.label) return price.label.toUpperCase();
@@ -102,9 +102,9 @@ function planLabel(price: PaywallPrice, t: TFn): string {
   return `${price.interval.toUpperCase()} PLAN`;
 }
 
-// Суффикс после цены. Year → "month" (потому что amount уже /12, см.
-// displayedAmount). Lifetime → "lifetime". Прочее — singular interval
-// или "N intervals" для interval_count > 1.
+// Suffix after the price. Year → "month" (because amount is already /12, see
+// displayedAmount). Lifetime → "lifetime". Everything else — the singular interval
+// or "N intervals" for interval_count > 1.
 function intervalSuffix(price: PaywallPrice, t: TFn): string {
   if (!price.interval || price.interval === 'lifetime') {
     return t('pricing.interval.lifetime_short', 'lifetime');
@@ -126,13 +126,13 @@ export function PriceGrid({ block, ctx }: BlockProps<PriceGridBlock>) {
 
   const popularLabel = block.popular_label ?? t('pricing.most_popular', 'Most popular');
 
-  // Compact-режим — telegram-style список: тонкая подложка-карточка вокруг
-  // всех строк (rounded-xl + light bg + 1px border). Разделители между
-  // строками — `border-b` на внутреннем label-wrapper'е CompactRow (кроме
-  // последней). Зеркало legacy PaywallPricing wrapper'а: для не-default view
-  // он рисует `rounded-xl border-1 border-default-200 bg-default-50` —
-  // отделяет блок цен от остального layout'а.
-  // v2 storage-ключ — `view: 'telegram'`, bootstrap нормализует в 'compact'.
+  // Compact mode — a telegram-style list: a thin backing card around
+  // all rows (rounded-xl + light bg + 1px border). Dividers between
+  // rows are `border-b` on the inner label-wrapper of CompactRow (except
+  // the last). Mirrors the legacy PaywallPricing wrapper: for a non-default view
+  // it draws `rounded-xl border-1 border-default-200 bg-default-50` —
+  // separating the price block from the rest of the layout.
+  // The v2 storage key is `view: 'telegram'`, bootstrap normalizes it to 'compact'.
   if (block.view === 'compact') {
     return (
       <div
@@ -160,17 +160,17 @@ export function PriceGrid({ block, ctx }: BlockProps<PriceGridBlock>) {
     );
   }
 
-  // Horizontal-режим — реальный grid из карточек side-by-side. v2 storage-ключ
-  // `view: 'row'` (SDK 3.0 only — старые legacy-paywall'ы этого ключа не
-  // выбирают; bootstrap нормализует в 'horizontal'). max 3 столбца, при 1-2
-  // ценах stretch'ат строку. Tailwind purge не переживает runtime grid-cols-N,
-  // потому inline gridTemplateColumns.
+  // Horizontal mode — a real grid of side-by-side cards. The v2 storage key
+  // `view: 'row'` (SDK 3.0 only — old legacy paywalls don't select this
+  // key; bootstrap normalizes it to 'horizontal'). max 3 columns; with 1-2
+  // prices they stretch the row. Tailwind purge does not survive a runtime grid-cols-N,
+  // hence the inline gridTemplateColumns.
   if (block.view === 'horizontal') {
     const cols = Math.min(prices.length, 3);
-    // Если хоть у одной цены в гриде есть discount — резервируем strike-row
-    // фиксированной высотой у ВСЕХ карточек (иначе main amount без скидки
-    // прыгает выше соседних со скидкой). Если оффера нет совсем — strike-row
-    // схлопывается в 0 у всех, и не висит 22px пустоты под label'ом.
+    // If at least one price in the grid has a discount, we reserve a strike-row
+    // of fixed height in ALL cards (otherwise the main amount without a discount
+    // jumps above its discounted neighbors). If there is no offer at all, the strike-row
+    // collapses to 0 in all of them, and there's no 22px of empty space hanging under the label.
     const anyHasDiscount = prices.some(
       (p) => (findLiveOffer(ctx.bootstrap.offers, p.id, { readStart: readBrowserOfferStart })?.discount_percent ?? 0) > 0
     );
@@ -225,9 +225,9 @@ export function PriceGrid({ block, ctx }: BlockProps<PriceGridBlock>) {
             }}
             class={[
               'group relative inline-flex w-full mx-auto items-center justify-between flex-row-reverse gap-4 rounded-2xl border-2 px-4 py-3.5 text-left transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--pw-accent)]',
-              // Везде border 2px — selection выражается только цветом, layout
-              // не прыгает (равная толщина у selected/unselected). Цветовая
-              // разница accent vs gray достаточно сильная для visual hierarchy.
+              // border 2px everywhere — selection is expressed by color only, the layout
+              // does not jump (equal thickness for selected/unselected). The color
+              // difference accent vs gray is strong enough for visual hierarchy.
               selected
                 ? 'border-[var(--pw-accent)] bg-transparent'
                 : 'border-gray-200 bg-transparent hover:bg-gray-50'
@@ -239,10 +239,10 @@ export function PriceGrid({ block, ctx }: BlockProps<PriceGridBlock>) {
                 selected
                   ? 'border-[var(--pw-accent)] text-white'
                   : 'border-gray-300 bg-transparent text-transparent',
-                // Popular-label badge сидит absolute сверху-справа карточки и
-                // визуально сдвигает центр content'а вниз. flex items-center
-                // на карточке держит галочку по геометрическому центру, что
-                // делает её визуально выше — компенсируем небольшим mt'ом.
+                // The popular-label badge sits absolute at the top-right of the card and
+                // visually shifts the content's center down. flex items-center
+                // on the card keeps the checkmark at the geometric center, which
+                // makes it look too high — we compensate with a small mt.
                 isPopular ? 'mt-3' : ''
               ].join(' ')}
               style={
@@ -270,24 +270,24 @@ export function PriceGrid({ block, ctx }: BlockProps<PriceGridBlock>) {
               </svg>
             </span>
             <div class="flex flex-1 flex-col gap-0.5">
-              {/* Label + strike+badge на одной строке (flex-wrap для узких
-                  карточек) — компактный 2-row layout вместо 3-row. Tags идут
-                  справа от label с gap'ом, при переполнении переносятся. */}
+              {/* Label + strike+badge on one line (flex-wrap for narrow
+                  cards) — a compact 2-row layout instead of 3-row. Tags go
+                  to the right of the label with a gap, wrapping on overflow. */}
               <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
                 <span class="text-xs font-normal uppercase tracking-normal text-gray-800/70">
                   {planLabel(price, t)}
                 </span>
                 {originalAmount ? (
-                  // opacity-60 приглушает strike: глаз сначала ловит label
-                  // и discount-badge, потом main price; original «бывшая цена»
-                  // — третичная информация, не должна конкурировать с label.
+                  // opacity-60 mutes the strike: the eye catches the label
+                  // and discount badge first, then the main price; the original "former price"
+                  // is tertiary info and should not compete with the label.
                   <span class="text-[15px] font-normal text-gray-400 opacity-60 line-through decoration-gray-400 decoration-[1.5px]">
                     {originalAmount}
                   </span>
                 ) : null}
                 {discountPercent ? (
-                  // Emerald pill — фиксированный «успех/выгода», не зависит от
-                  // brand_color. Читается даже на тёмных бренд-акцентах.
+                  // Emerald pill — a fixed "success/savings", independent of
+                  // brand_color. Readable even on dark brand accents.
                   <span class="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-bold leading-none text-emerald-700">
                     -{discountPercent}%
                   </span>
@@ -307,10 +307,10 @@ export function PriceGrid({ block, ctx }: BlockProps<PriceGridBlock>) {
             </div>
             {isPopular ? (
               <span
-                // Solid accent + white text — высокий contrast, glasses-test'ом
-                // глаз сразу выхватывает popular pick. Pastel-вариант
-                // конкурировал по visual weight с самой ценой и не работал
-                // ни как highlight, ни как информация.
+                // Solid accent + white text — high contrast; in a glasses-test
+                // the eye picks out the popular choice immediately. The pastel variant
+                // competed in visual weight with the price itself and worked
+                // neither as a highlight nor as information.
                 class="absolute -top-[9px] -right-[6px] rounded-[11px] border-[5px] border-white px-2 py-1 text-[12px] font-semibold text-white"
                 style={{ background: 'var(--pw-accent)' }}
               >
@@ -324,10 +324,10 @@ export function PriceGrid({ block, ctx }: BlockProps<PriceGridBlock>) {
   );
 }
 
-// Короткий one-word label для compact-режима ("Month" / "Year" / "Lifetime")
-// вместо длинного "MONTHLY PLAN". Зеркало legacy `getIntervalName` для
-// TelegramPricingRadio: чем компактнее ряд — тем компактнее лейбл, иначе
-// текст начинает конкурировать с ценой.
+// A short one-word label for compact mode ("Month" / "Year" / "Lifetime")
+// instead of the long "MONTHLY PLAN". Mirrors the legacy `getIntervalName` for
+// TelegramPricingRadio: the more compact the row, the more compact the label, otherwise
+// the text starts competing with the price.
 function compactLabel(price: PaywallPrice, t: TFn): string {
   if (price.label) return price.label;
   if (!price.interval || price.interval === 'lifetime') {
@@ -336,12 +336,12 @@ function compactLabel(price: PaywallPrice, t: TFn): string {
   return t(`pricing.interval.${price.interval}`, price.interval);
 }
 
-// Компактная строка для compact-режима. Зеркало legacy `TelegramPricingRadio`:
+// A compact row for compact mode. Mirrors the legacy `TelegramPricingRadio`:
 //   [radio] | [label + popular-pill]  ······  [strike+badge ▸ price]
-// Разделители живут на внутреннем label-wrapper'е (`border-b`), последняя
-// строка без border'а. Selection выражается только цветом radio-кружочка —
-// никакого bg-tint'а, чтобы не конфликтовало с pricing-сеткой. Шрифты — text-md
-// без жирного, как в legacy (heroui text-md ≈ 16px).
+// Dividers live on the inner label-wrapper (`border-b`), the last
+// row without a border. Selection is expressed only by the color of the radio circle —
+// no bg-tint, so it doesn't conflict with the pricing grid. Fonts — text-md
+// without bold, as in legacy (heroui text-md ≈ 16px).
 function CompactRow({
   price,
   isLast,
@@ -402,9 +402,9 @@ function CompactRow({
           />
         </svg>
       </span>
-      {/* Внутренний wrapper, на нём `border-b` — разделитель между строками.
-          Сидит за radio'м (по flex-flow), даёт визуальную нижнюю линию ровно
-          под label/price колонками, как в legacy. */}
+      {/* Inner wrapper, carrying `border-b` — the divider between rows.
+          It sits after the radio (by flex-flow), giving a visual bottom line exactly
+          under the label/price columns, as in legacy. */}
       <div
         class={[
           'flex flex-1 items-center gap-1.5 pb-3.5',
@@ -416,9 +416,9 @@ function CompactRow({
             {compactLabel(price, t)}
           </span>
           {isPopular ? (
-            // Pastel brand-mix pill — точно как `badge` в TelegramPricingRadio.
-            // Низкий visual weight: pill про "имя плана" (most popular), а не
-            // про savings — не должна конкурировать с -X% discount-pill.
+            // Pastel brand-mix pill — exactly like `badge` in TelegramPricingRadio.
+            // Low visual weight: the pill is about the "plan name" (most popular), not
+            // about savings — it should not compete with the -X% discount pill.
             <span
               class="rounded-[9px] px-2 py-1 text-[10px] font-bold"
               style={{
@@ -455,12 +455,12 @@ function CompactRow({
   );
 }
 
-// Компактная карточка для horizontal-grid'а. UX-модель — Stripe pricing tables:
-// selection выражается border-цветом + tinted bg всей карточки, без отдельного
-// radio-кружочка (в узкой колонке любая icon-метка конкурирует с ценой за
-// внимание). Popular-badge — absolute pill сверху-справа (как в default view):
-// освобождает вертикаль внутри карточки, читается как premium-маркер. Все
-// карточки в ряду выровнены через `items-stretch` на grid'е (см. вызов).
+// A compact card for the horizontal grid. UX model — Stripe pricing tables:
+// selection is expressed by border color + a tinted bg of the whole card, without a separate
+// radio circle (in a narrow column any icon mark competes with the price for
+// attention). The popular badge is an absolute pill at the top-right (as in the default view):
+// it frees up vertical space inside the card and reads as a premium marker. All
+// cards in a row are aligned via `items-stretch` on the grid (see the call site).
 function RowCard({
   price,
   isPopular,
@@ -475,11 +475,11 @@ function RowCard({
   isPopular: boolean;
   popularLabel: string;
   offer: PaywallOffer | null;
-  /** Резервировать высоту под strike-row (originalAmount + discount-pill) даже
-   *  у этой карточки без скидки. true когда в гриде есть хотя бы одна цена со
-   *  скидкой — иначе main amount без скидки прыгает выше соседних со скидкой.
-   *  false когда оффера нет ни у одной цены в гриде — strike-row коллапсится
-   *  в 0 у всех, не висит 22px пустоты под label'ом. */
+  /** Reserve height for the strike-row (originalAmount + discount-pill) even
+   *  in this card without a discount. true when the grid has at least one price with
+   *  a discount — otherwise the main amount without a discount jumps above its discounted neighbors.
+   *  false when no price in the grid has an offer — the strike-row collapses
+   *  to 0 in all of them, and there's no 22px of empty space under the label. */
   reserveStrikeRow: boolean;
   selected: boolean;
   onSelect: () => void;
@@ -505,16 +505,16 @@ function RowCard({
           : undefined
       }
     >
-      {/* Label с фиксированной min-height на 2 строки — длинные ("YEARLY PLAN")
-          и короткие ("LIFETIME") не сдвигают цену между карточками. */}
+      {/* Label with a fixed min-height of 2 lines — long ("YEARLY PLAN")
+          and short ("LIFETIME") ones don't shift the price between cards. */}
       <span class="flex min-h-[2.4em] items-center text-[10px] font-normal uppercase leading-tight text-gray-800/70">
         {planLabel(price, t)}
       </span>
-      {/* Strike-row сверху ПЕРЕД main amount: сначала "была $10" + "-20%",
-          потом крупно "$8". Высота резервируется (h-[22px]) только если в
-          гриде есть хоть одна цена со скидкой — это держит alignment между
-          карточками со скидкой и без. Если оффера нет совсем — row не
-          рендерим, не остаётся 22px пустоты под label'ом во всех карточках. */}
+      {/* Strike-row on top BEFORE the main amount: first "was $10" + "-20%",
+          then "$8" large. Height is reserved (h-[22px]) only if the
+          grid has at least one price with a discount — this keeps alignment between
+          discounted and non-discounted cards. If there is no offer at all, we don't
+          render the row, leaving no 22px of empty space under the label in all cards. */}
       {reserveStrikeRow ? (
         <div class="flex h-[22px] items-center justify-center gap-1.5">
           {originalAmount ? (
@@ -537,8 +537,8 @@ function RowCard({
       </span>
       {isPopular ? (
         <span
-          // Solid accent + white text + white border-ring — отстраивает badge
-          // от border'а карточки, имитирует "наклейку". Зеркало default-view.
+          // Solid accent + white text + white border-ring — separates the badge
+          // from the card's border, imitating a "sticker". Mirrors the default view.
           class="absolute -top-[10px] left-1/2 -translate-x-1/2 whitespace-nowrap rounded-[11px] border-[3px] border-white px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white"
           style={{ background: 'var(--pw-accent)' }}
         >

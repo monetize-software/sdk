@@ -1,15 +1,15 @@
-// Полный сквозной Paddle Sandbox flow на paywall id=4 → редирект с hash-
-// маркерами → `purchase_completed`. Хрупче, чем bootstrap-смоук: зависит от
-// вёрстки Paddle hosted checkout. Запускаем вручную через
-// `pnpm test:e2e:checkout:paddle` перед релизом или когда меняем return-URL
-// контракт на стороне Paddle.
+// A full end-to-end Paddle Sandbox flow on paywall id=4 → redirect with hash
+// markers → `purchase_completed`. More fragile than the bootstrap smoke: depends on
+// the Paddle hosted checkout markup. We run it manually via
+// `pnpm test:e2e:checkout:paddle` before a release or when we change the return-URL
+// contract on the Paddle side.
 //
-// Препросы те же, что у demo-bootstrap.paddle.spec.ts (paywall id=4, dev-online).
+// Prerequisites are the same as demo-bootstrap.paddle.spec.ts (paywall id=4, dev-online).
 //
-// Селекторы Paddle Sandbox формы могут со временем поплыть — Paddle Billing
-// 2.0 рендерит inline-checkout, и атрибуты не такие стабильные, как у Stripe.
-// Если тест начнёт падать — записать новый снимок DOM через `--debug` и
-// поправить селекторы; не пытаться адаптировать через retries.
+// The Paddle Sandbox form selectors may drift over time — Paddle Billing
+// 2.0 renders an inline checkout, and the attributes are not as stable as Stripe's.
+// If the test starts failing, record a new DOM snapshot via `--debug` and
+// fix the selectors; do not try to adapt via retries.
 
 import { test, expect } from '@playwright/test';
 
@@ -25,14 +25,14 @@ test('paywall id=4 (Paddle) full sandbox checkout → purchase_completed', async
 
   const email = `e2e-${Date.now()}-${Math.random().toString(36).slice(2)}@example.com`;
   await page.evaluate((e) => {
-    // @ts-expect-error — __paywall экспонируется в demo/main.ts
+    // @ts-expect-error — __paywall is exposed in demo/main.ts
     window.__paywall.billing.setIdentity({ email: e, userId: e });
   }, email);
 
   await page.evaluate(() => {
     (window as unknown as { __checkoutStarted?: Promise<unknown> }).__checkoutStarted =
       new Promise((resolve) => {
-        // @ts-expect-error — __paywall с типизированными событиями
+        // @ts-expect-error — __paywall with typed events
         window.__paywall.on('checkout_started', resolve);
       });
   });
@@ -51,9 +51,9 @@ test('paywall id=4 (Paddle) full sandbox checkout → purchase_completed', async
 
   await paddleTab.waitForLoadState('domcontentloaded');
 
-  // Paddle Sandbox принимает 4242. Поля по placeholder/label, без testid.
-  // Email обычно предзаполнен из start-checkout payload, но если форма его
-  // спрашивает — досылаем.
+  // Paddle Sandbox accepts 4242. Fields by placeholder/label, no testid.
+  // The email is usually pre-filled from the start-checkout payload, but if the form
+  // asks for it, we send it.
   const emailInput = paddleTab.getByLabel(/email/i);
   if (await emailInput.isVisible().catch(() => false)) {
     await emailInput.fill(email);
@@ -67,7 +67,7 @@ test('paywall id=4 (Paddle) full sandbox checkout → purchase_completed', async
     await nameInput.fill('Test User');
   }
 
-  // Кнопка submit на Paddle hosted checkout — обычно «Pay …» / «Subscribe …».
+  // The submit button on Paddle hosted checkout is usually "Pay …" / "Subscribe …".
   await paddleTab.getByRole('button', { name: /pay|subscribe/i }).click();
 
   await paddleTab.waitForURL(/localhost:5070\/demo\/.*paywall_status=paid/, { timeout: 60_000 });

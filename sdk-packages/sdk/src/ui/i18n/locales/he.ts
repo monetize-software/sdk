@@ -1,10 +1,10 @@
 /**
- * Static-translations для he. Сгенерировано из:
- *  - `online/lang/static-translations.ts` (legacy, через KEY_MAP)
- *  - `tools/sdk-translations.mjs` (SDK-specific строки)
+ * Static-translations for he. Generated from:
+ *  - `online/lang/static-translations.ts` (legacy, via KEY_MAP)
+ *  - `tools/sdk-translations.mjs` (SDK-specific strings)
  *
- * Не править вручную — изменения теряются при следующем `node tools/gen-locales.mjs`.
- * Чтобы исправить перевод — править legacy/sdk-translations.mjs и регенерить.
+ * Do not edit by hand — changes are lost on the next `node tools/gen-locales.mjs`.
+ * To fix a translation, edit legacy/sdk-translations.mjs and regenerate.
  */
 const he = {
   'anon.heading_default': 'המשך כאורח',
@@ -47,7 +47,6 @@ const he = {
   'auth.reset_password_title': 'איפוס סיסמה',
   'auth.reset_sent_message': 'אם הדואר קיים, נשלח קוד איפוס.',
   'auth.reset_sent_subtitle': 'שלחנו קישור לאיפוס סיסמה. עקוב אחר ההוראות במייל.',
-  'auth.signup_sent_subtitle': 'שלחנו קישור אישור לכתובת המייל שלך. לחץ עליו כדי להפעיל את החשבון, ואז התחבר.',
   'auth.restore_purchases_heading': 'שחזר רכישות',
   'auth.restore_purchases_subheading': 'אנא התחבר כדי לשחזר את הרכישות שלך.',
   'auth.send_reset': 'שלח אימייל איפוס',
@@ -79,9 +78,9 @@ const he = {
   'modal.continue': 'המשך',
   'modal.error_generic': 'משהו השתבש',
   'modal.loading': 'טוען…',
-  'modal.purchase_restored_subtitle': 'ברוך שובך — המינוי שלך כבר פעיל.',
-  'modal.purchase_restored_title': 'המינוי שוחזר',
-  'modal.purchase_success_subtitle': 'המינוי שלך פעיל כעת.',
+  'modal.purchase_restored_subtitle': 'הכול מוכן — תיהנו!',
+  'modal.purchase_restored_title': 'ברוך שובך',
+  'modal.purchase_success_subtitle': 'הכול מוכן — תיהנו!',
   'modal.purchase_success_title': 'התקבל תשלום',
   'modal.verifying_subscription': 'בודק את המינוי שלך…',
   'nav.back': '→ חזרה',

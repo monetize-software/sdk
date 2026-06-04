@@ -1,10 +1,10 @@
 /**
- * Static-translations для no. Сгенерировано из:
- *  - `online/lang/static-translations.ts` (legacy, через KEY_MAP)
- *  - `tools/sdk-translations.mjs` (SDK-specific строки)
+ * Static-translations for no. Generated from:
+ *  - `online/lang/static-translations.ts` (legacy, via KEY_MAP)
+ *  - `tools/sdk-translations.mjs` (SDK-specific strings)
  *
- * Не править вручную — изменения теряются при следующем `node tools/gen-locales.mjs`.
- * Чтобы исправить перевод — править legacy/sdk-translations.mjs и регенерить.
+ * Do not edit by hand — changes are lost on the next `node tools/gen-locales.mjs`.
+ * To fix a translation, edit legacy/sdk-translations.mjs and regenerate.
  */
 const no = {
   'anon.heading_default': 'Fortsett som gjest',
@@ -47,7 +47,6 @@ const no = {
   'auth.reset_password_title': 'Tilbakestill passord',
   'auth.reset_sent_message': 'Hvis e-posten finnes, er det sendt en tilbakestillingskode.',
   'auth.reset_sent_subtitle': 'Vi har sendt en lenke for å tilbakestille passordet. Følg instruksjonene i e-posten.',
-  'auth.signup_sent_subtitle': 'Vi har sendt en bekreftelseslenke til e-posten din. Klikk på den for å aktivere kontoen, og logg deretter inn.',
   'auth.restore_purchases_heading': 'Gjenopprett Kjøp',
   'auth.restore_purchases_subheading': 'Logg inn for å gjenopprette kjøpene dine.',
   'auth.send_reset': 'Send Tilbakestillingsmail',
@@ -75,9 +74,9 @@ const no = {
   'modal.continue': 'Fortsett',
   'modal.error_generic': 'Noe gikk galt',
   'modal.loading': 'Laster…',
-  'modal.purchase_restored_subtitle': 'Velkommen tilbake — abonnementet ditt er allerede aktivt.',
-  'modal.purchase_restored_title': 'Abonnement gjenopprettet',
-  'modal.purchase_success_subtitle': 'Abonnementet ditt er nå aktivt.',
+  'modal.purchase_restored_subtitle': 'Alt er klart — kos deg!',
+  'modal.purchase_restored_title': 'Velkommen tilbake',
+  'modal.purchase_success_subtitle': 'Alt er klart — kos deg!',
   'modal.purchase_success_title': 'Betaling mottatt',
   'modal.verifying_subscription': 'Sjekker abonnementet…',
   'nav.back': '← Tilbake',

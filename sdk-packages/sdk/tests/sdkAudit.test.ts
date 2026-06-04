@@ -128,7 +128,7 @@ describe('AuthClient.destroy guards', () => {
     expect(auth.isDestroyed()).toBe(false);
     auth.destroy();
     expect(auth.isDestroyed()).toBe(true);
-    auth.destroy(); // не падает
+    auth.destroy(); // does not throw
   });
 
   it('setSession after destroy is no-op (no listener calls, no persist)', async () => {
@@ -169,8 +169,8 @@ describe('BillingClient.destroy clears listeners', () => {
     billing.onUserChange(userCb);
     billing.onBalanceChange(balCb);
     billing.destroy();
-    // Эмитим напрямую через приватный applyUser/applyBalances — listener'ы
-    // должны быть уже пусты.
+    // Emit directly via the private applyUser/applyBalances — the listeners
+    // should already be empty.
     (billing as unknown as { applyUser: Function }).applyUser({
       has_active_subscription: true,
       purchases: [],
@@ -336,7 +336,7 @@ describe('PaywallUI.getState / onStateChange', () => {
     const off = ui.onStateChange(cb, { immediate: 'sync' });
     cb.mockReset();
     off();
-    // applyState напрямую для проверки
+    // applyState directly for the check
     (ui as unknown as { applyState: Function }).applyState({
       open: true,
       view: 'loading',

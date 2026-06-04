@@ -1,10 +1,10 @@
 /**
- * Static-translations для ko. Сгенерировано из:
- *  - `online/lang/static-translations.ts` (legacy, через KEY_MAP)
- *  - `tools/sdk-translations.mjs` (SDK-specific строки)
+ * Static-translations for ko. Generated from:
+ *  - `online/lang/static-translations.ts` (legacy, via KEY_MAP)
+ *  - `tools/sdk-translations.mjs` (SDK-specific strings)
  *
- * Не править вручную — изменения теряются при следующем `node tools/gen-locales.mjs`.
- * Чтобы исправить перевод — править legacy/sdk-translations.mjs и регенерить.
+ * Do not edit by hand — changes are lost on the next `node tools/gen-locales.mjs`.
+ * To fix a translation, edit legacy/sdk-translations.mjs and regenerate.
  */
 const ko = {
   'anon.description_default': '게스트 세션을 설정 중…',
@@ -52,7 +52,6 @@ const ko = {
   'auth.reset_password_title': '비밀번호 재설정',
   'auth.reset_sent_message': '해당 이메일이 존재하면 재설정 코드가 발송되었습니다.',
   'auth.reset_sent_subtitle': '비밀번호 재설정 링크를 보냈습니다. 이메일의 안내를 따라주세요.',
-  'auth.signup_sent_subtitle': '확인 링크를 이메일로 보냈습니다. 링크를 클릭해 계정을 활성화한 후 로그인하세요.',
   'auth.restore_purchases_heading': '구매 복원',
   'auth.restore_purchases_subheading': '구매를 복원하려면 로그인하세요.',
   'auth.send_reset': '재설정 이메일 보내기',
@@ -85,9 +84,9 @@ const ko = {
   'modal.continue': '계속',
   'modal.error_generic': '문제가 발생했습니다',
   'modal.loading': '불러오는 중…',
-  'modal.purchase_restored_subtitle': '다시 오신 것을 환영합니다 — 구독이 이미 활성화되어 있습니다.',
-  'modal.purchase_restored_title': '구독이 복원되었습니다',
-  'modal.purchase_success_subtitle': '구독이 활성화되었습니다.',
+  'modal.purchase_restored_subtitle': '모든 준비가 끝났어요 — 즐겨보세요!',
+  'modal.purchase_restored_title': '다시 오신 것을 환영합니다',
+  'modal.purchase_success_subtitle': '모든 준비가 끝났어요 — 즐겨보세요!',
   'modal.purchase_success_title': '결제가 완료되었습니다',
   'modal.verifying_subscription': '구독을 확인 중…',
   'nav.back': '← 뒤로',

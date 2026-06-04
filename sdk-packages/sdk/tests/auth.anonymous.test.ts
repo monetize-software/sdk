@@ -4,8 +4,8 @@ import { AuthClient, type AuthChangeEvent, type AuthSession } from '../src/core/
 import { PaywallError } from '../src/core/types';
 import { STORAGE_KEYS, type StorageAdapter } from '../src/core/storage';
 
-// Каждый тест получает изолированный storage — module-level memoryMap из
-// storage.ts протекает между тестами и приносит чужие auth-сессии.
+// Each test gets an isolated storage — the module-level memoryMap from
+// storage.ts leaks between tests and brings in other tests' auth sessions.
 function freshStorage(seed: Record<string, string> = {}): StorageAdapter & {
   _map: Map<string, string>;
 } {
@@ -86,7 +86,7 @@ describe('AuthClient.signInAnonymously', () => {
     expect(auth.getCachedSession()).toEqual(session);
     expect(storage._map.get(STORAGE_KEYS.anonRefreshToken(PAYWALL_ID))).toBe('ar1');
 
-    // Body НЕ должен содержать captcha_token, когда host его не передал.
+    // The body must NOT contain captcha_token when the host did not pass it.
     const [, init] = fetchMock.mock.calls[0];
     const body = JSON.parse(init?.body as string);
     expect(body.captcha_token).toBeUndefined();
@@ -145,10 +145,10 @@ describe('AuthClient.signInAnonymously', () => {
     expect(session.access_token).toBe('aa_new');
     expect(session.refresh_token).toBe('ar_new');
 
-    // Rotated refresh_token должен быть persisted.
+    // The rotated refresh_token must be persisted.
     expect(storage._map.get(STORAGE_KEYS.anonRefreshToken(PAYWALL_ID))).toBe('ar_new');
 
-    // Только refresh, никакого signin.
+    // Refresh only, no signin.
     const calls = fetchMock.mock.calls.map(([u]) => urlOf(u));
     expect(calls.some((u) => u.endsWith('/auth/refresh'))).toBe(true);
     expect(calls.some((u) => u.endsWith('/auth/anonymous/signin'))).toBe(false);
@@ -184,7 +184,7 @@ describe('AuthClient.signInAnonymously', () => {
     const session = await auth.signInAnonymously();
 
     expect(session.refresh_token).toBe('ar_new');
-    // Старый мёртвый token заменён на свежий.
+    // The old dead token is replaced with a fresh one.
     expect(storage._map.get(STORAGE_KEYS.anonRefreshToken(PAYWALL_ID))).toBe('ar_new');
 
     const calls = fetchMock.mock.calls.map(([u]) => urlOf(u));
@@ -218,7 +218,7 @@ describe('AuthClient.signInAnonymously', () => {
     const second = await auth.signInAnonymously();
 
     expect(second).toBe(first);
-    // Должен быть только один сетевой signin — второй вызов фигурирует как no-op.
+    // There must be only one network signin — the second call acts as a no-op.
     const signinCalls = fetchMock.mock.calls.filter(([u]) =>
       urlOf(u).endsWith('/auth/anonymous/signin')
     );
@@ -256,7 +256,7 @@ describe('AuthClient.signInAnonymously', () => {
 
     expect(session.user.id).toBe('anon_uid_2');
     expect(storage._map.get(STORAGE_KEYS.anonRefreshToken(PAYWALL_ID))).toBe('ar_fresh');
-    // Resume через refresh не вызывался.
+    // Resume via refresh was not called.
     const calls = fetchMock.mock.calls.map(([u]) => urlOf(u));
     expect(calls.some((u) => u.endsWith('/auth/refresh'))).toBe(false);
   });
@@ -360,13 +360,13 @@ describe('AuthClient.signOut with anonymous session', () => {
     await auth.signOut();
 
     expect(auth.getCachedSession()).toBeNull();
-    // GoTrue /logout НЕ должен быть вызван — иначе refresh_token инвалидируется
-    // и resume в следующий signInAnonymously сломается.
+    // GoTrue /logout must NOT be called — otherwise the refresh_token is
+    // invalidated and resume on the next signInAnonymously breaks.
     const signoutCalls = fetchMock.mock.calls.filter(([u]) =>
       urlOf(u).endsWith('/auth/signout')
     );
     expect(signoutCalls).toHaveLength(0);
-    // Anon refresh-токен сохранён.
+    // The anon refresh token is preserved.
     expect(storage._map.get(STORAGE_KEYS.anonRefreshToken(PAYWALL_ID))).toBe('ar1');
   });
 
@@ -468,16 +468,16 @@ describe('AuthClient.upgradeAnonymousToEmail', () => {
     if (result.kind !== 'updated') throw new Error('expected updated');
     expect(result.session.user.email).toBe('a@b.c');
     expect(result.session.user.is_anonymous).toBe(false);
-    // user.id остался тем же — балансы не теряются.
+    // user.id stayed the same — balances are not lost.
     expect(result.session.user.id).toBe('anon_uid_1');
-    // Токены текущей сессии остались — GoTrue updateUser не вращает их.
+    // The current session's tokens stayed — GoTrue updateUser does not rotate them.
     expect(result.session.access_token).toBe('aa1');
 
-    // Anon refresh_token очищается — после upgrade юзер не должен случайно
-    // вернуться в анон-стейт через signInAnonymously().
+    // The anon refresh_token is cleared — after the upgrade the user must not
+    // accidentally fall back to the anon state via signInAnonymously().
     expect(storage._map.has(STORAGE_KEYS.anonRefreshToken(PAYWALL_ID))).toBe(false);
 
-    // Bearer был отправлен на upgrade-эндпоинт.
+    // Bearer was sent to the upgrade endpoint.
     const upgradeCall = fetchMock.mock.calls.find(([u]) =>
       urlOf(u).endsWith('/auth/anonymous/upgrade')
     );
@@ -520,12 +520,12 @@ describe('AuthClient.upgradeAnonymousToEmail', () => {
     if (result.kind !== 'confirmation_required') throw new Error('wrong branch');
     expect(result.email).toBe('a@b.c');
 
-    // Локальная сессия должна остаться анонимной — confirmation pending.
+    // The local session must stay anonymous — confirmation pending.
     const cached = auth.getCachedSession();
     expect(cached?.user.is_anonymous).toBe(true);
     expect(cached?.user.email).toBeNull();
-    // Anon refresh_token НЕ должен быть очищен — пользователь всё ещё анон,
-    // signOut должен возвращать его в этот же акк.
+    // The anon refresh_token must NOT be cleared — the user is still anonymous,
+    // and signOut should return them to the same account.
     expect(storage._map.get(STORAGE_KEYS.anonRefreshToken(PAYWALL_ID))).toBe('ar1');
   });
 

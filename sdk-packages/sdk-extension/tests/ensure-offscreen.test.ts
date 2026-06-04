@@ -1,6 +1,6 @@
-// Тест на race в ensureOffscreen: параллельные вызовы (например, 5 onConnect'ов
-// в одном tick'е) должны дедупиться через in-flight promise — chrome.offscreen
-// .createDocument вызывается ровно один раз.
+// Race test for ensureOffscreen: parallel calls (for example, 5 onConnects
+// in a single tick) must be deduped via an in-flight promise — chrome.offscreen
+// .createDocument is called exactly once.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -65,7 +65,7 @@ describe('ensureOffscreen race protection', () => {
       justification: 'test'
     };
 
-    // 5 параллельных вызовов в одном tick'е.
+    // 5 parallel calls in a single tick.
     await Promise.all([
       ensureOffscreen(opts),
       ensureOffscreen(opts),
@@ -74,7 +74,7 @@ describe('ensureOffscreen race protection', () => {
       ensureOffscreen(opts)
     ]);
 
-    // createDocument дёрнулся один раз — остальные четыре подхватили inflight promise.
+    // createDocument fired once — the other four latched onto the inflight promise.
     expect(chrome.offscreen.createDocument).toHaveBeenCalledTimes(1);
   });
 
@@ -98,7 +98,7 @@ describe('ensureOffscreen race protection', () => {
     });
     const { ensureOffscreen } = await import('../src/sw/ensure-offscreen');
 
-    // Не должно бросать — race между check'ом и create'ом нормальная ситуация.
+    // Must not throw — a race between the check and the create is a normal situation.
     await expect(
       ensureOffscreen({
         url: 'chrome-extension://x/offscreen.html',
@@ -137,7 +137,7 @@ describe('ensureOffscreen race protection', () => {
     await ensureOffscreen(opts);
     expect(chrome.offscreen.createDocument).toHaveBeenCalledTimes(1);
 
-    // Второй вызов — getContexts вернёт exists=true, createDocument не дёрнут.
+    // Second call — getContexts returns exists=true, createDocument is not fired.
     await ensureOffscreen(opts);
     expect(chrome.offscreen.createDocument).toHaveBeenCalledTimes(1);
   });

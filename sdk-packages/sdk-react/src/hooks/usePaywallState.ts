@@ -2,13 +2,15 @@ import { useCallback, useSyncExternalStore } from 'react';
 import type { PaywallStateSnapshot } from '@monetize.software/sdk';
 import { usePaywall } from './usePaywall';
 
-// Зеркалит CLOSED_STATE из PaywallUI.ts. Хранится локально, чтобы getSnapshot
-// при paywall=null отдавал стабильную ссылку (та же ссылка между рендерами →
-// useSyncExternalStore не дёргает лишний re-render). Не экспортируется
-// наружу: для public API публичная форма доступна через usePaywallState().
+// Mirrors CLOSED_STATE from PaywallUI.ts. Kept locally so that getSnapshot,
+// when paywall=null, returns a stable reference (the same reference between
+// renders → useSyncExternalStore doesn't trigger an extra re-render). Not
+// exported outside: for the public API the public shape is available via
+// usePaywallState().
 //
-// Shape проверяется в contract.ts — если PaywallStateSnapshot в SDK обзаведётся
-// новым полем, TS-build sdk-react падает раньше, чем кто-то заметит расхождение.
+// The shape is checked in contract.ts — if PaywallStateSnapshot in the SDK
+// gains a new field, the sdk-react TS build fails before anyone notices the
+// mismatch.
 const SSR_SNAPSHOT: PaywallStateSnapshot = {
   open: false,
   view: null,
@@ -17,17 +19,17 @@ const SSR_SNAPSHOT: PaywallStateSnapshot = {
 };
 
 /**
- * Подписка на состояние модалки пейвола: открыта/закрыта, текущий view,
- * последняя ошибка.
+ * A subscription to the paywall modal's state: open/closed, current view, last
+ * error.
  *
- * Реализована поверх `paywall.onStateChange` + `paywall.getState` через
- * `useSyncExternalStore` — это даёт корректную concurrent-rendering семантику
- * (никаких tearing'ов, snapshot стабилен в рамках одного React-commit'а) и
- * минимум re-render'ов (snapshot равенство по `Object.is`).
+ * Implemented on top of `paywall.onStateChange` + `paywall.getState` via
+ * `useSyncExternalStore` — this gives correct concurrent-rendering semantics
+ * (no tearing, the snapshot is stable within a single React commit) and a
+ * minimum of re-renders (snapshot equality by `Object.is`).
  *
- * До mount-а Provider'а или на сервере возвращает `{ open: false, view: null,
- * error: null }` — это та же форма, что PaywallUI кладёт во внутренний
- * CLOSED_STATE, так что хосту не нужно отдельно проверять «инстанс готов».
+ * Before the Provider mounts or on the server it returns `{ open: false, view:
+ * null, error: null }` — the same shape PaywallUI puts into the internal
+ * CLOSED_STATE, so the host doesn't need to separately check "instance ready".
  *
  * ```tsx
  * const { open, view } = usePaywallState();
@@ -42,9 +44,9 @@ export function usePaywallState(): PaywallStateSnapshot {
   const subscribe = useCallback(
     (cb: () => void): (() => void) => {
       if (!paywall) return () => {};
-      // immediate: 'none' — useSyncExternalStore сам читает snapshot через
-      // getSnapshot. Реплей initial-state'а через subscribe был бы лишним
-      // вызовом cb, не приносящим новой информации.
+      // immediate: 'none' — useSyncExternalStore reads the snapshot itself via
+      // getSnapshot. Replaying the initial state through subscribe would be a
+      // redundant cb call bringing no new information.
       return paywall.onStateChange(cb, { immediate: 'none' });
     },
     [paywall]

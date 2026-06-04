@@ -6,8 +6,8 @@ import { STORAGE_KEYS, type StorageAdapter } from '../src/core/storage';
 
 const TEST_API_ORIGIN = 'https://test.example.com';
 
-// Каждый тест получает изолированный storage — module-level memoryMap из
-// storage.ts протекает между тестами и приносит чужие auth-сессии.
+// Each test gets an isolated storage — the module-level memoryMap from
+// storage.ts leaks between tests and brings in other tests' auth sessions.
 function freshStorage(seed: Record<string, string> = {}): StorageAdapter {
   const map = new Map<string, string>(Object.entries(seed));
   return {
@@ -85,9 +85,9 @@ describe('AuthClient', () => {
       password: 'pw'
     });
 
-    // microtask для onAuthChange initial-snapshot + sync emit при setSession.
+    // microtask for the onAuthChange initial snapshot + sync emit on setSession.
     await Promise.resolve();
-    // Order: INITIAL_SESSION (null) сразу после hydrate'а + SIGNED_IN на signin.
+    // Order: INITIAL_SESSION (null) right after hydrate + SIGNED_IN on signin.
     expect(events).toContainEqual(['SIGNED_IN', session]);
   });
 
@@ -187,7 +187,7 @@ describe('AuthClient', () => {
 
     const token = await auth.getAccessToken();
     expect(token).toBe('a1');
-    // Только signin-вызов; refresh не должен сработать на свежем токене.
+    // Only the signin call; refresh must not fire on a fresh token.
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
@@ -195,7 +195,7 @@ describe('AuthClient', () => {
     const fetchMock = vi.fn<typeof fetch>(async (input) => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
       if (url.endsWith('/auth/email/signin')) {
-        // Токен истекает через 30s — внутри REFRESH_LEEWAY_MS (60s) → должен рефрешнуться.
+        // The token expires in 30s — within REFRESH_LEEWAY_MS (60s) → must be refreshed.
         return jsonResponse({
           access_token: 'a1',
           refresh_token: 'r1',
@@ -226,7 +226,7 @@ describe('AuthClient', () => {
 
     expect(token).toBe('a2');
     expect(auth.getCachedSession()?.refresh_token).toBe('r2');
-    // /refresh должен был быть вызван c текущим refresh_token.
+    // /refresh should have been called with the current refresh_token.
     const refreshCall = fetchMock.mock.calls.find(([u]) => String(u).endsWith('/auth/refresh'));
     expect(refreshCall).toBeDefined();
     expect(JSON.parse(refreshCall![1]!.body as string)).toEqual({ refresh_token: 'r1' });
@@ -247,7 +247,7 @@ describe('AuthClient', () => {
       }
       if (url.endsWith('/auth/refresh')) {
         refreshCalls++;
-        // Имитируем сетевую задержку, чтобы оба вызова успели собраться.
+        // Simulate network latency so both calls have time to batch together.
         await new Promise((r) => setTimeout(r, 10));
         return jsonResponse({
           access_token: 'a2',
@@ -305,7 +305,7 @@ describe('AuthClient', () => {
     expect(token).toBeNull();
     expect(auth.getCachedSession()).toBeNull();
     await Promise.resolve();
-    // INITIAL_SESSION snapshot + SIGNED_OUT после revoke (refresh→401).
+    // INITIAL_SESSION snapshot + SIGNED_OUT after revoke (refresh→401).
     expect(events.at(-1)).toEqual(['SIGNED_OUT', null]);
   });
 
@@ -568,7 +568,7 @@ describe('AuthClient', () => {
       PaywallError
     );
 
-    // hydrate session manually и попробуем снова.
+    // hydrate the session manually and try again.
     const persisted = {
       access_token: 'access_x',
       refresh_token: 'refresh_x',
@@ -640,13 +640,13 @@ describe('AuthClient', () => {
 
     const sessionPromise = auth.signInWithOAuth({ provider: 'google' });
 
-    // Дождёмся /oauth/init и openPopup.
+    // Wait for /oauth/init and openPopup.
     await vi.waitFor(() => {
       expect(openedUrl).toBeTruthy();
     });
 
-    // State живёт в имени popup'а (`pw-oauth-${state}`) — authorize_url
-    // приходит уже сформированным с бэка, клиент в него ничего не дописывает.
+    // State lives in the popup name (`pw-oauth-${state}`) — authorize_url arrives
+    // already formed from the backend, the client appends nothing to it.
     const state = openedName!.replace(/^pw-oauth-/, '');
     expect(state.length).toBeGreaterThan(8);
 
@@ -674,7 +674,7 @@ describe('AuthClient', () => {
     expect(typeof exchangeBody.code_verifier).toBe('string');
     expect(exchangeBody.code_verifier.length).toBeGreaterThanOrEqual(43);
 
-    // Init body должен содержать code_challenge, не verifier (verifier — на клиенте).
+    // The init body must contain code_challenge, not the verifier (the verifier stays on the client).
     const initCall = fetchMock.mock.calls.find(([url]) =>
       String(url).endsWith('/auth/oauth/init')
     );
@@ -722,13 +722,13 @@ describe('AuthClient', () => {
     await vi.waitFor(() => expect(openedName).toBeTruthy());
     const realState = openedName.replace(/^pw-oauth-/, '');
 
-    // Чужое сообщение с другим state — должно быть проигнорировано.
+    // A foreign message with a different state — must be ignored.
     window.dispatchEvent(
       new MessageEvent('message', {
         data: { type: 'pw-oauth', status: 'success', code: 'evil', messageId: 'wrong' }
       })
     );
-    // Реальное.
+    // The real one.
     window.dispatchEvent(
       new MessageEvent('message', {
         data: { type: 'pw-oauth', status: 'success', code: 'good', messageId: realState }
@@ -760,7 +760,7 @@ describe('AuthClient', () => {
     const sessionPromise = auth.signInWithOAuth({ provider: 'apple' });
     await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled());
 
-    // Имитируем закрытие — поллер должен это поймать.
+    // Simulate closing — the poller must catch this.
     Object.defineProperty(fakePopup, 'closed', { value: true, configurable: true });
 
     await expect(sessionPromise).rejects.toThrow(/oauth_cancelled|closed/i);

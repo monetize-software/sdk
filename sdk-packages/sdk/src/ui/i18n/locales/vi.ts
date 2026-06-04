@@ -1,10 +1,10 @@
 /**
- * Static-translations для vi. Сгенерировано из:
- *  - `online/lang/static-translations.ts` (legacy, через KEY_MAP)
- *  - `tools/sdk-translations.mjs` (SDK-specific строки)
+ * Static-translations for vi. Generated from:
+ *  - `online/lang/static-translations.ts` (legacy, via KEY_MAP)
+ *  - `tools/sdk-translations.mjs` (SDK-specific strings)
  *
- * Не править вручную — изменения теряются при следующем `node tools/gen-locales.mjs`.
- * Чтобы исправить перевод — править legacy/sdk-translations.mjs и регенерить.
+ * Do not edit by hand — changes are lost on the next `node tools/gen-locales.mjs`.
+ * To fix a translation, edit legacy/sdk-translations.mjs and regenerate.
  */
 const vi = {
   'anon.heading_default': 'Tiếp tục với tư cách khách',
@@ -47,7 +47,6 @@ const vi = {
   'auth.reset_password_title': 'Đặt lại mật khẩu',
   'auth.reset_sent_message': 'Nếu email đó tồn tại, mã đặt lại đã được gửi.',
   'auth.reset_sent_subtitle': 'Chúng tôi đã gửi liên kết đặt lại mật khẩu. Làm theo hướng dẫn trong email.',
-  'auth.signup_sent_subtitle': 'Chúng tôi đã gửi liên kết xác nhận đến email của bạn. Nhấp vào đó để kích hoạt tài khoản, sau đó đăng nhập.',
   'auth.restore_purchases_heading': 'Khôi phục giao dịch',
   'auth.restore_purchases_subheading': 'Vui lòng đăng nhập để khôi phục giao dịch của bạn.',
   'auth.send_reset': 'Gửi email đặt lại',
@@ -75,9 +74,9 @@ const vi = {
   'modal.continue': 'Tiếp tục',
   'modal.error_generic': 'Đã xảy ra lỗi',
   'modal.loading': 'Đang tải…',
-  'modal.purchase_restored_subtitle': 'Chào mừng trở lại — đăng ký của bạn vẫn đang hoạt động.',
-  'modal.purchase_restored_title': 'Đã khôi phục đăng ký',
-  'modal.purchase_success_subtitle': 'Đăng ký của bạn đã được kích hoạt.',
+  'modal.purchase_restored_subtitle': 'Mọi thứ đã sẵn sàng — chúc bạn vui vẻ!',
+  'modal.purchase_restored_title': 'Chào mừng trở lại',
+  'modal.purchase_success_subtitle': 'Mọi thứ đã sẵn sàng — chúc bạn vui vẻ!',
   'modal.purchase_success_title': 'Đã nhận thanh toán',
   'modal.verifying_subscription': 'Đang kiểm tra đăng ký…',
   'nav.back': '← Quay lại',

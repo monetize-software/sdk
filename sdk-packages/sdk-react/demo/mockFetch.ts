@@ -1,6 +1,6 @@
-// Демо использует тот же приём, что sdk/demo: захардкоженные ответы вместо
-// реальных сетевых запросов. Без бэка можно протестировать все хуки и
-// компоненты, и Playwright e2e работают офлайн.
+// The demo uses the same trick as sdk/demo: hardcoded responses instead of
+// real network requests. Without a backend you can test all the hooks and
+// components, and the Playwright e2e tests run offline.
 
 interface MockPrice {
   id: string;
@@ -62,9 +62,9 @@ export const mockFetch: typeof fetch = async (input) => {
       : (input as Request).url ?? (input as URL).toString();
   await new Promise((r) => setTimeout(r, 200));
 
-  // SDK 3 ходит на единый /bootstrap; старые /settings|/prices|/offers
-  // оставлены для совместимости с тестами, которые мокают endpoint'ы
-  // поштучно.
+  // SDK 3 hits a single /bootstrap; the old /settings|/prices|/offers are
+  // kept for compatibility with tests that mock the endpoints
+  // individually.
   if (url.includes('/bootstrap')) return json(bootstrap);
   if (url.endsWith('/settings')) return json(mockSettings);
   if (url.endsWith('/prices')) return json(mockPrices);

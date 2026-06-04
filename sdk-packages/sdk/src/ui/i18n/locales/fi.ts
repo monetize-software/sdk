@@ -1,10 +1,10 @@
 /**
- * Static-translations для fi. Сгенерировано из:
- *  - `online/lang/static-translations.ts` (legacy, через KEY_MAP)
- *  - `tools/sdk-translations.mjs` (SDK-specific строки)
+ * Static-translations for fi. Generated from:
+ *  - `online/lang/static-translations.ts` (legacy, via KEY_MAP)
+ *  - `tools/sdk-translations.mjs` (SDK-specific strings)
  *
- * Не править вручную — изменения теряются при следующем `node tools/gen-locales.mjs`.
- * Чтобы исправить перевод — править legacy/sdk-translations.mjs и регенерить.
+ * Do not edit by hand — changes are lost on the next `node tools/gen-locales.mjs`.
+ * To fix a translation, edit legacy/sdk-translations.mjs and regenerate.
  */
 const fi = {
   'anon.heading_default': 'Jatka vieraana',
@@ -47,7 +47,6 @@ const fi = {
   'auth.reset_password_title': 'Nollaa salasana',
   'auth.reset_sent_message': 'Jos sähköposti on olemassa, lähetimme palautuskoodin.',
   'auth.reset_sent_subtitle': 'Lähetimme salasanan palautuslinkin. Noudata sähköpostin ohjeita.',
-  'auth.signup_sent_subtitle': 'Lähetimme vahvistuslinkin sähköpostiisi. Aktivoi tilisi napsauttamalla sitä ja kirjaudu sitten sisään.',
   'auth.restore_purchases_heading': 'Palauta ostot',
   'auth.restore_purchases_subheading': 'Kirjaudu palauttaaksesi ostoksesi.',
   'auth.send_reset': 'Lähetä palautuslinkki',
@@ -75,9 +74,9 @@ const fi = {
   'modal.continue': 'Jatka',
   'modal.error_generic': 'Jokin meni pieleen',
   'modal.loading': 'Ladataan…',
-  'modal.purchase_restored_subtitle': 'Tervetuloa takaisin — tilauksesi on jo aktiivinen.',
-  'modal.purchase_restored_title': 'Tilaus palautettu',
-  'modal.purchase_success_subtitle': 'Tilauksesi on nyt aktiivinen.',
+  'modal.purchase_restored_subtitle': 'Kaikki valmista — nauti!',
+  'modal.purchase_restored_title': 'Tervetuloa takaisin',
+  'modal.purchase_success_subtitle': 'Kaikki valmista — nauti!',
   'modal.purchase_success_title': 'Maksu vastaanotettu',
   'modal.verifying_subscription': 'Tarkistetaan tilausta…',
   'nav.back': '← Takaisin',

@@ -4,8 +4,8 @@ import type { TrialStore } from './TrialStore';
 
 const HOUR_MS = 60 * 60 * 1000;
 
-// Ключи 1-в-1 как в legacy v2 (online/components/PayWallIframeOpener.tsx) —
-// миграция с v2 на SDK 3.0 не сбрасывает прогресс триала у действующих юзеров.
+// Keys are 1-to-1 with legacy v2 (online/components/PayWallIframeOpener.tsx) —
+// migrating from v2 to SDK 3.0 doesn't reset trial progress for existing users.
 function timeKey(paywallId: string): string {
   return `paywall-${paywallId}-trial-time-first-open`;
 }
@@ -39,8 +39,8 @@ export class LocalTrialStore implements TrialStore {
     const raw = await this.storage.getItem(timeKey(this.paywallId));
     const startedAt = raw ? Number(raw) : null;
     if (!startedAt || !Number.isFinite(startedAt)) {
-      // Триал ещё не стартовал — первый open() считается активным триалом
-      // (паывол не покажется, мы запишем firstOpen в recordBlock()).
+      // The trial hasn't started yet — the first open() counts as an active
+      // trial (the paywall won't show; we record firstOpen in recordBlock()).
       return {
         mode: 'time',
         blocked: true,
@@ -67,9 +67,9 @@ export class LocalTrialStore implements TrialStore {
     const raw = await this.storage.getItem(opensKey(this.paywallId));
     const used = raw ? Number(raw) : 0;
     const safeUsed = Number.isFinite(used) ? used : 0;
-    // v2-семантика: `paywall-${id}-skip-times` хранит число уже выполненных
-    // блокировок. Триал активен, пока `used < total`. payload=3, used=0..2 —
-    // ещё блокируем; used=3 — следующий open() покажет паывол.
+    // v2 semantics: `paywall-${id}-skip-times` stores the number of blocks
+    // already performed. The trial is active while `used < total`. payload=3,
+    // used=0..2 — still blocking; used=3 — the next open() shows the paywall.
     const blocked = safeUsed < total;
     const remaining = Math.max(0, total - safeUsed);
     return {
@@ -107,9 +107,9 @@ export class LocalTrialStore implements TrialStore {
     const raw = await this.storage.getItem(key);
     const used = raw ? Number(raw) : 0;
     const safeUsed = Number.isFinite(used) ? used : 0;
-    // Не инкрементим выше total — counter становится «sticky at total» после
-    // истечения, чтобы повторные `recordBlock()` (если вдруг вызовется уже на
-    // expired-триале) не разъезжались с `check()`.
+    // Don't increment above total — the counter becomes "sticky at total"
+    // after expiry, so that repeated `recordBlock()` calls (if one happens to
+    // fire on an already-expired trial) don't diverge from `check()`.
     const next = Math.min(total, safeUsed + 1);
     await this.storage.setItem(key, String(next));
     const remaining = Math.max(0, total - next);

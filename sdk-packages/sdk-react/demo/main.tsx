@@ -15,8 +15,8 @@ root.render(
         paywallId: PAYWALL_ID,
         apiOrigin: 'https://demo.local',
         identity: { email: 'demo@example.com', userId: 'demo-user' },
-        // Open shadowMode для Playwright — он не сможет читать содержимое
-        // closed shadow root. В проде у хостов остаётся default `closed`.
+        // Open shadowMode for Playwright — it can't read the contents of a
+        // closed shadow root. In production, hosts keep the default `closed`.
         shadowMode: 'open',
         fetch: mockFetch
       }}

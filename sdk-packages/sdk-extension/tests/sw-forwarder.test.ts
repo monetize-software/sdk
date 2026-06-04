@@ -1,5 +1,5 @@
-// Unit-тест SW-forwarder'а. Mock'аем chrome.runtime + chrome.offscreen и
-// проверяем что content-port корректно мостится в offscreen-port.
+// Unit test for the SW forwarder. We mock chrome.runtime + chrome.offscreen and
+// verify that the content-port is correctly bridged to the offscreen-port.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PORT_NAME } from '../src/shared/port-name';
@@ -67,12 +67,12 @@ function setupChromeMock(): {
 
   (globalThis as unknown as { chrome: unknown }).chrome = chromeStub;
 
-  // Привязываем listener'ы у contentPort к __messageListeners/__disconnectListeners
-  // через стандартный Chrome API shape — onMessage.addListener etc. Но FakePort
-  // не имеет этого shape, поэтому wrapper'им: помещаем onMessage/onDisconnect
-  // как нативные .addListener'ы которые трогают наши Set'ы.
-  // Поэтому делаем wrapper в onConnectFire — оборачиваем FakePort в нечто
-  // похожее на chrome.runtime.Port что увидит installForwarder.
+  // We bind the contentPort listeners to __messageListeners/__disconnectListeners
+  // via the standard Chrome API shape — onMessage.addListener etc. But FakePort
+  // doesn't have this shape, so we wrap it: we expose onMessage/onDisconnect
+  // as native .addListeners that touch our Sets.
+  // So we do the wrapping in onConnectFire — we wrap FakePort into something
+  // resembling chrome.runtime.Port that installForwarder will see.
   return {
     onConnectFire: (port: FakePort) => {
       const wrapped = {
@@ -100,7 +100,7 @@ function setupChromeMock(): {
     },
     offscreenConnectFactory: () => {
       const offPort = makeFakePort('offscreen');
-      // chrome.runtime.connect возвращает port — нам нужен тот же wrapping.
+      // chrome.runtime.connect returns a port — we need the same wrapping.
       return {
         ...offPort,
         onMessage: {
@@ -147,7 +147,7 @@ describe('SW forwarder', () => {
     const wrongPort = makeFakePort('not-our-name');
     mock.onConnectFire(wrongPort);
 
-    // ensureOffscreen НЕ должен вызываться.
+    // ensureOffscreen must NOT be called.
     expect(mock.createDocumentSpy).not.toHaveBeenCalled();
   });
 
@@ -165,7 +165,7 @@ describe('SW forwarder', () => {
     const contentPort = makeFakePort(PORT_NAME);
     mock.onConnectFire(contentPort);
 
-    // ensureOffscreen async. Дать ему отстреляться.
+    // ensureOffscreen is async. Let it fire.
     await new Promise((r) => setTimeout(r, 5));
 
     expect(mock.createDocumentSpy).toHaveBeenCalledTimes(1);
@@ -203,21 +203,21 @@ describe('SW forwarder', () => {
     const contentPort = makeFakePort(PORT_NAME);
     mock.onConnectFire(contentPort);
 
-    // Content успевает прислать 2 сообщения пока offscreen ещё создаётся.
+    // Content manages to send 2 messages while offscreen is still being created.
     const m1 = { type: 'request', id: '1' };
     const m2 = { type: 'request', id: '2' };
     contentPort.fireMessage(m1);
     contentPort.fireMessage(m2);
 
-    // Offscreen ещё не подключён.
+    // Offscreen is not connected yet.
     expect(offscreenPortRef).toBeNull();
 
-    // Резолвим create — forwarder должен подняться и слить буфер.
+    // Resolve create — the forwarder should come up and drain the buffer.
     createResolve();
     await new Promise((r) => setTimeout(r, 5));
 
     expect(offscreenPortRef).not.toBeNull();
-    // Оба сообщения долетели в правильном порядке.
+    // Both messages arrived in the correct order.
     expect(offscreenPortRef!.postMessage).toHaveBeenNthCalledWith(1, m1);
     expect(offscreenPortRef!.postMessage).toHaveBeenNthCalledWith(2, m2);
   });
@@ -245,7 +245,7 @@ describe('SW forwarder', () => {
     createResolve();
     await new Promise((r) => setTimeout(r, 5));
 
-    // Content уже мёртв — connect не делаем.
+    // Content is already dead — we don't connect.
     expect(connectSpy).not.toHaveBeenCalled();
   });
 });

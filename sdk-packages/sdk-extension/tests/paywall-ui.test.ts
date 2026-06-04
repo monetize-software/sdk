@@ -1,13 +1,13 @@
 // @vitest-environment jsdom
-// P1.1: PaywallUI integration test. Проверяем drop-in поведение в extension'е:
-//  - Construct с `auth: true` собирает RemoteBillingClient + RemoteAuthClient
-//  - bootstrap() проксируется через transport в server-side BillingClient
-//  - paywall.open() эмитит 'open' (mount-then-load дефолт работает)
-//  - track() форвардится в RemoteEventTracker
-//  - destroy() чистит подписки
+// P1.1: PaywallUI integration test. We verify the drop-in behavior in an extension:
+//  - Constructing with `auth: true` assembles RemoteBillingClient + RemoteAuthClient
+//  - bootstrap() is proxied through transport to the server-side BillingClient
+//  - paywall.open() emits 'open' (mount-then-load default works)
+//  - track() is forwarded to RemoteEventTracker
+//  - destroy() cleans up subscriptions
 //
-// Транспорт инжектится через `_setContentTransportForTests` — обходим
-// chrome.runtime.connect (которого в jsdom нет).
+// The transport is injected via `_setContentTransportForTests` — we bypass
+// chrome.runtime.connect (which does not exist in jsdom).
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { BillingClient } from '@sdk/core/BillingClient';
@@ -171,7 +171,7 @@ describe('PaywallUI integration (extension)', () => {
     const paywall = new PaywallUI({
       paywallId: 'demo',
       apiOrigin: 'https://t.local',
-      // auth: undefined → hybrid mode без AuthClient'а; true → RemoteAuthClient.
+      // auth: undefined → hybrid mode without an AuthClient; true → RemoteAuthClient.
       ...(opts?.auth === false ? {} : { auth: true as const }),
       analytics: opts?.analytics
     });
@@ -194,14 +194,14 @@ describe('PaywallUI integration (extension)', () => {
   });
 
   it('regression: billing.auth points to same RemoteAuthClient as paywall.auth', () => {
-    // Раньше RemoteBillingClient.auth был undefined → PaywallRoot читал
-    // client.auth и попадал в no-op для restore-flow / preauth-checkout.
-    // PaywallRoot читает billing.auth, не paywall.auth — поэтому wiring
-    // ОБЯЗАН быть прокинут после конструктора Remote*.
+    // Previously RemoteBillingClient.auth was undefined → PaywallRoot read
+    // client.auth and fell into a no-op for the restore-flow / preauth-checkout.
+    // PaywallRoot reads billing.auth, not paywall.auth — so the wiring
+    // MUST be wired up after the Remote* constructor.
     const { paywall } = bootstrapPaywall({ auth: true });
     expect(paywall.auth).toBeDefined();
     expect(paywall.billing.auth).toBeDefined();
-    // Один и тот же инстанс — иначе onAuthChange listeners разойдутся.
+    // The same instance — otherwise the onAuthChange listeners would diverge.
     expect(paywall.billing.auth).toBe(paywall.auth);
   });
 
@@ -209,7 +209,7 @@ describe('PaywallUI integration (extension)', () => {
     const { paywall, stub } = bootstrapPaywall();
     const result = await paywall.billing.bootstrap();
     expect(result.settings.name).toBe('Test');
-    // Один HTTP-запрос (offscreen-side BillingClient).
+    // A single HTTP request (offscreen-side BillingClient).
     expect(stub.fetchSpy.mock.calls.filter(([u]) => String(u).includes('/bootstrap'))).toHaveLength(1);
   });
 
@@ -218,7 +218,7 @@ describe('PaywallUI integration (extension)', () => {
     const onOpen = vi.fn();
     paywall.on('open', onOpen);
     paywall.open();
-    // Cold bootstrap, но mount-then-load → open эмитится сразу.
+    // Cold bootstrap, but mount-then-load → open is emitted immediately.
     expect(onOpen).toHaveBeenCalledTimes(1);
   });
 
@@ -226,7 +226,7 @@ describe('PaywallUI integration (extension)', () => {
     const { paywall, stub } = bootstrapPaywall();
     paywall.track('host:custom_event', { foo: 'bar' });
     paywall.track('host:another', { x: 1 });
-    // Дать tracker'у flushIntervalMs (25мс).
+    // Give the tracker flushIntervalMs (25ms).
     await new Promise((r) => setTimeout(r, 60));
     const types = stub.flushedEvents.map((e) => e.type);
     expect(types).toContain('host:custom_event');
@@ -236,8 +236,8 @@ describe('PaywallUI integration (extension)', () => {
   it('auto-tracking: ready emits "paywall_viewed" via offscreen tracker', async () => {
     const { paywall, stub } = bootstrapPaywall();
     paywall.open();
-    // 'open' больше не трекается — показ фиксирует 'viewed' на 'ready' (после
-    // загрузки bootstrap), поэтому ждём async-резолв bootstrap'а.
+    // 'open' is no longer tracked — the impression records 'viewed' on 'ready'
+    // (after bootstrap loads), so we wait for the async resolution of bootstrap.
     await new Promise((r) => setTimeout(r, 60));
     const types = stub.flushedEvents.map((e) => e.type);
     expect(types).toContain('paywall_viewed');
@@ -253,9 +253,9 @@ describe('PaywallUI integration (extension)', () => {
   });
 
   it('open() with trial config in bootstrap does not crash (getStorage proxy works)', async () => {
-    // Regression: PaywallUI.ensureTrialStore зовёт this.billing.getStorage().
-    // Раньше RemoteBillingClient'у не хватало этого метода, и open() при
-    // trial-конфиге падал «getStorage is not a function».
+    // Regression: PaywallUI.ensureTrialStore calls this.billing.getStorage().
+    // Previously RemoteBillingClient was missing this method, and open() with a
+    // trial config crashed with "getStorage is not a function".
     const { server, stub } = setupOffscreen({
       bootstrap: {
         settings: {
@@ -283,11 +283,11 @@ describe('PaywallUI integration (extension)', () => {
     cleanup.push(() => paywall.destroy());
     cleanup.push(() => stub.tracker.destroy());
 
-    // Не должно бросать.
+    // Must not throw.
     expect(() => paywall.open()).not.toThrow();
-    // mount-then-load: модалка mount'ится сразу, gates применяются после
-    // bootstrap'а — даём microtask'ам отстреляться чтобы убедиться что
-    // gateThroughTrial → ensureTrialStore прошёл без исключения.
+    // mount-then-load: the modal mounts immediately, gates are applied after
+    // bootstrap — we let the microtasks fire to make sure
+    // gateThroughTrial → ensureTrialStore passed without an exception.
     await new Promise((r) => setTimeout(r, 50));
   });
 
@@ -298,14 +298,14 @@ describe('PaywallUI integration (extension)', () => {
     const beforeDestroy = stub.flushedEvents.length;
     paywall.destroy();
 
-    // После destroy любые public-methods никаких side-effect'ов на tracker
-    // не дают (RemoteEventTracker отвязался).
+    // After destroy, any public methods produce no side effects on the tracker
+    // (RemoteEventTracker has been detached).
     paywall.track('post_destroy');
     await new Promise((r) => setTimeout(r, 60));
-    // Допустимо, что 'paywall_closed' прилетит при destroy → close, поэтому
-    // допускаем небольшое расхождение, но 'post_destroy' точно не должен.
+    // It's acceptable for 'paywall_closed' to arrive on destroy → close, so we
+    // allow a small discrepancy, but 'post_destroy' definitely must not.
     const types = stub.flushedEvents.map((e) => e.type);
     expect(types).not.toContain('post_destroy');
-    expect(stub.flushedEvents.length).toBeLessThanOrEqual(beforeDestroy + 1); // +1 на возможный 'paywall_closed'
+    expect(stub.flushedEvents.length).toBeLessThanOrEqual(beforeDestroy + 1); // +1 for a possible 'paywall_closed'
   });
 });

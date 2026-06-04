@@ -1,8 +1,8 @@
-// Phase 5 surface coverage. Доказываем что:
-//  1. track() из двух вкладок попадает в ОДИН EventTracker buffer на offscreen
-//  2. Один flush — один POST /events с агрегированными событиями обеих вкладок
+// Phase 5 surface coverage. We prove that:
+//  1. track() from two tabs lands in ONE EventTracker buffer on offscreen
+//  2. One flush — one POST /events with aggregated events from both tabs
 //
-// EventTracker реальный из @sdk/core; mock'аем только fetch для /events.
+// EventTracker is the real one from @sdk/core; we only mock fetch for /events.
 
 import { describe, it, expect, vi } from 'vitest';
 import { EventTracker } from '@sdk/core/EventTracker';
@@ -77,11 +77,11 @@ describe('EventTracker — single batch across tabs', () => {
     tab2.track('paywall_viewed', { source: 'tab2' });
     tab2.track('price_selected', { price_id: 'p1' });
 
-    // Дать flush'у отработать.
+    // Let the flush run.
     await new Promise((r) => setTimeout(r, 60));
 
-    // Один flush с тремя событиями — а не два отдельных flush'а с
-    // частичными батчами.
+    // One flush with three events — not two separate flushes with
+    // partial batches.
     expect(flushedBatches).toHaveLength(1);
     const batch = flushedBatches[0] as Array<{ type: string }>;
     expect(batch).toHaveLength(3);

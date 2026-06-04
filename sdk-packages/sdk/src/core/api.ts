@@ -33,9 +33,9 @@ export class ApiClient {
     const token = await this.opts.getAuthToken?.();
     if (token) headers.set('Authorization', `Bearer ${token}`);
 
-    // FormData/Blob/URLSearchParams требуют, чтобы браузер сам назначил
-    // Content-Type (multipart с boundary, x-www-form-urlencoded). Дефолт
-    // application/json применяем только для обычных body (JSON-строки).
+    // FormData/Blob/URLSearchParams require the browser to set the Content-Type
+    // itself (multipart with a boundary, x-www-form-urlencoded). We apply the
+    // default application/json only for ordinary bodies (JSON strings).
     const isFormBody =
       typeof FormData !== 'undefined' && init.body instanceof FormData;
     if (init.body && !headers.has('Content-Type') && !isFormBody) {
@@ -50,10 +50,10 @@ export class ApiClient {
         credentials: 'omit'
       });
     } catch (cause) {
-      // AbortError — отдельный код, чтобы host мог отличить «юзер закрыл
-      // модалку» от реальной сетевой проблемы. DOMException не всегда
-      // instanceof Error в edge runtimes (Cloudflare Workers); проверяем
-      // через duck-typed `.name`.
+      // AbortError — a separate code so the host can distinguish "the user closed
+      // the modal" from a real network problem. DOMException isn't always
+      // instanceof Error in edge runtimes (Cloudflare Workers); we check via the
+      // duck-typed `.name`.
       const name =
         cause && typeof cause === 'object' && 'name' in cause
           ? (cause as { name: unknown }).name
@@ -76,9 +76,9 @@ export class ApiClient {
         (payload && typeof payload === 'object' && 'message' in payload && String(payload.message)) ||
         response.statusText ||
         'Request failed';
-      // payload в cause — выше по стеку (BillingClient/AuthClient) могут читать
-      // структурные поля из тела ошибки (например `hasActivePurchase: true`
-      // от /start-checkout 409) и менять обработку.
+      // payload in cause — higher up the stack (BillingClient/AuthClient) can
+      // read structural fields from the error body (e.g. `hasActivePurchase: true`
+      // from /start-checkout 409) and change handling.
       throw new PaywallError(code, message, { status: response.status, cause: payload });
     }
 

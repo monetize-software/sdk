@@ -4,9 +4,10 @@ import { PaywallButton, type PaywallButtonProps } from './PaywallButton';
 export type PaywallSupportButtonProps = Omit<PaywallButtonProps, 'mode'>;
 
 /**
- * Сахар над `<PaywallButton mode="support">`. Самостоятельная компонента, а
- * не пресет prop'а, для discoverability — название говорит за себя, и в
- * больших layout-ах легче видеть, где саппорт, а где основной upgrade-CTA.
+ * Sugar over `<PaywallButton mode="support">`. A standalone component rather
+ * than a prop preset, for discoverability — the name speaks for itself, and in
+ * large layouts it's easier to see where support is versus the main
+ * upgrade-CTA.
  *
  * ```tsx
  * <PaywallSupportButton className="link">Help</PaywallSupportButton>

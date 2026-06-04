@@ -1,10 +1,10 @@
-// Realistic-выглядящий demo. Имитирует продукт «Snapshot AI» — мнимый
-// AI-инструмент с premium-фичами. Цель — пощёлкать пейвол, login, account
-// state в условиях, близких к реальному extension'у.
+// A realistic-looking demo. It mimics a "Snapshot AI" product — a fictional
+// AI tool with premium features. The goal is to click through the paywall, login
+// and account state under conditions close to a real extension.
 //
-// Архитектура: vanilla TS + полная перерисовка #app на каждом state-change.
-// PaywallUI отвечает за пейвол/auth-модалки; popup читает paywall.billing
-// и paywall.auth как single source of truth.
+// Architecture: vanilla TS + a full re-render of #app on every state change.
+// PaywallUI is responsible for the paywall/auth modals; the popup reads
+// paywall.billing and paywall.auth as the single source of truth.
 
 import { PaywallUI } from '@monetize.software/sdk-extension';
 import { ApiGatewayClient } from '@sdk/core/ApiGatewayClient';
@@ -12,7 +12,7 @@ import type { AuthClient, AuthSession } from '@sdk/core/auth';
 import { type Balance, type PaywallPurchaseDetailed, type PaywallUser } from '@sdk/core/types';
 import { trackRealAuth, handleGatewayError, callWithRetry } from './unauthorized-handler';
 
-const PROVIDER_ID = '1'; // DeepSeek api-провайдер. Хост настраивает через платформу.
+const PROVIDER_ID = '1'; // DeepSeek api provider. The host configures it via the platform.
 
 interface PredictionShape {
   id?: string;
@@ -44,8 +44,8 @@ interface ImageState {
 }
 
 interface UpscaleState {
-  /** data: URL загруженной юзером картинки. Replicate принимает data: или
-   *  http(s)://. Для demo держим всё в data: — без отдельного storage. */
+  /** data: URL of the image uploaded by the user. Replicate accepts data: or
+   *  http(s)://. For the demo we keep everything as data: — no separate storage. */
   inputDataUrl: string | null;
   inputName: string | null;
   busy: boolean;
@@ -66,8 +66,8 @@ interface DemoState {
   ask: AskState;
   image: ImageState;
   upscale: UpscaleState;
-  /** ISO-код страны юзера (по IP). Берётся из bootstrap.settings.visibility.country.
-   *  null — bootstrap ещё не загружен или сервер не определил страну. */
+  /** The user's ISO country code (by IP). Taken from bootstrap.settings.visibility.country.
+   *  null — bootstrap hasn't loaded yet, or the server couldn't determine the country. */
   country: string | null;
   countryTier: 1 | 2 | 3 | null;
 }
@@ -98,8 +98,8 @@ const FEATURES: PremiumFeature[] = [
 async function init(): Promise<void> {
   const app = document.getElementById('app')!;
 
-  // apiOrigin/paywallId читаются из chrome.storage.local — позволяет e2e
-  // переключить demo на локальный mock-сервер (см. fixtures.ts).
+  // apiOrigin/paywallId are read from chrome.storage.local — this lets e2e
+  // switch the demo to a local mock server (see fixtures.ts).
   const { __demo_paywall_id, __demo_api_origin } = (await chrome.storage.local.get([
     '__demo_paywall_id',
     '__demo_api_origin'
@@ -114,8 +114,8 @@ async function init(): Promise<void> {
     shadowMode: 'open',
     auth: true
   });
-  // См. комментарий в content.ts — `__paywall` экспонируется в page-context
-  // только под `--mode e2e`, чтобы клиентский шаблон оставался чистым.
+  // See the comment in content.ts — `__paywall` is exposed in the page-context
+  // only under `--mode e2e`, so the client template stays clean.
   const mode = (import.meta as { env?: { MODE?: string } }).env?.MODE;
   if (mode === 'e2e') {
     (window as unknown as { __paywall?: PaywallUI }).__paywall = paywall;
@@ -139,22 +139,22 @@ async function init(): Promise<void> {
     countryTier: cachedBootstrap?.settings.visibility?.tier ?? null
   };
 
-  // ApiGatewayClient использует RemoteAuthClient как auth-source: внутри он
-  // зовёт `auth.getAccessToken()`, который через transport идёт в offscreen.
-  // Так Bearer берётся из единственного AuthClient'а (offscreen), без дублей.
+  // ApiGatewayClient uses RemoteAuthClient as its auth source: internally it
+  // calls `auth.getAccessToken()`, which goes through transport into offscreen.
+  // This way the Bearer comes from the single AuthClient (offscreen), with no duplicates.
   const gateway = new ApiGatewayClient({
     paywallId,
     apiOrigin,
     auth: paywall.auth as unknown as AuthClient,
     onChargeSuccess: () => {
-      // После каждого успешного запроса баланс на бэке списан — пнём
-      // getBalances({force:true}) чтобы UI показал обновлённый count.
-      // Бэк сам не возвращает свежий balance в response, иначе можно было
-      // бы декрементить локально.
+      // After each successful request the balance on the backend is debited —
+      // nudge getBalances({force:true}) so the UI shows the updated count.
+      // The backend doesn't return the fresh balance in the response, otherwise
+      // we could decrement locally.
       void paywall.billing.getBalances({ force: true }).catch(() => {});
     },
     onQuotaExceeded: () => {
-      // 402 от gateway = квота кончилась → host показывает paywall.
+      // 402 from the gateway = quota ran out → the host shows the paywall.
       paywall.open();
     }
   });
@@ -164,9 +164,9 @@ async function init(): Promise<void> {
     render();
   }
 
-  // Toast'ы автогаснут через 3 сек, чтобы UI не оставался с stale-сообщением
-  // (юзер кликнул фичу, увидел тост, переключился на другое — старый тост
-  // больше не релевантен).
+  // Toasts auto-dismiss after 3 sec so the UI isn't left with a stale message
+  // (the user clicked a feature, saw the toast, switched to something else — the
+  // old toast is no longer relevant).
   let toastTimer: ReturnType<typeof setTimeout> | null = null;
   function flashToast(kind: 'success' | 'info' | 'warn', text: string): void {
     if (toastTimer !== null) clearTimeout(toastTimer);
@@ -174,9 +174,9 @@ async function init(): Promise<void> {
     toastTimer = setTimeout(() => setState({ toast: null }), 3000);
   }
 
-  // Подгрузка rich-purchases. Триггер: появилась session ИЛИ юзер закрыл
-  // успешный checkout (purchase_completed). На signOut обнуляем — список
-  // привязан к юзеру.
+  // Loading rich purchases. Triggered by: a session appearing OR the user
+  // closing a successful checkout (purchase_completed). On signOut we reset it —
+  // the list is tied to the user.
   async function refreshPurchases(): Promise<void> {
     if (!state.session) {
       setState({ purchases: [], purchasesLoading: false });
@@ -195,16 +195,16 @@ async function init(): Promise<void> {
 
   paywall.onUserChange((u) => setState({ user: u }));
   paywall.billing.onBalanceChange((b) => setState({ balances: [...b] }));
-  // authChange фаерится со множеством event'ов (см. AuthChangeEvent в
-  // @sdk/core/auth). Для UI'я popup'а важны только переходы identity:
-  //  - SIGNED_IN: новый юзер (или восстановление после signOut). Дёргаем
+  // authChange fires with many events (see AuthChangeEvent in
+  // @sdk/core/auth). For the popup UI only identity transitions matter:
+  //  - SIGNED_IN: a new user (or restore after signOut). We fetch
   //    purchases + balances.
-  //  - SIGNED_OUT: чистим balances/purchases.
-  //  - INITIAL_SESSION: при mount popup'а с уже залогиненной сессией —
-  //    тоже грузим purchases. С `session=null` (гость) — purchases пусто
-  //    по сути уже, no-op'ом.
-  //  - TOKEN_REFRESHED / USER_UPDATED / PASSWORD_RECOVERY: тот же user.id,
-  //    дёргать /user|/balances|/purchases смысла нет — кеш валиден.
+  //  - SIGNED_OUT: clear balances/purchases.
+  //  - INITIAL_SESSION: when the popup mounts with an already-signed-in session —
+  //    we also load purchases. With `session=null` (guest), purchases are
+  //    essentially empty already, so it's a no-op.
+  //  - TOKEN_REFRESHED / USER_UPDATED / PASSWORD_RECOVERY: same user.id,
+  //    no point fetching /user|/balances|/purchases — the cache is valid.
   paywall.on('authChange', ({ event, session: s }) => {
     setState({ session: s });
     if (event === 'SIGNED_OUT') {
@@ -213,16 +213,16 @@ async function init(): Promise<void> {
     }
     if (event !== 'SIGNED_IN' && event !== 'INITIAL_SESSION') return;
     void refreshPurchases();
-    // Балансы привязаны к Bearer-юзеру (см. /balances route). Без force —
-    // SDK отдаст из stale-кэша мгновенно и в фоне revalidate'нёт. Для
-    // INITIAL_SESSION reload — кеш в offscreen'е свежий, сетевого
-    // запроса не будет (см. BillingClient.getBalances stale-while-revalidate).
+    // Balances are tied to the Bearer user (see the /balances route). Without
+    // force, the SDK serves from a stale cache instantly and revalidates in the
+    // background. For an INITIAL_SESSION reload, the offscreen cache is fresh
+    // and there's no network request (see BillingClient.getBalances stale-while-revalidate).
     if (s) void paywall.billing.getBalances().catch(() => {});
     else setState({ balances: null });
   });
-  // Persistent-флаг "юзер логинился реальной identity" — используется в
-  // handleGatewayError для решения 401-recovery: показывать email-форму или
-  // тихо подняться через signInAnonymously.
+  // Persistent flag "user signed in with a real identity" — used in
+  // handleGatewayError to decide the 401-recovery: show the email form or
+  // quietly come up via signInAnonymously.
   trackRealAuth(paywall);
 
   paywall.on('purchase_completed', (p) => {
@@ -240,11 +240,11 @@ async function init(): Promise<void> {
         country: b.settings.visibility?.country ?? null,
         countryTier: b.settings.visibility?.tier ?? null
       });
-      // Purchases/balances НЕ дёргаем — authChange listener выше уже это
-      // делает (срабатывает либо синхронно с cached session, либо когда
-      // RemoteAuthClient гидратируется с offscreen'а через несколько ms).
-      // Раньше тут был подстраховочный refetch с force:true, но он давал
-      // дубль сетевых запросов на mount popup'а.
+      // We do NOT fetch purchases/balances — the authChange listener above
+      // already does it (it fires either synchronously with the cached session,
+      // or when RemoteAuthClient hydrates from offscreen a few ms later).
+      // There used to be a safety refetch with force:true here, but it caused
+      // duplicate network requests on popup mount.
     },
     (e: unknown) => {
       const msg = e instanceof Error ? e.message : String(e);
@@ -252,8 +252,8 @@ async function init(): Promise<void> {
     }
   );
 
-  // Подхватываем смену country при revalidate'е bootstrap'а (например,
-  // юзер сменил IP через VPN — следующий ревалидейт обновит visibility).
+  // Pick up a country change on a bootstrap revalidate (for example, the user
+  // changed their IP via VPN — the next revalidate updates visibility).
   paywall.billing.onBootstrapChange(() => {
     const b = paywall.billing.getCachedBootstrap();
     setState({
@@ -291,9 +291,9 @@ async function init(): Promise<void> {
       flashToast('success', `${feat.title} — done`);
       return;
     }
-    // Не залогинен или без подписки — открываем пейвол. Если у юзера уже
-    // есть active subscription (host забыл getAccess()), SDK сам покажет
-    // restored view вместо тарифов.
+    // Not signed in or without a subscription — open the paywall. If the user
+    // already has an active subscription (the host forgot getAccess()), the SDK
+    // will show the restored view instead of the plans on its own.
     paywall.open();
   }
 
@@ -302,8 +302,8 @@ async function init(): Promise<void> {
   }
 
   function onRenew(): void {
-    // Renew flow — пропускает has_active_subscription pre-check, бэк
-    // создаёт checkout с ignoreActivePurchase: true.
+    // Renew flow — skips the has_active_subscription pre-check; the backend
+    // creates a checkout with ignoreActivePurchase: true.
     paywall.open({ renew: true });
   }
 
@@ -313,9 +313,9 @@ async function init(): Promise<void> {
     if (state.ask.busy) return;
     setState({ ask: { ...state.ask, busy: true, response: null, error: null } });
     try {
-      // OpenAI-compatible body — DeepSeek контракт совпадает. URL, model и
-      // прочие провайдер-специфичные поля зашиты в settings провайдера на
-      // бэке, мы шлём только per-request часть (messages, max_tokens).
+      // OpenAI-compatible body — the DeepSeek contract matches. The URL, model
+      // and other provider-specific fields are baked into the provider's
+      // settings on the backend; we send only the per-request part (messages, max_tokens).
       const res = await callWithRetry(paywall, () =>
         gateway.call({
           providerId: PROVIDER_ID,
@@ -332,8 +332,8 @@ async function init(): Promise<void> {
       const reply = data.choices?.[0]?.message?.content?.trim() ?? '(empty response)';
       setState({ ask: { ...state.ask, busy: false, response: reply } });
     } catch (e) {
-      // handleGatewayError сам открывает paywall на quota / auth-форму
-      // на 401 — мы только показываем юзеру корректное сообщение в card'е.
+      // handleGatewayError itself opens the paywall on quota / the auth form
+      // on 401 — we only show the user the correct message in the card.
       const r = await handleGatewayError(e, paywall);
       const error =
         r.kind === 'quota'
@@ -351,9 +351,9 @@ async function init(): Promise<void> {
     if (state.image.busy) return;
     setState({ image: { ...state.image, busy: true, url: null, error: null } });
     try {
-      // Replicate Imagen-4 fast: создаём prediction, ждём результата с
-      // Prefer:wait=60. Если за 60с не управились — poll'им через тот же
-      // gateway каждые 2с до status=succeeded/failed.
+      // Replicate Imagen-4 fast: create a prediction, wait for the result with
+      // Prefer:wait=60. If it doesn't finish within 60s — poll through the same
+      // gateway every 2s until status=succeeded/failed.
       const res = await callWithRetry(paywall, () =>
         gateway.call({
           providerId: '2',
@@ -444,10 +444,10 @@ async function init(): Promise<void> {
       if (!pred.id) throw new Error('Missing prediction id');
       if (Date.now() - start > TIMEOUT_MS) throw new Error('Timeout (>2 min)');
       await new Promise((r) => setTimeout(r, 2000));
-      // providerId=4 — общий poll-провайдер для Replicate. На бэке у него
-      // зашита база `https://api.replicate.com/v1/predictions`, query_type='free'
-      // (за повторное чтение статуса не списываем). Динамическим тут остаётся
-      // только id предикции — он добавляется к зашитому URL'у.
+      // providerId=4 — the shared poll provider for Replicate. On the backend it
+      // has the base `https://api.replicate.com/v1/predictions` baked in, with
+      // query_type='free' (we don't charge for re-reading status). The only
+      // dynamic part here is the prediction id — it's appended to the baked-in URL.
       const r = await gateway.call({
         providerId: '4',
         path: pred.id,
@@ -489,11 +489,11 @@ async function init(): Promise<void> {
         reason
       });
       flashToast('success', 'Subscription cancelled');
-      // Бэк отдаёт `responseSubscription` синхронно (Stripe API answer),
-      // но DB row обновляется acquiring-webhook'ом — secs-минуты позже.
-      // listPurchases() сразу после cancel'а отдал бы ещё СТАРЫЙ row и
-      // перетёр бы UI обратно в active. Поэтому мерджим response локально,
-      // а refresh делаем отложено через ~10с (за это время webhook успевает).
+      // The backend returns `responseSubscription` synchronously (the Stripe API
+      // answer), but the DB row is updated by the acquiring webhook — seconds to
+      // minutes later. listPurchases() right after the cancel would still return
+      // the OLD row and revert the UI back to active. So we merge the response
+      // locally and do the refresh deferred by ~10s (by then the webhook has caught up).
       const list = (state.purchases ?? []).map((p): PaywallPurchaseDetailed =>
         p.id === m.purchase.id
           ? {
@@ -506,9 +506,9 @@ async function init(): Promise<void> {
           : p
       );
       setState({ cancelModal: null, purchases: list });
-      // Best-effort revalidation после ожидаемого окна webhook'а — если в
-      // DB подтянулись финальные значения, UI обновится; если webhook
-      // задержался, оптимистичное состояние всё равно осталось в UI.
+      // Best-effort revalidation after the expected webhook window — if the
+      // final values landed in the DB, the UI updates; if the webhook was
+      // delayed, the optimistic state still remains in the UI.
       setTimeout(() => void refreshPurchases(), 10_000);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -995,8 +995,8 @@ async function init(): Promise<void> {
 
   function ctaRow(session: AuthSession | null, premium: boolean): HTMLElement | null {
     if (premium) {
-      // У юзера активная подписка — даём только Renew (например, апгрейд
-      // тарифа). Open вёл бы в restored screen, что бесполезно.
+      // The user has an active subscription — we offer only Renew (for example,
+      // a plan upgrade). Open would lead to the restored screen, which is useless.
       return el('div', { class: 'cta-row' },
         el('button', { class: 'btn btn-ghost', 'data-action': 'renew' }, 'Manage / Renew')
       );
@@ -1034,7 +1034,7 @@ async function init(): Promise<void> {
   function bindHandlers(): void {
     app.querySelectorAll<HTMLElement>('[data-action]').forEach((node) => {
       const action = node.getAttribute('data-action');
-      // change-events для select/input — модальные поля валидации причины cancel'а
+      // change events for select/input — the cancel-reason validation modal fields
       if (action === 'cancel-reason') {
         node.addEventListener('change', (e) => {
           if (!state.cancelModal) return;
@@ -1047,20 +1047,20 @@ async function init(): Promise<void> {
         node.addEventListener('input', (e) => {
           if (!state.cancelModal) return;
           const v = (e.currentTarget as HTMLInputElement).value;
-          // Update без render'а — мы не хотим перерисовывать модалку на каждой
-          // букве, иначе input теряет focus. Сохраняем напрямую в state.
+          // Update without a render — we don't want to re-render the modal on
+          // every letter, otherwise the input loses focus. Store it straight in state.
           state.cancelModal.reasonOther = v;
         });
         return;
       }
       if (action === 'ask-prompt') {
-        // Synchronously пишем в state без render'а — иначе textarea
-        // потеряет caret position на каждом keystroke.
+        // Write to state synchronously without a render — otherwise the textarea
+        // loses its caret position on every keystroke.
         node.addEventListener('input', (e) => {
           state.ask.prompt = (e.currentTarget as HTMLTextAreaElement).value;
         });
         node.addEventListener('keydown', (e) => {
-          // Cmd/Ctrl+Enter = send. Привычно для AI-чатов.
+          // Cmd/Ctrl+Enter = send. Familiar from AI chats.
           const ke = e as KeyboardEvent;
           if (ke.key === 'Enter' && (ke.metaKey || ke.ctrlKey)) {
             e.preventDefault();
@@ -1090,8 +1090,8 @@ async function init(): Promise<void> {
         return;
       }
       node.addEventListener('click', (e) => {
-        // Для modal overlay — закрываем только при клике именно по overlay,
-        // не при пробросе click'а из inner содержимого.
+        // For the modal overlay — close only on a click on the overlay itself,
+        // not on a click bubbling up from the inner content.
         if (action === 'cancel-close' && e.currentTarget !== e.target && node.classList.contains('modal-overlay')) {
           return;
         }
@@ -1123,9 +1123,9 @@ async function init(): Promise<void> {
 }
 
 // === Lightweight createElement helper ===
-// Без preact'а / jsx чтобы popup.html был компактнее. Принимает props (включая
-// aria/data-* атрибуты) и переменное число children. null/undefined дети
-// просто скипаются — удобно для conditional render'а.
+// Without preact / jsx so popup.html stays more compact. Accepts props (including
+// aria/data-* attributes) and a variable number of children. null/undefined
+// children are simply skipped — handy for conditional rendering.
 type AttrMap = Record<string, string> | null;
 type Child = string | Node | null | undefined;
 

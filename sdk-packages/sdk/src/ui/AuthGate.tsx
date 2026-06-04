@@ -6,11 +6,11 @@ import { useI18n } from './i18n';
 
 type AuthPanelBlock = Extract<LayoutBlock, { type: 'auth_panel' }>;
 
-/** Контекст, из которого AuthGate был открыт. Управляет дефолтным заголовком/
- *  субзаголовком, чтобы юзер сразу понимал зачем его сюда привели:
- *  - `restore`  — клик "Restore purchases" в current_session
- *  - `preauth`  — checkout_mode=preauth перед /start-checkout
- *  - `standalone` — paywall.openAuth() (без всякого layout-контекста) */
+/** The context AuthGate was opened from. Controls the default heading/
+ *  subheading so the user immediately understands why they were brought here:
+ *  - `restore`  — a "Restore purchases" click in current_session
+ *  - `preauth`  — checkout_mode=preauth before /start-checkout
+ *  - `standalone` — paywall.openAuth() (without any layout context) */
 export type AuthIntent = 'restore' | 'preauth' | 'standalone';
 
 export interface AuthGateProps {
@@ -19,19 +19,21 @@ export interface AuthGateProps {
   auth: AuthClient;
   authSession: AuthSession | null;
   onBack: () => void;
-  /** Показывать кнопку Back. Для preauth/restore-flow — true (юзер пришёл сюда
-   *  из layout). Для standalone openAuth() — false: модалка открыта только
-   *  ради signin'а, ESC и крестик модалки уже её закрывают. */
+  /** Whether to show the Back button. For preauth/restore flow — true (the
+   *  user came here from the layout). For standalone openAuth() — false: the
+   *  modal is open only for the sake of signin, and ESC plus the modal's X
+   *  already close it. */
   showBack?: boolean;
   intent?: AuthIntent;
-  /** Какой mode выставить в AuthPanel на старте. Host вызвал openSignup()
-   *  → 'signup', openSignin()/openAuth() → 'signin' (дефолт). */
+  /** Which mode to set in AuthPanel on start. The host called openSignup()
+   *  → 'signup', openSignin()/openAuth() → 'signin' (default). */
   initialMode?: 'signin' | 'signup';
 }
 
-// Полноэкранная обёртка над AuthPanel для AuthGate flow. AuthPanel сам не
-// знает про "вернуться к тарифам"; gate рисует Back-кнопку curved-arrow
-// в top-right (как на легаси-скринах) и подсовывает intent-specific heading.
+// Full-screen wrapper over AuthPanel for the AuthGate flow. AuthPanel itself
+// doesn't know about "back to plans"; the gate draws a curved-arrow Back button
+// in the top-right (as on the legacy screens) and supplies an intent-specific
+// heading.
 export function AuthGate({
   block,
   bootstrap,
@@ -53,12 +55,12 @@ export function AuthGate({
     initialAuthMode: initialMode
   };
 
-  // intent override'ит heading/subheading layout-block'а:
+  // intent overrides the layout block's heading/subheading:
   //   - 'restore'  → "Restore Purchases" / sign-in-to-restore
   //   - 'preauth'  → "Log in to continue your purchase" / link-purchase
-  //   - 'standalone' (paywall.openAuth()) → дефолты по mode из AuthPanel
-  // Если admin задал в layout кастомный heading/subheading — он сохраняется
-  // только для standalone-варианта (для preauth/restore мы знаем контекст лучше).
+  //   - 'standalone' (paywall.openAuth()) → defaults by mode from AuthPanel
+  // If the admin set a custom heading/subheading in the layout — it's kept only
+  // for the standalone variant (for preauth/restore we know the context better).
   const effectiveBlock: AuthPanelBlock =
     intent === 'restore'
       ? {
@@ -77,17 +79,18 @@ export function AuthGate({
               'auth.link_purchase_subheading',
               "We'll link the purchase to your account to keep access."
             ),
-            // Preauth heading — descriptive sentence ("Log in to continue your
-            // purchase"), а не action verb. Длинные локализации (RU: "Войдите,
-            // чтобы продолжить покупку") в pill-кнопку h-12 не помещаются и
-            // переносятся на 2 строки. Явный короткий submit_label решает.
+            // Preauth heading — a descriptive sentence ("Log in to continue
+            // your purchase"), not an action verb. Long localizations (RU:
+            // "Войдите, чтобы продолжить покупку") don't fit into the h-12
+            // pill button and wrap onto 2 lines. An explicit short submit_label
+            // solves it.
             submit_label: t('auth.log_in', 'Sign In')
           }
         : block;
 
-  // Padding + overflow-y-auto делегированы сюда (а не в Modal), потому что
-  // Modal-обёртка теперь structurally нейтральна — Renderer возвращает свой
-  // sticky-footer-layout, а gate-views хотят обычный единый scroll-зона.
+  // Padding + overflow-y-auto are delegated here (not to Modal), because the
+  // Modal wrapper is now structurally neutral — Renderer returns its own
+  // sticky-footer layout, while gate-views want a single ordinary scroll zone.
   return (
     <div class="relative flex-1 min-h-0 overflow-y-auto p-6 sm:p-8">
       {showBack ? <BackArrowButton onClick={onBack} ariaLabel={t('nav.back_aria', 'Back')} /> : null}

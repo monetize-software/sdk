@@ -1,23 +1,24 @@
 import type { TrialStatus } from '../types';
 
 /**
- * Хранилище состояния pre-paywall триала. Изолирует логику доступа к
- * persistent-стейту: SDK дёргает `check()` перед `paywall.open()` и
- * `recordBlock()` когда решает не показывать модалку.
+ * Store for the pre-paywall trial state. Isolates the logic of accessing the
+ * persistent state: the SDK calls `check()` before `paywall.open()` and
+ * `recordBlock()` when it decides not to show the modal.
  *
- * Реализации:
- * - {@link LocalTrialStore} — localStorage / chrome.storage. Дефолт.
- * - {@link ServerTrialStore} — стаб; сейчас делегирует в Local + warning.
- *   Активируется через `settings.trial.storage = 'server'` из админки —
- *   когда серверный endpoint появится, заменим internals без изменения API.
+ * Implementations:
+ * - {@link LocalTrialStore} — localStorage / chrome.storage. The default.
+ * - {@link ServerTrialStore} — a stub; currently delegates to Local + a
+ *   warning. Activated via `settings.trial.storage = 'server'` from the admin
+ *   panel — once a server endpoint appears, we'll replace the internals
+ *   without changing the API.
  */
 export interface TrialStore {
-  /** Прочитать текущий статус без побочных эффектов. */
+  /** Read the current status without side effects. */
   check(): Promise<TrialStatus>;
-  /** Зафиксировать факт блокировки показа: для `time` — init firstOpen,
-   *  для `opens` — increment counter (capped at total). Возвращает
-   *  свежий статус после записи. */
+  /** Record the fact that the display was blocked: for `time` — init
+   *  firstOpen, for `opens` — increment the counter (capped at total).
+   *  Returns the fresh status after the write. */
   recordBlock(): Promise<TrialStatus>;
-  /** Сбросить хранилище триала (для дев/тестов / `paywall.resetTrial()`). */
+  /** Reset the trial store (for dev/tests / `paywall.resetTrial()`). */
   reset(): Promise<void>;
 }

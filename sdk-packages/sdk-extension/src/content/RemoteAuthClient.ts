@@ -1,13 +1,13 @@
-// RemoteAuthClient — структурный совместимец AuthClient. Public методы
-// идентичны, под капотом — async-прокси через TransportClient в offscreen,
-// где живёт реальная сессия и storage.
+// RemoteAuthClient — a structural match for AuthClient. The public methods are
+// identical, under the hood it's an async proxy through TransportClient into
+// offscreen, where the real session and storage live.
 //
-// Sync-getCachedSession поддерживается через локальный mirror, обновляемый
-// (a) на каждом ответе async-метода, (b) на broadcast'е authChange.
+// Sync getCachedSession is supported via a local mirror, updated (a) on every
+// async-method response, (b) on an authChange broadcast.
 //
-// OAuth (signInWithOAuth) пока бросает not-implemented — требует publicного
-// split-API в @sdk/core/auth (Phase 4.5). Для email/password/refresh/signOut
-// и прочей сетевой части — всё работает.
+// OAuth (signInWithOAuth) used to throw not-implemented — it required a public
+// split API in @sdk/core/auth (Phase 4.5). For email/password/refresh/signOut
+// and the rest of the network part — everything works.
 
 import type {
   AuthChangeEvent,
@@ -49,28 +49,28 @@ export class RemoteAuthClient {
       this.applySession(event, session);
     });
 
-    // Initial sync с offscreen'а — поднимаем restored session в local mirror
-    // ДО первого `getCachedSession()`. listeners получат восстановленную
-    // session через свой собственный INITIAL_SESSION microtask из onAuthChange
-    // (см. ниже) — не дёргаем applySession, чтобы не превратить «восстановление
-    // из storage» в выглядящий как-будто-signin event.
+    // Initial sync from offscreen — bring the restored session into the local
+    // mirror BEFORE the first `getCachedSession()`. Listeners receive the
+    // restored session via their own INITIAL_SESSION microtask from onAuthChange
+    // (see below) — we don't call applySession, so as not to turn "restore from
+    // storage" into a looks-like-signin event.
     this.hydrated = this.transport
       .request('auth.getCachedSession', undefined)
       .then((session) => {
-        // Конкурентность: если за время request'а кто-то уже выставил session
-        // (broadcast SIGNED_IN или локальный signIn-метод), не перетираем —
-        // hydrate-снимок stale относительно того, что уже в local mirror.
+        // Concurrency: if during the request someone already set the session
+        // (a SIGNED_IN broadcast or a local signIn method), don't overwrite —
+        // the hydrate snapshot is stale relative to what's already in the local mirror.
         if (this.session === null && session !== null) {
           this.session = session;
         }
       })
       .catch(() => {
-        /* offscreen не готов или транспорт упал — getCachedSession отдаст null */
+        /* offscreen isn't ready or the transport failed — getCachedSession returns null */
       });
   }
 
-  /** Promise, который резолвится после первичной синхронизации session с
-   *  offscreen'а. Аналог AuthClient.ready(). */
+  /** A promise that resolves after the initial session sync from offscreen.
+   *  The analog of AuthClient.ready(). */
   ready(): Promise<void> {
     return this.hydrated;
   }
@@ -85,9 +85,9 @@ export class RemoteAuthClient {
 
   onAuthChange(cb: AuthChangeListener): () => void {
     this.listeners.add(cb);
-    // Always-fire INITIAL_SESSION после hydrate'а — match @sdk/core AuthClient.
-    // Контракт: первый callback = INITIAL_SESSION с restored snapshot'ом
-    // (или null), последующие = реальные переходы через applySession.
+    // Always-fire INITIAL_SESSION after hydrate — matches @sdk/core AuthClient.
+    // Contract: the first callback = INITIAL_SESSION with the restored snapshot
+    // (or null), subsequent ones = real transitions via applySession.
     void this.hydrated.then(() => {
       if (!this.listeners.has(cb)) return;
       try {
@@ -105,9 +105,9 @@ export class RemoteAuthClient {
 
   async signInWithEmail(input: { email: string; password: string }): Promise<AuthSession> {
     const session = await this.transport.request('auth.signInWithEmail', input);
-    // Локальный mirror-update + emit. Broadcast от offscreen'а тоже прилетит
-    // с тем же event'ом — `sameSession` guard в applySession отсечёт второй
-    // emit, не дёргая listener'ов дважды.
+    // Local mirror update + emit. The broadcast from offscreen will also arrive
+    // with the same event — the `sameSession` guard in applySession cuts off the
+    // second emit, so listeners aren't called twice.
     this.applySession('SIGNED_IN', session);
     return session;
   }
@@ -124,9 +124,9 @@ export class RemoteAuthClient {
 
   async signOut(): Promise<void> {
     await this.transport.request('auth.signOut', undefined);
-    // Broadcast authChange придёт от offscreen'а с session=null, applySession
-    // там уже отработает. Тут ничего не делаем, чтобы не дёрнуть listener'ы
-    // дважды.
+    // The authChange broadcast will arrive from offscreen with session=null, and
+    // applySession will handle it there. We do nothing here, so as not to call
+    // the listeners twice.
   }
 
   async refresh(): Promise<AuthSession | null> {
@@ -171,19 +171,19 @@ export class RemoteAuthClient {
     await this.transport.request('auth.revokeAllSessions', undefined);
   }
 
-  /** Last-used auth method + email — читается из offscreen-storage. AuthPanel
-   *  использует для "Last used"-бейджа и pre-fill'а email. Storage paywall-
-   *  scoped, и offscreen — единый источник правды для всех вкладок/popup'ов. */
+  /** Last-used auth method + email — read from offscreen storage. AuthPanel uses
+   *  it for the "Last used" badge and email pre-fill. Storage is paywall-scoped,
+   *  and offscreen is the single source of truth for all tabs/popups. */
   async getLastLogin(): Promise<LastLogin | null> {
     return this.transport.request('auth.getLastLogin', undefined);
   }
 
   // === Anonymous sign-in ===
 
-  /** Анонимный sign-in (Supabase user без email). Логика (idempotent-check +
-   *  resume через сохранённый refresh_token + fresh signin) живёт в
-   *  offscreen-AuthClient'е — content только проксирует. captchaToken и
-   *  forceNewAnon — pass-through для forward-compat / switch-account flow. */
+  /** Anonymous sign-in (a Supabase user without an email). The logic (an
+   *  idempotent check + resume via a stored refresh_token + fresh signin) lives
+   *  in the offscreen AuthClient — content only proxies. captchaToken and
+   *  forceNewAnon are pass-through for forward-compat / the switch-account flow. */
   async signInAnonymously(input: {
     captchaToken?: string;
     userMeta?: Record<string, string>;
@@ -198,29 +198,29 @@ export class RemoteAuthClient {
     return session;
   }
 
-  /** Текущий access token (lazy-refreshable в offscreen'е). content/popup
-   *  использует для Bearer'а в внешние fetch'и — ApiGatewayClient в
-   *  content-script'е, прямые запросы из demo-UI. null если разлогинен или
-   *  offscreen'овский AuthClient не смог рефрешнуть. */
+  /** The current access token (lazily refreshable in offscreen). content/popup
+   *  uses it for the Bearer in external fetches — the ApiGatewayClient in the
+   *  content-script, direct requests from the demo UI. null if signed out or the
+   *  offscreen AuthClient couldn't refresh. */
   async getAccessToken(): Promise<string | null> {
     return this.transport.request('auth.getAccessToken', undefined);
   }
 
-  // === OAuth (web-flow через split-API) ===
+  // === OAuth (web-flow via split-API) ===
 
-  /** OAuth через web-вариант: window.open в content-script'е, provider
-   *  redirect, callback page постит code в opener. Под капотом split на
-   *  два request'а в offscreen — startOAuthFlow (дёргаем /init, получаем
-   *  authorize_url) → открываем popup → waitForOAuthCode → exchange.
+  /** OAuth via the web variant: window.open in the content-script, a provider
+   *  redirect, and the callback page posts the code back to the opener. Under
+   *  the hood it's a split into two requests to offscreen — startOAuthFlow (hit
+   *  /init, get authorize_url) → open the popup → waitForOAuthCode → exchange.
    *
-   *  PKCE verifier живёт ТОЛЬКО в offscreen'е (внутри AuthClient'а), через
-   *  runtime-границу не идёт. Content получает только authorize_url и state.
+   *  The PKCE verifier lives ONLY in offscreen (inside the AuthClient) and never
+   *  crosses the runtime boundary. Content gets only authorize_url and state.
    *
-   *  Popup-gesture: `window.open(authorize_url, ...)` идёт в том же synchronous
-   *  flow'е, что startOAuthFlow ответ; user-gesture сохраняется потому что
-   *  content-script unloaded не за этот tick (gesture сохраняется через все
-   *  microtask'и одного call stack'а). Если в каком-то браузере gesture
-   *  всё-таки теряется — host получит `popup_blocked` (тот же что в @monetize.software/sdk).
+   *  Popup gesture: `window.open(authorize_url, ...)` runs in the same synchronous
+   *  flow as the startOAuthFlow response; the user-gesture is preserved because
+   *  the content-script isn't unloaded within that tick (the gesture survives
+   *  through all microtasks of a single call stack). If in some browser the
+   *  gesture is lost anyway — the host gets `popup_blocked` (the same as in @monetize.software/sdk).
    */
   async signInWithOAuth(input: {
     provider: OAuthProvider;
@@ -232,15 +232,15 @@ export class RemoteAuthClient {
       throw new PaywallError('oauth_unavailable', 'window is required for OAuth');
     }
 
-    // Открываем popup СИНХРОННО — user-gesture сохраняется только в том же
-    // synchronous frame, что click-handler. Async `await` на transport.request
-    // до window.open съедает gesture, и Chrome открывает popup с пустым URL'ом
-    // / блокирует совсем.
+    // Open the popup SYNCHRONOUSLY — the user-gesture is preserved only within
+    // the same synchronous frame as the click handler. An async `await` on
+    // transport.request before window.open eats the gesture, and Chrome opens the
+    // popup with an empty URL / blocks it entirely.
     //
-    // about:blank вместо data:text/html (которым раньше показывали inline-loader):
-    // data:-URL'ы триггерят static-сканеры CWS и EDR'ы как подозрительные. Вместо
-    // этого открываем about:blank (наследует origin opener'а) и инжектим loader-DOM
-    // через document.createElement + textContent — ровно то же UX, без data:-URL'а.
+    // about:blank instead of data:text/html (which used to show the inline loader):
+    // data: URLs trip CWS static scanners and EDRs as suspicious. Instead we open
+    // about:blank (which inherits the opener's origin) and inject the loader DOM
+    // via document.createElement + textContent — exactly the same UX, without a data: URL.
     const tempName = `pw-oauth-pending-${Math.random().toString(36).slice(2, 10)}`;
     const popup = window.open('about:blank', tempName, 'width=480,height=640,popup=yes');
     if (!popup) {
@@ -252,18 +252,18 @@ export class RemoteAuthClient {
     injectLoaderUI(popup, input.provider);
 
     try {
-      // Async-часть: дёргаем offscreen за authorize_url и state. Popup пока
-      // показывает about:blank.
+      // Async part: hit offscreen for authorize_url and state. For now the popup
+      // shows about:blank.
       const { authorizeUrl, state } = await this.transport.request('auth.oauthStart', {
         provider: input.provider,
         scopes: input.scopes,
         userMeta: input.userMeta
       });
 
-      // Перед navigate'ом меняем имя popup'а на формат, который ожидает
-      // callback page (pw-oauth-<state>) — name переживает cross-origin
-      // редиректы (Google → Supabase → наш callback). callback page
-      // читает window.name → извлекает state → posts back.
+      // Before navigating, rename the popup to the format the callback page
+      // expects (pw-oauth-<state>) — the name survives cross-origin redirects
+      // (Google → Supabase → our callback). The callback page reads window.name
+      // → extracts state → posts back.
       popup.name = `pw-oauth-${state}`;
       popup.location.replace(authorizeUrl);
 
@@ -321,16 +321,16 @@ const PROVIDER_NAMES: Record<string, string> = {
   facebook: 'Facebook'
 };
 
-/** Inject loader-UI в about:blank popup. Same-origin как opener — мы можем
- *  трогать popup.document напрямую. Используем createElement + textContent
- *  (не innerHTML / document.write) чтобы не триггерить XSS-сканеры даже на
- *  hard-coded строках. CSS-классы с pw-oauth-* префиксом — без коллизий со
- *  стилями родительской страницы (popup всё равно изолирован, но на всякий).
+/** Inject the loader UI into the about:blank popup. Same-origin as the opener,
+ *  so we can touch popup.document directly. We use createElement + textContent
+ *  (not innerHTML / document.write) so as not to trip XSS scanners even on
+ *  hard-coded strings. CSS classes with the pw-oauth-* prefix avoid collisions
+ *  with the parent page's styles (the popup is isolated anyway, but just in case).
  *
- *  Defensive try/catch: если в каком-то edge-кейсе popup оказался не
- *  same-origin (некоторые расширения это перехватывают) или document не
- *  доступен — тихо забиваем, popup покажет дефолтный about:blank на 200-500мс
- *  до redirect'а на provider'а. */
+ *  Defensive try/catch: if in some edge case the popup turns out not to be
+ *  same-origin (some extensions intercept this) or the document isn't available
+ *  — we quietly give up, and the popup shows the default about:blank for 200-500ms
+ *  before redirecting to the provider. */
 function injectLoaderUI(popup: Window, provider: string): void {
   const name = PROVIDER_NAMES[provider] ?? provider;
   try {

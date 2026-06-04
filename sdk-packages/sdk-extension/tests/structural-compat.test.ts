@@ -1,11 +1,11 @@
-// Structural-compatibility tests. PaywallRoot и PaywallUI работают с
-// `client: BillingClient` / `auth: AuthClient`, не зная что под капотом
-// RemoteBillingClient/RemoteAuthClient. Поэтому remote-классы ОБЯЗАНЫ иметь
-// все public-методы и -поля настоящих, которые PaywallRoot/PaywallUI читают.
+// Structural-compatibility tests. PaywallRoot and PaywallUI work with
+// `client: BillingClient` / `auth: AuthClient`, without knowing that under the
+// hood it's a RemoteBillingClient/RemoteAuthClient. So the remote classes MUST
+// have all the public methods and fields of the real ones that PaywallRoot/PaywallUI read.
 //
-// Эти тесты — explicit checklist'ы. Если PaywallUI/PaywallRoot начинают
-// использовать новый метод billing/auth — добавь сюда, и тест поймает
-// отсутствие в remote-варианте на CI до того как юзер кликнет по кнопке.
+// These tests are explicit checklists. If PaywallUI/PaywallRoot start using a
+// new billing/auth method — add it here, and the test will catch its absence
+// in the remote variant on CI before the user clicks the button.
 
 import { describe, it, expect } from 'vitest';
 import { TransportClient } from '../src/shared/transport-client';
@@ -24,14 +24,14 @@ function makeNoopChannel(): MessageChannel {
   };
 }
 
-/** Public surface, которую PaywallRoot/PaywallUI читают на `client`.
- *  Список derived из чтения src/ui/PaywallUI.ts и src/ui/PaywallRoot.tsx —
- *  при добавлении нового method-call'а на client добавь сюда. */
+/** Public surface that PaywallRoot/PaywallUI read on `client`.
+ *  The list is derived from reading src/ui/PaywallUI.ts and src/ui/PaywallRoot.tsx —
+ *  when adding a new method call on client, add it here. */
 const REQUIRED_BILLING_SURFACE = [
   // Fields
   'paywallId',
   'apiOrigin',
-  'auth', // ← bug missed: RemoteBillingClient.auth был undefined, restore не работал
+  'auth', // ← bug missed: RemoteBillingClient.auth was undefined, restore did not work
   // Methods
   'bootstrap',
   'getCachedBootstrap',
@@ -47,8 +47,8 @@ const REQUIRED_BILLING_SURFACE = [
   'getIdentity',
   'setIdentity',
   'getVisitorId',
-  'getStorage', // ← bug missed: тоже отсутствовал, trial-gate падал
-  'createTrialStore' // duck-typed factory для extension-mode
+  'getStorage', // ← bug missed: also absent, the trial-gate crashed
+  'createTrialStore' // duck-typed factory for extension mode
 ] as const;
 
 const REQUIRED_AUTH_SURFACE = [
@@ -74,8 +74,8 @@ describe('RemoteBillingClient structural compatibility', () => {
     const transport = new TransportClient(makeNoopChannel);
     const auth = new RemoteAuthClient(transport, { paywallId: 'demo' });
     const remote = new RemoteBillingClient(transport, { paywallId: 'demo' });
-    // PaywallUI extension-wrapper выставляет `auth` после конструктора —
-    // эмулируем это для проверки.
+    // The PaywallUI extension-wrapper sets `auth` after the constructor —
+    // we emulate this for the check.
     (remote as { auth?: typeof auth }).auth = auth;
 
     const missing: string[] = [];

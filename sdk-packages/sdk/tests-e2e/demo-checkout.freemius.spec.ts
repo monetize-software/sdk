@@ -1,21 +1,21 @@
-// Полный сквозной Freemius Sandbox flow на paywall id=5 → polling user-state →
-// `purchase_completed`. КЛЮЧЕВОЕ ОТЛИЧИЕ от Stripe/Paddle: Freemius hosted
-// checkout НЕ редиректит на success_url (см. online/utils/freemius/server.ts:106-113),
-// поэтому SDK узнаёт об оплате не через hash-маркеры, а через UserWatcher
-// polling (стартует на `checkout_started`, тикает каждые 5s в visible вкладке —
-// см. sdk/src/ui/UserWatcher.ts). После сабмита формы возвращаемся в demo-таб,
-// чтобы visibility-change разбудил watcher и check() пошёл сразу.
+// A full end-to-end Freemius Sandbox flow on paywall id=5 → polling user-state →
+// `purchase_completed`. KEY DIFFERENCE from Stripe/Paddle: Freemius hosted
+// checkout does NOT redirect to success_url (see online/utils/freemius/server.ts:106-113),
+// so the SDK learns about payment not via hash markers but via UserWatcher
+// polling (starts on `checkout_started`, ticks every 5s in a visible tab —
+// see sdk/src/ui/UserWatcher.ts). After submitting the form we return to the demo tab,
+// so visibility-change wakes the watcher and check() runs immediately.
 //
-// Хрупче, чем Stripe/Paddle: вёрстка checkout.freemius.com может поплыть, плюс
-// успех зависит от того, что webhook от Freemius долетит до dev-online и
-// обновит подписку юзера до того, как тест выйдет в timeout. Запускаем вручную
-// через `pnpm test:e2e:checkout:freemius` перед релизом.
+// More fragile than Stripe/Paddle: the checkout.freemius.com markup may drift, plus
+// success depends on the webhook from Freemius reaching dev-online and
+// updating the user's subscription before the test times out. We run it manually
+// via `pnpm test:e2e:checkout:freemius` before a release.
 //
-// Препросы те же, что у demo-bootstrap.freemius.spec.ts (paywall id=5, dev-online).
+// Prerequisites are the same as demo-bootstrap.freemius.spec.ts (paywall id=5, dev-online).
 //
-// Селекторы Freemius Sandbox формы — best-effort. Если тест начнёт падать на
-// заполнении формы — записать новый снимок DOM через `--debug` и поправить
-// селекторы; не пытаться адаптировать через retries.
+// The Freemius Sandbox form selectors are best-effort. If the test starts failing on
+// filling the form, record a new DOM snapshot via `--debug` and fix the
+// selectors; do not try to adapt via retries.
 
 import { test, expect } from '@playwright/test';
 
@@ -31,13 +31,13 @@ test('paywall id=5 (Freemius) full sandbox checkout → purchase_completed via p
 
   const email = `e2e-${Date.now()}-${Math.random().toString(36).slice(2)}@example.com`;
   await page.evaluate((e) => {
-    // @ts-expect-error — __paywall экспонируется в demo/main.ts
+    // @ts-expect-error — __paywall is exposed in demo/main.ts
     window.__paywall.billing.setIdentity({ email: e, userId: e });
   }, email);
 
-  // Подписываемся на checkout_started и purchase_completed ДО клика. Watcher
-  // стартует синхронно на checkout_started, поэтому подписка должна стоять
-  // заранее, иначе первый тик polling может улететь до того, как мы навесим
+  // We subscribe to checkout_started and purchase_completed BEFORE the click. The watcher
+  // starts synchronously on checkout_started, so the subscription must be in place
+  // beforehand, otherwise the first polling tick may fire before we attach the
   // listener.
   await page.evaluate(() => {
     const w = window as unknown as {
@@ -45,11 +45,11 @@ test('paywall id=5 (Freemius) full sandbox checkout → purchase_completed via p
       __purchaseCompleted?: Promise<unknown>;
     };
     w.__checkoutStarted = new Promise((resolve) => {
-      // @ts-expect-error — __paywall с типизированными событиями
+      // @ts-expect-error — __paywall with typed events
       window.__paywall.on('checkout_started', resolve);
     });
     w.__purchaseCompleted = new Promise((resolve) => {
-      // @ts-expect-error — __paywall с типизированными событиями
+      // @ts-expect-error — __paywall with typed events
       window.__paywall.on('purchase_completed', resolve);
     });
   });
@@ -68,9 +68,9 @@ test('paywall id=5 (Freemius) full sandbox checkout → purchase_completed via p
 
   await freemiusTab.waitForLoadState('domcontentloaded');
 
-  // Email пред-заполнен через user_email + readonly_user=true в query
-  // (см. utils/freemius/server.ts) — досылаем только если форма всё-таки
-  // попросила. Имя — обязательное в большинстве конфигов Freemius checkout.
+  // The email is pre-filled via user_email + readonly_user=true in the query
+  // (see utils/freemius/server.ts) — we send it only if the form does
+  // ask for it. The name is required in most Freemius checkout configs.
   const nameInput = freemiusTab.getByLabel(/name|full name|customer name/i).first();
   if (await nameInput.isVisible({ timeout: 10_000 }).catch(() => false)) {
     await nameInput.fill('Test User');
@@ -81,9 +81,9 @@ test('paywall id=5 (Freemius) full sandbox checkout → purchase_completed via p
     await emailInput.fill(email);
   }
 
-  // Карточные поля у Freemius обычно в Stripe Elements iframe'ах. Пытаемся
-  // и в основном документе (некоторые конфиги отдают свои инпуты), и через
-  // frameLocator по характерным placeholder/label.
+  // Freemius card fields are usually in Stripe Elements iframes. We try
+  // both the main document (some configs serve their own inputs) and via
+  // frameLocator by characteristic placeholder/label.
   const fillCard = async () => {
     const directNumber = freemiusTab.getByLabel(/card number/i).first();
     if (await directNumber.isVisible().catch(() => false)) {
@@ -92,9 +92,9 @@ test('paywall id=5 (Freemius) full sandbox checkout → purchase_completed via p
       await freemiusTab.getByLabel(/cvc|cvv|security/i).first().fill('123');
       return;
     }
-    // Stripe Elements iframe — каждое поле в своём iframe (cardNumber,
-    // cardExpiry, cardCvc). Имя iframe формализовано в Stripe.js, но Freemius
-    // оборачивает их по-своему — фильтруем по placeholder.
+    // Stripe Elements iframe — each field in its own iframe (cardNumber,
+    // cardExpiry, cardCvc). The iframe name is formalized in Stripe.js, but Freemius
+    // wraps them its own way — we filter by placeholder.
     const numberFrame = freemiusTab
       .frameLocator('iframe')
       .locator('input[name="cardnumber"], input[placeholder*="1234"], input[autocomplete="cc-number"]')
@@ -113,25 +113,25 @@ test('paywall id=5 (Freemius) full sandbox checkout → purchase_completed via p
   };
   await fillCard();
 
-  // Submit: у Freemius hosted checkout кнопка обычно «Pay $X» / «Start my
-  // subscription» / «Subscribe». Берём по широкому regex, чтобы переживать
-  // варианты копирайта.
+  // Submit: on Freemius hosted checkout the button is usually "Pay $X" / "Start my
+  // subscription" / "Subscribe". We match by a broad regex to survive
+  // copy variations.
   await freemiusTab.getByRole('button', { name: /pay|subscribe|start.*subscription|buy/i }).first().click();
 
-  // Возвращаемся в demo-таб: visibilitychange → visible пробуждает UserWatcher
-  // и тригерит немедленный check() (см. sdk/src/ui/UserWatcher.ts handleVisibility).
-  // Без этого поллинг идёт раз в 30s (hidden), и тест выйдет в timeout.
+  // We return to the demo tab: visibilitychange → visible wakes UserWatcher
+  // and triggers an immediate check() (see sdk/src/ui/UserWatcher.ts handleVisibility).
+  // Without this, polling runs once every 30s (hidden) and the test times out.
   await page.bringToFront();
 
-  // Ждём purchase_completed: webhook от Freemius → online обновляет
-  // has_active_subscription → следующий tick UserWatcher (5s visible) ловит
-  // активную подписку и эмитит событие. Generous timeout — webhook может
-  // лагнуть на dev-stage.
+  // We wait for purchase_completed: webhook from Freemius → online updates
+  // has_active_subscription → the next UserWatcher tick (5s visible) catches
+  // the active subscription and emits the event. Generous timeout — the webhook may
+  // lag on dev-stage.
   const log = page.locator('#log');
   await expect(log).toContainText('purchase_completed', { timeout: 120_000 });
 
-  // Server-confirmed путь: priceId/sessionId здесь null (отличие от
-  // hash-marker flow, где они приходят из URL). См. PaywallUI.startUserWatcher
-  // — onActive эмитит purchase_completed с priceId:null.
+  // Server-confirmed path: priceId/sessionId are null here (unlike the
+  // hash-marker flow, where they come from the URL). See PaywallUI.startUserWatcher
+  // — onActive emits purchase_completed with priceId:null.
   await expect(log).toContainText('purchase_completed {"priceId":null,"sessionId":null}');
 });

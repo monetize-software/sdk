@@ -2,26 +2,26 @@ import { useCallback, useEffect, useState } from 'react';
 import type { PaywallUI } from '@monetize.software/sdk';
 import { usePaywall } from './usePaywall';
 
-// `TrialStatus` локально не экспортируется из SDK, но мы его получаем
-// через ReturnType-инференцию по публичному методу `getTrialStatus()`. Так
-// тип всегда совпадает с тем, что реально возвращает PaywallUI, без зависимости
-// от непубличного namespace'а SDK.
+// `TrialStatus` isn't exported from the SDK locally, but we obtain it via
+// ReturnType inference on the public method `getTrialStatus()`. This way the
+// type always matches what PaywallUI actually returns, without depending on a
+// non-public SDK namespace.
 type TrialStatus = NonNullable<ReturnType<PaywallUI['getTrialStatus']>>;
 
 /**
- * Текущий статус триала ({@link TrialStatus}) с автоматическим ре-рендером на
- * `trial_blocked` события.
+ * The current trial status ({@link TrialStatus}) with an automatic re-render on
+ * `trial_blocked` events.
  *
- * Возвращает `null`, пока триал не проверялся (хост не вызывал
- * `paywall.open()` / `paywall.getAccess()`) либо триал отключён в конфиге
- * пейвола. Сам триал-стейт живёт в storage (localStorage / chrome.storage),
- * проверяется в `paywall.open()` и в `paywall.getAccess()` — оба пути обновляют
- * in-memory snapshot, который мы здесь и читаем.
+ * Returns `null` while the trial hasn't been checked (the host hasn't called
+ * `paywall.open()` / `paywall.getAccess()`) or the trial is disabled in the
+ * paywall config. The trial state itself lives in storage (localStorage /
+ * chrome.storage), is checked in `paywall.open()` and in `paywall.getAccess()`
+ * — both paths update the in-memory snapshot that we read here.
  *
- * Использовать чтобы рисовать собственный UI:
- *  - «У тебя осталось 3 показа» (mode `opens`) — `status.remainingActions`;
- *  - «Триал истечёт через 2 часа» (mode `time`) — `status.remainingMs`;
- *  - «Триал заблокирован, оплати чтобы продолжить» — `status.blocked === true`.
+ * Use it to draw your own UI:
+ *  - "You have 3 showings left" (mode `opens`) — `status.remainingActions`;
+ *  - "Trial expires in 2 hours" (mode `time`) — `status.remainingMs`;
+ *  - "Trial is blocked, pay to continue" — `status.blocked === true`.
  *
  * ```tsx
  * const trial = usePaywallTrial();
@@ -36,8 +36,8 @@ export function usePaywallTrial(): TrialStatus | null {
     paywall?.getTrialStatus() ?? null
   );
 
-  // Стабильный refresh для эффекта — отдельная функция, чтобы deps массив
-  // эффекта был чистым (`[paywall]`), без useCallback-цепочек.
+  // A stable refresh for the effect — a separate function so the effect's deps
+  // array stays clean (`[paywall]`), without useCallback chains.
   const sync = useCallback(() => {
     if (!paywall) {
       setStatus(null);
@@ -51,14 +51,15 @@ export function usePaywallTrial(): TrialStatus | null {
       setStatus(null);
       return;
     }
-    // Sync read на mount-е — getTrialStatus() мог обновиться между прошлым
-    // рендером и effect'ом (например, hook вызван после первого open()-а).
+    // Sync read on mount — getTrialStatus() may have updated between the
+    // previous render and the effect (for example, the hook was called after
+    // the first open()).
     sync();
 
-    // `trial_blocked` — единственный event, после которого snapshot реально
-    // меняется. `trial_expired` фаерится один раз за жизнь инстанса и не
-    // меняет shape статуса (статус становится `mode: 'none'` ИЛИ переходит
-    // в un-blocked-режим, что и так читается через sync()).
+    // `trial_blocked` is the only event after which the snapshot actually
+    // changes. `trial_expired` fires once per instance lifetime and doesn't
+    // change the status shape (the status becomes `mode: 'none'` OR transitions
+    // to un-blocked mode, which is read through sync() anyway).
     const unsubBlock = paywall.on('trial_blocked', sync);
     const unsubExpired = paywall.on('trial_expired', sync);
 

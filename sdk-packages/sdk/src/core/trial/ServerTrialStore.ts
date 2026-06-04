@@ -6,17 +6,19 @@ import type { TrialStore } from './TrialStore';
 let warned = false;
 
 /**
- * Стаб серверного хранилища триала. Делегирует в {@link LocalTrialStore} —
- * SDK работает корректно, но фактически state живёт у клиента, а не на бэке.
+ * Stub for the server-side trial store. Delegates to {@link LocalTrialStore} —
+ * the SDK works correctly, but in fact the state lives on the client, not on
+ * the backend.
  *
- * Когда появится серверный endpoint (`/api/v1/paywall/{id}/trial-state`),
- * заменим internals: GET для `check()`, POST для `recordBlock()`. Публичный
- * контракт `TrialStore` не меняется — `paywall.open()` flow в PaywallUI
- * трогать не придётся.
+ * Once a server endpoint appears (`/api/v1/paywall/{id}/trial-state`), we'll
+ * replace the internals: GET for `check()`, POST for `recordBlock()`. The
+ * public `TrialStore` contract doesn't change — the `paywall.open()` flow in
+ * PaywallUI won't need to be touched.
  *
- * Пока админка кладёт `settings.trial.storage = 'server'`, мы выводим один
- * console.warn и продолжаем как с `'client'`. Это позволяет владельцу пейвола
- * включить тоггл в админке заранее и проверить, что SDK не падает.
+ * While the admin sets `settings.trial.storage = 'server'`, we emit a single
+ * console.warn and continue as with `'client'`. This lets the paywall owner
+ * flip the toggle in the admin panel ahead of time and verify the SDK doesn't
+ * break.
  */
 export class ServerTrialStore implements TrialStore {
   private readonly fallback: LocalTrialStore;

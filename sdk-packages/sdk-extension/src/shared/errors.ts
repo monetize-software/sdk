@@ -1,10 +1,10 @@
 import { PaywallError } from '@sdk/core/types';
 import type { SerializedError } from './protocol';
 
-// Сериализация PaywallError в плоский JSON для chrome.runtime messaging
-// (Error через structured cloning теряет class identity — instanceof ломается).
-// Reconstruct на content-стороне восстанавливает PaywallError, host'ы пишут
-// `if (e instanceof PaywallError)` как обычно.
+// Serialization of PaywallError into flat JSON for chrome.runtime messaging
+// (an Error loses its class identity through structured cloning — instanceof
+// breaks). Reconstruct on the content side restores PaywallError, so hosts write
+// `if (e instanceof PaywallError)` as usual.
 
 export function serializeError(error: unknown): SerializedError {
   if (error instanceof PaywallError) {

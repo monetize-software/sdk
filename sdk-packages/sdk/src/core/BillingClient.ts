@@ -28,28 +28,29 @@ import {
   PaywallError
 } from './types';
 
-// Свежесть in-memory кеша user. 5с — компромисс: достаточно, чтобы naïve-юзер,
-// дёрнувший getUser в setInterval(1000), не нагружал сервер; недостаточно,
-// чтобы пропустить успешную оплату дольше пары секунд после revalidateTag.
+// Freshness of the in-memory user cache. 5s is a compromise: enough that a
+// naïve user calling getUser in setInterval(1000) doesn't load the server;
+// not so much that a successful payment is missed for longer than a couple of
+// seconds after revalidateTag.
 const USER_CACHE_TTL_MS = 5_000;
-// Persistent cache (storage) живёт 30 минут. Дольше — рискованно отдавать
-// устаревший snapshot без сети.
+// The persistent cache (storage) lives for 30 minutes. Longer — it's risky to
+// serve a stale snapshot without the network.
 const USER_PERSIST_TTL_MS = 30 * 60_000;
-// Persistent bootstrap живёт 1 час. На каждом mount BillingClient hydrate'ит
-// его из storage и параллельно шлёт revalidate с `?if_version=<v>`. Если
-// сервер ответил `unchanged: true` — мы лишь обновляем user, structure
-// остаётся та же (cheap path). При истечении TTL — блокирующий полный
-// запрос; не отдаём stale, который потенциально не отражает изменения
-// настроек админом (revalidateTag на бэке инвалидирует unstable_cache, но
-// не знает про клиентский storage). 1 час — компромисс: попаdaния в кэш
-// доминируют над холодными запусками, при этом изменения в админке
-// доходят до клиента в пределах часа без явного refresh.
+// The persistent bootstrap lives for 1 hour. On every mount BillingClient
+// hydrates it from storage and in parallel sends a revalidate with
+// `?if_version=<v>`. If the server answered `unchanged: true` — we only update
+// user, the structure stays the same (cheap path). On TTL expiry — a blocking
+// full request; we don't serve stale that potentially doesn't reflect settings
+// changes made by an admin (revalidateTag on the backend invalidates
+// unstable_cache but doesn't know about client storage). 1 hour is a
+// compromise: cache hits dominate over cold starts, while admin changes reach
+// the client within an hour without an explicit refresh.
 const BOOTSTRAP_PERSIST_TTL_MS = 60 * 60_000;
-// Порог свежести cached bootstrap'а: если последняя запись была раньше этого —
-// при следующем `bootstrap()` уйдёт фоновый revalidate с `?if_version`.
-// Раньше — return cached без сети (миллисекунды между двумя `bootstrap()`
-// не имеют смысла дёргать). 5 минут — большинство переоткрытий popup'а
-// попадают в холодный период, при этом мы не штурмуем сервер при бурстах.
+// Freshness threshold for the cached bootstrap: if the last write was older
+// than this — the next `bootstrap()` fires a background revalidate with
+// `?if_version`. Younger — return cached without the network (no point hitting
+// it for milliseconds between two `bootstrap()` calls). 5 minutes — most popup
+// reopenings fall into the cold period, while we don't storm the server during bursts.
 const BOOTSTRAP_STALE_THRESHOLD_MS = 5 * 60_000;
 const EMPTY_USER: PaywallUser = {
   has_active_subscription: false,
@@ -72,22 +73,22 @@ function sameUser(a: PaywallUser | null, b: PaywallUser | null): boolean {
 type UserListener = (user: PaywallUser) => void;
 type BalancesListener = (balances: Balance[]) => void;
 
-// Балансы AI-провайдеров. 5с TTL — как у user-cache: balance меняется только
-// после успешного gateway-вызова (мы декрементим оптимистично) или вне SDK
-// (платёж пополнил квоту); в обоих случаях короткий TTL достаточно.
+// AI provider balances. 5s TTL — same as the user cache: the balance changes
+// only after a successful gateway call (we decrement optimistically) or outside
+// the SDK (a payment topped up the quota); a short TTL is enough in both cases.
 const BALANCES_CACHE_TTL_MS = 5_000;
-// Persistent balances живут 5 минут. Достаточно, чтобы переоткрытие popup'а
-// в пределах рабочей сессии (типичный паттерн extension'а) шло из кэша; не
-// настолько долго, чтобы баланс сильно разъехался с серверной правдой при
-// нескольких покупках подряд. Свежий decrement через `decrementBalanceLocal`
-// сразу пишется в storage и доходит до других вкладок через `storage.watch`.
+// Persistent balances live for 5 minutes. Enough that a popup reopening within
+// a working session (the typical extension pattern) comes from cache; not so
+// long that the balance drifts far from the server truth across several
+// purchases in a row. A fresh decrement via `decrementBalanceLocal` is written
+// to storage right away and reaches other tabs via `storage.watch`.
 const BALANCES_PERSIST_TTL_MS = 5 * 60_000;
-// Порог свежести cached balances: при возрасте младше — `getBalances()`
-// возвращает кэш без сетевого запроса. Старше — фоновый refetch
-// (stale-while-revalidate). force=true обходит порог. 30 секунд — компромисс:
-// частые UI-renders (счётчик баланса в widget'е) не штурмуют сервер, при
-// этом изменения, сделанные на бэке без участия SDK, доходят достаточно
-// быстро.
+// Freshness threshold for the cached balances: when younger, `getBalances()`
+// returns the cache without a network request. Older — a background refetch
+// (stale-while-revalidate). force=true bypasses the threshold. 30 seconds is a
+// compromise: frequent UI renders (the balance counter in a widget) don't storm
+// the server, while changes made on the backend without the SDK's involvement
+// reach the client fairly quickly.
 const BALANCES_STALE_THRESHOLD_MS = 30_000;
 
 function sameBalances(a: Balance[] | null, b: Balance[] | null): boolean {
@@ -102,12 +103,12 @@ function sameBalances(a: Balance[] | null, b: Balance[] | null): boolean {
 export interface BillingClientOptions {
   paywallId: string;
   /**
-   * Origin серверного API SDK — обязательное поле. Должно совпадать с
-   * `custom_domain`, заданным для пейвола в платформе (модерация привязывает
-   * домен к paywall_id). SDK сверяет это значение с `bootstrap.settings.custom_domain`
-   * на первом ответе и кидает `invalid_config` при расхождении — защита от
-   * опечаток интегратора. Промежуточный `appbox.space` в новом SDK НЕ
-   * используется (это только для legacy v2).
+   * Origin of the SDK server API — required. Must match the `custom_domain`
+   * configured for the paywall in the platform (moderation binds the domain to
+   * paywall_id). The SDK checks this value against `bootstrap.settings.custom_domain`
+   * on the first response and throws `invalid_config` on a mismatch — protection
+   * against integrator typos. The intermediate `appbox.space` is NOT used in the
+   * new SDK (that's for legacy v2 only).
    */
   apiOrigin: string;
   identity?: Identity;
@@ -115,42 +116,42 @@ export interface BillingClientOptions {
   capabilities?: string[];
   fetch?: typeof fetch;
   /**
-   * Server SDK API key. Используется для `/start-checkout` в headless/hybrid-сценариях,
-   * где вызов идёт из trusted-окружения (backend клиента). В client-native пути
-   * ключ НЕ передавать — приватный токен утечёт в браузер.
+   * Server SDK API key. Used for `/start-checkout` in headless/hybrid scenarios
+   * where the call comes from a trusted environment (the client's backend). On
+   * the client-native path do NOT pass the key — the private token would leak into the browser.
    *
-   * По умолчанию конструктор throw'ает `apikey_in_browser`, если ключ задан в
-   * браузерном контексте (`window.document`) — защита от типового «затупа»
-   * интегратора. Снять блок можно только осознанно через
+   * By default the constructor throws `apikey_in_browser` if the key is set in a
+   * browser context (`window.document`) — protection against the typical
+   * integrator blunder. The block can only be lifted deliberately via
    * `allowInsecureBrowserUsage: true`.
    */
   apiKey?: string;
   /**
-   * Разрешить `apiKey` в браузерном контексте. ТОЛЬКО для e2e/интеграционных
-   * тестов, где ключ инжектится в браузер намеренно. В проде это утечка
-   * server-SDK ключа и компрометация всего аккаунта. Дефолт false → конструктор
-   * throw'ает при обнаружении ключа в браузере. Когда true — вместо throw'а
-   * просто `console.error`-предупреждение.
+   * Allow `apiKey` in a browser context. ONLY for e2e/integration tests where
+   * the key is injected into the browser intentionally. In production this is a
+   * leak of the server-SDK key and a compromise of the entire account. Default
+   * false → the constructor throws when it detects the key in the browser. When
+   * true — instead of throwing, just a `console.error` warning.
    */
   allowInsecureBrowserUsage?: boolean;
   /**
-   * AuthClient для подключения Bearer-авторизации и автосинка identity. Если
-   * передан — все запросы получают `Authorization: Bearer <access_token>`,
-   * а identity пересчитывается из auth.user на каждом login/logout/refresh
-   * (перетирает явно заданный `opts.identity` после первого auth-event'а).
+   * AuthClient for wiring up Bearer authorization and auto-syncing identity. If
+   * passed — every request gets `Authorization: Bearer <access_token>`, and
+   * identity is recomputed from auth.user on each login/logout/refresh
+   * (overrides an explicitly set `opts.identity` after the first auth event).
    *
-   * Без auth BillingClient работает как раньше: identity приходит снаружи
-   * через `setIdentity`, Bearer не отправляется.
+   * Without auth BillingClient works as before: identity comes from outside via
+   * `setIdentity`, Bearer is not sent.
    */
   auth?: AuthClient;
   /**
-   * Preview/editor-mode. Когда true:
-   *  - `bootstrap()` НЕ ходит в сеть — отдаёт только `cachedBootstrap`, заданный
-   *    через `setBootstrap()`. Без seed'а throw'ает (caller обязан засидить до open).
-   *  - Storage.watch / persist отключены (preview редактора локален для текущей вкладки).
-   *  - `setBootstrap(partial)` доступен как публичный setter — host'у разрешено
-   *    мутировать кеш для live-обновления модалки в редакторе админки.
-   * Дефолт false — обычный production-режим.
+   * Preview/editor mode. When true:
+   *  - `bootstrap()` does NOT hit the network — it returns only `cachedBootstrap`,
+   *    set via `setBootstrap()`. Without a seed it throws (the caller must seed before open).
+   *  - Storage.watch / persist are disabled (the editor preview is local to the current tab).
+   *  - `setBootstrap(partial)` is available as a public setter — the host is
+   *    allowed to mutate the cache for live updates of the modal in the admin editor.
+   * Default false — normal production mode.
    */
   preview?: boolean;
 }
@@ -159,7 +160,7 @@ export class BillingClient {
   readonly paywallId: string;
   readonly apiOrigin: string;
   readonly capabilities: string[] | undefined;
-  /** AuthClient, если был передан в options. Иначе undefined. */
+  /** AuthClient, if one was passed in options. Otherwise undefined. */
   readonly auth: AuthClient | undefined;
   private api: ApiClient;
   private storage: StorageAdapter;
@@ -167,60 +168,60 @@ export class BillingClient {
   private apiKey: string | undefined;
   private fetchImpl: typeof fetch | undefined;
   private cachedBootstrap: PaywallBootstrap | null = null;
-  // Время последней успешной записи cachedBootstrap (mono Date.now). Используем
-  // для TTL: после BOOTSTRAP_PERSIST_TTL_MS считаем stale и идём в сеть
-  // блокирующе (нельзя отдавать устаревший layout — админ мог его поменять).
+  // Time of the last successful cachedBootstrap write (mono Date.now). Used for
+  // the TTL: after BOOTSTRAP_PERSIST_TTL_MS we consider it stale and go to the
+  // network blockingly (we mustn't serve a stale layout — an admin may have changed it).
   private cachedBootstrapAt = 0;
-  // In-flight dedupe для bootstrap. Параллельные `bootstrap()` (например, mount
-  // двух виджетов одновременно) получают один и тот же promise — один сетевой
-  // запрос. Stale-while-revalidate ветка тоже пишет сюда фоновый promise,
-  // чтобы commit'ы не пересекались.
+  // In-flight dedupe for bootstrap. Parallel `bootstrap()` calls (e.g. mounting
+  // two widgets at once) get the same promise — a single network request. The
+  // stale-while-revalidate branch also writes a background promise here so that
+  // commits don't cross.
   private inflightBootstrap: Promise<PaywallBootstrap> | null = null;
   private bootstrapListeners = new Set<(b: PaywallBootstrap) => void>();
-  // Отписка от storage.watch — другая вкладка / popup / service-worker
-  // могла обновить bootstrap; через watch мы получаем onChanged без
-  // сетевого запроса. null = адаптер не поддерживает watch (memory).
+  // Unsubscribe from storage.watch — another tab / popup / service-worker may
+  // have updated the bootstrap; via watch we get onChanged without a network
+  // request. null = the adapter doesn't support watch (memory).
   private bootstrapStorageUnwatch: (() => void) | null = null;
   private authUnsubscribe: (() => void) | null = null;
 
-  // user-cache: in-memory с TTL + in-flight dedupe + persistent fallback.
+  // user cache: in-memory with TTL + in-flight dedupe + persistent fallback.
   private cachedUser: PaywallUser | null = null;
   private cachedUserAt = 0;
   private inflightUser: Promise<PaywallUser> | null = null;
   private userListeners = new Set<UserListener>();
 
-  // Stable visitor_id для аналитики. Резолвится один раз при инициализации,
-  // переиспользуется на все track-вызовы. Не привязан к identity.
+  // Stable visitor_id for analytics. Resolved once on initialization, reused for
+  // all track calls. Not bound to identity.
   private visitorIdPromise: Promise<string> | null = null;
   private visitorId: string | null = null;
 
-  // In-flight createCheckout dedupe — Stage 1 защиты от дубликатов покупок.
-  // Параллельные клики по CTA (двойной клик, две вкладки на одной странице)
-  // получают тот же promise и тот же server-side checkout-URL вместо двух
-  // запросов к /start-checkout. Ключ — либо переданный idempotencyKey, либо
-  // `auto:${priceId}` (один inflight на цену для авто-сгенеренных ключей).
+  // In-flight createCheckout dedupe — Stage 1 of protection against duplicate
+  // purchases. Parallel clicks on the CTA (a double-click, two tabs on the same
+  // page) get the same promise and the same server-side checkout URL instead of
+  // two requests to /start-checkout. The key is either the passed idempotencyKey,
+  // or `auto:${priceId}` (one inflight per price for auto-generated keys).
   private inflightCheckouts = new Map<string, Promise<CheckoutResult>>();
 
-  // balances-cache: симметрично user-cache. ApiGatewayClient оптимистично
-  // декрементит через decrementBalanceLocal(); явный getBalances({force:true})
-  // ходит к /balances и обновляет state. Listener'ы получают snapshot после
-  // каждого реального изменения (Object.is не сравниваем — массивы разные).
+  // balances cache: symmetric to the user cache. ApiGatewayClient decrements
+  // optimistically via decrementBalanceLocal(); an explicit getBalances({force:true})
+  // hits /balances and updates state. Listeners receive a snapshot after every
+  // real change (we don't compare with Object.is — the arrays differ).
   private cachedBalances: Balance[] | null = null;
   private cachedBalancesAt = 0;
-  // Отписка от storage.watch для balances. Ключ identity-bound, при
-  // setIdentity отписываемся и переподписываемся под новым identityKey.
+  // Unsubscribe from storage.watch for balances. The key is identity-bound; on
+  // setIdentity we unsubscribe and re-subscribe under the new identityKey.
   private balancesStorageUnwatch: (() => void) | null = null;
   private inflightBalances: Promise<Balance[]> | null = null;
   private balanceListeners = new Set<BalancesListener>();
 
-  // Preview/editor-mode: см. BillingClientOptions.preview. Фиксируется в
-  // конструкторе; runtime-переключения не предусмотрено — preview/production
-  // это разные жизненные циклы клиента.
+  // Preview/editor mode: see BillingClientOptions.preview. Fixed in the
+  // constructor; runtime switching is not provided — preview/production are
+  // different lifecycles of the client.
   private readonly previewMode: boolean;
-  // Монотонный счётчик для генерации синтетического version в setBootstrap.
-  // Реальный server-version имеет вид "<paywall_id>:<hash>"; здесь мы кладём
-  // "preview:<n>" чтобы applyBootstrap гарантированно увидел смену version
-  // и дёрнул listener'ы (PaywallRoot rerender'ит на каждый setBootstrap).
+  // Monotonic counter for generating a synthetic version in setBootstrap. A real
+  // server-version looks like "<paywall_id>:<hash>"; here we put "preview:<n>"
+  // so that applyBootstrap is guaranteed to see a version change and trigger the
+  // listeners (PaywallRoot re-renders on every setBootstrap).
   private previewVersionCounter = 0;
 
   constructor(opts: BillingClientOptions) {
@@ -240,23 +241,23 @@ export class BillingClient {
     this.capabilities = opts.capabilities;
     this.auth = opts.auth;
     this.previewMode = opts.preview === true;
-    // Если auth передан — initial identity берём из cached user (если он
-    // успел гидрироваться в конструкторе AuthClient — обычно нет, поэтому
-    // ниже подписываемся на onAuthChange и обновим, как только session
-    // зарезолвится). Явно заданный opts.identity побеждает только до
-    // первого auth-event'а — после login/logout это поле перетрётся.
+    // If auth is passed — we take the initial identity from the cached user (if
+    // it managed to hydrate in the AuthClient constructor — usually not, so
+    // below we subscribe to onAuthChange and update as soon as the session
+    // resolves). An explicitly set opts.identity wins only until the first auth
+    // event — after login/logout this field is overwritten.
     const authUser = opts.auth?.getCachedUser();
     this.identity = opts.identity ?? (authUser ? authUserToIdentity(authUser) : undefined);
     this.apiKey = opts.apiKey;
     this.fetchImpl = opts.fetch;
-    // Безопасность: приватный server-SDK ключ НИКОГДА не должен попасть в
-    // браузер. Detect-эвристика — наличие `window.document` (не идеальная,
-    // но отсекает обычные web/extension случаи; в Node/Deno/Bun fallback
-    // на `typeof window === 'undefined'`). По умолчанию throw'аем на первой
-    // же строке `new BillingClient(...)` — наивный интегратор не соберёт
-    // рабочий клиент с ключом и не заметит. Осознанный нестандартный сценарий
-    // (e2e с инжекцией ключа) снимает блок флагом allowInsecureBrowserUsage —
-    // тогда лишь громкий console.error для Sentry / логов.
+    // Security: the private server-SDK key must NEVER reach the browser. The
+    // detection heuristic is the presence of `window.document` (not perfect, but
+    // it catches ordinary web/extension cases; in Node/Deno/Bun we fall back to
+    // `typeof window === 'undefined'`). By default we throw on the very first
+    // line of `new BillingClient(...)` — a naive integrator won't assemble a
+    // working client with a key and won't notice. A deliberate non-standard
+    // scenario (e2e with an injected key) lifts the block via the
+    // allowInsecureBrowserUsage flag — then only a loud console.error for Sentry / logs.
     if (
       opts.apiKey &&
       typeof window !== 'undefined' &&
@@ -283,17 +284,17 @@ export class BillingClient {
       paywallId: opts.paywallId,
       capabilities: opts.capabilities,
       fetch: opts.fetch,
-      // Bearer прокидывается каждый запрос. AuthClient.getAccessToken
-      // делает lazy refresh, дедупит, на 401 возвращает null — тогда
-      // Authorization-хедер просто не выставится.
+      // Bearer is passed on every request. AuthClient.getAccessToken does a lazy
+      // refresh, dedupes, and on 401 returns null — then the Authorization
+      // header simply isn't set.
       getAuthToken: opts.auth ? () => opts.auth!.getAccessToken() : undefined
     });
 
     if (opts.auth) {
-      // BillingClient синхронизирует identity на любой смене session (включая
-      // INITIAL_SESSION — иначе после reload до первого реального event'а
-      // identity не выставится). sameIdentity-guard ниже подавит no-op'ы для
-      // event'ов вроде TOKEN_REFRESHED, где user.id не поменялся.
+      // BillingClient syncs identity on any session change (including
+      // INITIAL_SESSION — otherwise after a reload, until the first real event,
+      // identity wouldn't be set). The sameIdentity guard below suppresses no-ops
+      // for events like TOKEN_REFRESHED where user.id didn't change.
       this.authUnsubscribe = opts.auth.onAuthChange((_event, session) => {
         const next = session ? authUserToIdentity(session.user) : undefined;
         if (sameIdentity(this.identity, next)) return;
@@ -301,23 +302,23 @@ export class BillingClient {
       });
     }
 
-    // Seed из persistent storage — чтобы первый getUser() мог отдать last-known
-    // мгновенно (offline fallback). Не блокируем конструктор.
+    // Seed from persistent storage — so the first getUser() can return the
+    // last-known value instantly (offline fallback). Don't block the constructor.
     void this.hydrateUserFromStorage();
 
-    // То же для bootstrap'а: hydrate + подписка на cross-context изменения.
-    // Если popup уже сходил за свежим bootstrap'ом, content-script подхватит
-    // через storage.watch без своего сетевого запроса.
+    // Same for the bootstrap: hydrate + subscribe to cross-context changes. If a
+    // popup already fetched a fresh bootstrap, the content-script picks it up via
+    // storage.watch without its own network request.
     void this.hydrateBootstrapFromStorage();
     this.subscribeBootstrapStorage();
 
-    // Balances: identity-bound persist. На init ключ = identity на момент
-    // конструктора; setIdentity отписывается и переподписывается под новым.
+    // Balances: identity-bound persist. On init the key = identity at constructor
+    // time; setIdentity unsubscribes and re-subscribes under the new one.
     void this.hydrateBalancesFromStorage();
     this.subscribeBalancesStorage();
 
-    // Резолвим visitor_id заранее, чтобы EventTracker мог брать sync-ссылку
-    // (this.visitorId) почти сразу после первого микротаска.
+    // Resolve visitor_id ahead of time so EventTracker can take a sync reference
+    // (this.visitorId) almost immediately after the first microtask.
     this.visitorIdPromise = ensureVisitorId(this.storage).then((id) => {
       this.visitorId = id;
       return id;
@@ -325,9 +326,9 @@ export class BillingClient {
   }
 
   /**
-   * Stable visitor_id (UUID v4). Первый вызов awaitит первичный резолв из
-   * storage; последующие — мгновенно из in-memory кеша. Используется
-   * EventTracker'ом для атрибуции аналитики.
+   * Stable visitor_id (UUID v4). The first call awaits the initial resolve from
+   * storage; subsequent ones — instantly from the in-memory cache. Used by
+   * EventTracker for analytics attribution.
    */
   async getVisitorId(): Promise<string> {
     if (this.visitorId) return this.visitorId;
@@ -340,32 +341,32 @@ export class BillingClient {
     return this.visitorIdPromise;
   }
 
-  /** Sync-доступ к visitor_id. null если ещё не зарезолвили (первые ms жизни). */
+  /** Sync access to visitor_id. null if not resolved yet (the first ms of life). */
   getCachedVisitorId(): string | null {
     return this.visitorId;
   }
 
   setIdentity(identity: Identity | undefined): void {
     this.identity = identity;
-    // bootstrap НЕ сбрасываем: structure (layout/prices/offers/locales) от
-    // identity не зависит, persisted shape переиспользуем. user обновится
-    // отдельно через getUser({force:true}) ниже + следующий revalidate
-    // bootstrap'а подтянет свежий user одним round-trip'ом, если нужно.
-    // user привязан к identity — переключение чистит, иначе один юзер увидит
-    // подписку другого после re-login.
+    // We do NOT reset the bootstrap: structure (layout/prices/offers/locales)
+    // doesn't depend on identity, we reuse the persisted shape. user is updated
+    // separately via getUser({force:true}) below + the next bootstrap revalidate
+    // pulls in a fresh user in one round-trip if needed. user is bound to
+    // identity — switching clears it, otherwise one user would see another's
+    // subscription after re-login.
     this.cachedUser = null;
     this.cachedUserAt = 0;
     this.inflightUser = null;
-    // Балансы привязаны к Bearer-юзеру (см. /balances route — он использует
-    // Auth-юзера, не identity.email). При re-login/signout обнуляем; ниже
-    // явно эмитим EMPTY shape'ы, иначе listener'ы не узнают о смене
-    // identity (applyUser/applyBalances — единственные точки эмита).
+    // Balances are bound to the Bearer user (see the /balances route — it uses
+    // the Auth user, not identity.email). On re-login/signout we clear them;
+    // below we explicitly emit EMPTY shapes, otherwise listeners won't learn of
+    // the identity change (applyUser/applyBalances are the only emit points).
     this.cachedBalances = null;
     this.cachedBalancesAt = 0;
     this.inflightBalances = null;
-    // Storage-ключ балансов identity-bound — отписываемся от старого ключа
-    // и переподписываемся под новым identityKey'ем. Hydrate подхватит
-    // persisted balances нового юзера (если открывал расширение раньше).
+    // The balances storage key is identity-bound — we unsubscribe from the old
+    // key and re-subscribe under the new identityKey. Hydrate picks up the new
+    // user's persisted balances (if they opened the extension before).
     if (this.balancesStorageUnwatch) {
       this.balancesStorageUnwatch();
       this.balancesStorageUnwatch = null;
@@ -374,34 +375,34 @@ export class BillingClient {
     this.subscribeBalancesStorage();
     void this.hydrateUserFromStorage();
     if (identity) {
-      // Auto-refetch user'а в фоне для нового identity. Без этого UI'ам с
-      // подпиской на onUserChange (account-widget'ы, pop'ы статуса) пришлось
-      // бы вручную дёргать getUser после каждого signin'а — а они обычно
-      // не знают что signin произошёл. С refetch'ем onUserChange broadcast'ит
-      // свежий has_active_subscription автоматически. Promise проглатывает
-      // ошибки — getUser сам обновит cachedUser в EMPTY_USER при сетевом
-      // фейле, listener'ы получат rollback-snapshot.
+      // Auto-refetch the user in the background for the new identity. Without
+      // this, UIs subscribed to onUserChange (account widgets, status pops) would
+      // have to call getUser manually after every signin — and they usually don't
+      // know a signin happened. With the refetch, onUserChange broadcasts the
+      // fresh has_active_subscription automatically. The promise swallows errors —
+      // getUser itself updates cachedUser to EMPTY_USER on a network failure, and
+      // listeners get the rollback snapshot.
       void this.getUser({ force: true }).catch(() => {
-        /* network failure — listener'ы получат EMPTY_USER через applyUser */
+        /* network failure — listeners get EMPTY_USER via applyUser */
       });
     } else {
-      // Signout: identity сброшен, сетевой /user-state без Bearer'а ничего
-      // полезного не вернёт (бэк ответит empty-state). Эмитим EMPTY shape'ы
-      // синхронно, чтобы listener'ы (account-widget'ы, usePaywallUser,
-      // RemoteBillingClient через broadcast) переключились в guest-state.
-      // Hydrate*FromStorage выше skip'нутся через truthy-guard на cached*.
+      // Signout: identity is cleared, a network /user-state without Bearer won't
+      // return anything useful (the backend answers empty-state). We emit EMPTY
+      // shapes synchronously so that listeners (account widgets, usePaywallUser,
+      // RemoteBillingClient via broadcast) switch to guest-state. The
+      // Hydrate*FromStorage calls above are skipped via the truthy guard on cached*.
       this.applyUser(EMPTY_USER);
       this.applyBalances([]);
     }
   }
 
   /**
-   * Отписаться от auth-event'ов и сбросить listener'ы. Вызывать когда
-   * BillingClient больше не нужен (тесты, hot-reload, переинициализация).
-   * Без destroy() listener на AuthClient переживёт BillingClient и будет
-   * дёргать setIdentity на освобождённом инстансе. Слушатели user/balance
-   * чистятся, чтобы упавший host (например, размонтированный React-tree)
-   * не держал замыкания на эти колбеки.
+   * Unsubscribe from auth events and clear listeners. Call when BillingClient is
+   * no longer needed (tests, hot-reload, re-initialization). Without destroy()
+   * the listener on AuthClient outlives BillingClient and keeps calling
+   * setIdentity on a released instance. The user/balance listeners are cleared so
+   * that a torn-down host (e.g. an unmounted React tree) doesn't hold closures
+   * over these callbacks.
    */
   destroy(): void {
     if (this.authUnsubscribe) {
@@ -432,14 +433,15 @@ export class BillingClient {
   async bootstrap(
     forceOrOpts: boolean | { force?: boolean; signal?: AbortSignal } = false
   ): Promise<PaywallBootstrap> {
-    // Старая сигнатура `bootstrap(force: boolean)` сохраняется для совместимости
-    // с уже написанным host-кодом; новая — `bootstrap({force?, signal?})`.
+    // The old signature `bootstrap(force: boolean)` is kept for compatibility
+    // with already-written host code; the new one is `bootstrap({force?, signal?})`.
     const opts =
       typeof forceOrOpts === 'boolean' ? { force: forceOrOpts } : forceOrOpts;
 
-    // Preview-mode: сеть отключена. Caller обязан был засидить cachedBootstrap
-    // через setBootstrap() до первого open(). Без seed'а кидаем явную ошибку,
-    // чтобы редактор админки сразу увидел причину пустой модалки.
+    // Preview mode: the network is disabled. The caller had to seed
+    // cachedBootstrap via setBootstrap() before the first open(). Without a seed
+    // we throw an explicit error so the admin editor immediately sees the reason
+    // for an empty modal.
     if (this.previewMode) {
       if (this.cachedBootstrap) return this.cachedBootstrap;
       throw new PaywallError(
@@ -448,9 +450,10 @@ export class BillingClient {
       );
     }
 
-    // Stale-while-revalidate: если кэш свежий по TTL — отдаём мгновенно и
-    // в фоне идём за свежим (с `?if_version=<v>`, чтобы 99% случаев бэк
-    // ответил коротким `unchanged: true`). Force обходит весь кэш и блокирует.
+    // Stale-while-revalidate: if the cache is fresh by TTL — we return instantly
+    // and fetch a fresh one in the background (with `?if_version=<v>`, so that in
+    // 99% of cases the backend answers a short `unchanged: true`). Force bypasses
+    // the whole cache and blocks.
     const now = Date.now();
     const cacheFresh =
       this.cachedBootstrap &&
@@ -461,25 +464,25 @@ export class BillingClient {
       const shouldRevalidate =
         now - this.cachedBootstrapAt > BOOTSTRAP_STALE_THRESHOLD_MS;
       if (shouldRevalidate) {
-        // Фоновый revalidate — не блокируем caller, ошибки swallow'им (cache
-        // всё ещё считается достоверным до истечения TTL).
+        // Background revalidate — we don't block the caller, we swallow errors
+        // (the cache is still considered authoritative until the TTL expires).
         void this.revalidateBootstrap(opts.signal).catch(() => {
-          /* network/abort — listener'ы получат свежее на следующий запрос */
+          /* network/abort — listeners get the fresh value on the next request */
         });
       }
-      // Bootstrap.user может быть stale: setIdentity сбросил cachedUser,
-      // но НЕ trogает cachedBootstrap.user (structure-cache переживает
-      // re-identity). Свежий user приходит отдельно через applyUser после
-      // force-getUser. Чтобы caller (RemoteBillingClient → applyUser в
-      // mirror) не перетёр свежий user stale-данными из cached bootstrap'а —
-      // возвращаем bootstrap с user из текущего cachedUser. null cachedUser
-      // = «ещё не загружен» — отдаём undefined, RemoteBillingClient тогда
-      // не дёрнет applyUser и подождёт broadcast.
+      // Bootstrap.user can be stale: setIdentity cleared cachedUser but does NOT
+      // touch cachedBootstrap.user (the structure cache survives re-identity).
+      // The fresh user arrives separately via applyUser after a force-getUser. So
+      // that the caller (RemoteBillingClient → applyUser in the mirror) doesn't
+      // overwrite the fresh user with stale data from the cached bootstrap — we
+      // return the bootstrap with user from the current cachedUser. A null
+      // cachedUser = "not loaded yet" — we return undefined, then
+      // RemoteBillingClient won't call applyUser and will wait for the broadcast.
       return { ...this.cachedBootstrap!, user: this.cachedUser ?? undefined };
     }
 
-    // Параллельные mount'ы (виджет + popup) получают один и тот же promise.
-    // Без dedupe — два сетевых запроса с одинаковым результатом.
+    // Parallel mounts (widget + popup) get the same promise. Without dedupe —
+    // two network requests with an identical result.
     if (this.inflightBootstrap) return this.inflightBootstrap;
 
     this.inflightBootstrap = this.fetchBootstrap({
@@ -493,9 +496,9 @@ export class BillingClient {
   }
 
   /**
-   * Подписка на изменения bootstrap'а: applyBootstrap (сетевой revalidate,
-   * cross-context storage.watch). Срабатывает ТОЛЬКО при реальном изменении
-   * `version` (unchanged-ответ от сервера не дёргает listener'ов). Возвращает
+   * Subscribe to bootstrap changes: applyBootstrap (network revalidate,
+   * cross-context storage.watch). Fires ONLY on a real `version` change (an
+   * unchanged response from the server doesn't trigger listeners). Returns an
    * unsubscribe.
    */
   onBootstrapChange(cb: (b: PaywallBootstrap) => void): () => void {
@@ -506,21 +509,21 @@ export class BillingClient {
   }
 
   /**
-   * Заменить cachedBootstrap частичными или полными данными и эмитнуть всем
-   * подписчикам. Используется host'ом в preview-mode (редактор админки) для
-   * live-обновления открытой модалки без сетевого revalidate'а.
+   * Replace cachedBootstrap with partial or full data and emit to all
+   * subscribers. Used by the host in preview mode (the admin editor) for
+   * live-updating the open modal without a network revalidate.
    *
-   * Поведение:
-   *  - Без `cachedBootstrap` ожидаются как минимум `settings` + `prices` —
-   *    иначе PaywallRoot не сможет отрендерить тарифы и упадёт.
-   *  - С существующим кешем партиал мёрджится поверх: `settings` глубокий мёрдж
-   *    на 1 уровень (поля настроек), массивы `prices`/`offers` перезаписываются.
-   *  - Каждый вызов бампит `version` ("preview:<n>"), чтобы applyBootstrap'овая
-   *    проверка `versionChanged` всегда срабатывала и listener'ы дёргались.
-   *  - Persist в storage НЕ делаем — preview не должен утекать в другие вкладки.
+   * Behavior:
+   *  - Without `cachedBootstrap`, at least `settings` + `prices` are expected —
+   *    otherwise PaywallRoot can't render the plans and will crash.
+   *  - With an existing cache, the partial is merged on top: `settings` is a deep
+   *    merge one level down (settings fields), the `prices`/`offers` arrays are overwritten.
+   *  - Every call bumps `version` ("preview:<n>") so that applyBootstrap's
+   *    `versionChanged` check always fires and listeners are triggered.
+   *  - We do NOT persist to storage — preview must not leak into other tabs.
    *
-   * В non-preview режиме метод доступен, но это редкий путь (например, для
-   * тестов host'а) — production-код должен полагаться на bootstrap() + revalidate.
+   * In non-preview mode the method is available, but it's a rare path (e.g. for
+   * host tests) — production code should rely on bootstrap() + revalidate.
    */
   setBootstrap(partial: Partial<PaywallBootstrap>): void {
     const base: PaywallBootstrap = this.cachedBootstrap ?? {
@@ -558,10 +561,10 @@ export class BillingClient {
     }
   }
 
-  // Network primitive — единая точка для force-запроса, revalidate'а и
-  // первого холодного bootstrap'а. `ifVersion` шлёт server-side short-circuit:
-  // если совпала — бэк отвечает `{unchanged: true, version, user}` и мы лишь
-  // обновляем cached user, structure (layout/prices/offers/locales) не трогаем.
+  // Network primitive — a single point for the force request, the revalidate,
+  // and the first cold bootstrap. `ifVersion` sends a server-side short-circuit:
+  // if it matches — the backend answers `{unchanged: true, version, user}` and we
+  // only update the cached user, leaving structure (layout/prices/offers/locales) untouched.
   private async fetchBootstrap(opts: {
     ifVersion?: string;
     signal?: AbortSignal;
@@ -581,24 +584,25 @@ export class BillingClient {
     });
 
     if ('unchanged' in resp && resp.unchanged) {
-      // Server-side подтвердил, что structure не изменилась. Cached остаётся,
-      // обновляем только user. Если cached почему-то null (race на старте) —
-      // fallback: повторяем запрос без if_version, чтобы получить full.
+      // Server-side confirmed the structure hasn't changed. Cached stays, we
+      // update only user. If cached is somehow null (a race at startup) —
+      // fallback: repeat the request without if_version to get the full payload.
       if (!this.cachedBootstrap) {
         return this.fetchBootstrap({ signal: opts.signal });
       }
-      // Освежим TTL — за unchanged-ответом тоже идёт сеть, кэш всё ещё валиден.
+      // Refresh the TTL — an unchanged response also went over the network, the cache is still valid.
       this.cachedBootstrapAt = Date.now();
       if (resp.user) this.applyUser(resp.user);
       return this.cachedBootstrap;
     }
 
     const bootstrap = resp as PaywallBootstrap;
-    // Self-check: сверяем custom_domain, привязанный к paywall_id в платформе,
-    // с apiOrigin, которым SDK был инициализирован. Расхождение почти всегда
-    // означает опечатку у интегратора (вписал не тот домен) — без явной ошибки
-    // юзер увидел бы пустой пейвол / сломанные платежки без объяснений. Сравним
-    // нормализованные origin'ы; пустой custom_domain (legacy v2 paywall) — skip.
+    // Self-check: compare the custom_domain bound to paywall_id in the platform
+    // against the apiOrigin the SDK was initialized with. A mismatch almost
+    // always means an integrator typo (entered the wrong domain) — without an
+    // explicit error the user would see an empty paywall / broken checkout with
+    // no explanation. We compare normalized origins; an empty custom_domain
+    // (legacy v2 paywall) — skip.
     assertApiOriginMatchesCustomDomain(bootstrap.settings.custom_domain, this.apiOrigin);
     if (!bootstrap.layout) {
       bootstrap.layout = buildDefaultLayout(bootstrap.settings, bootstrap.prices);
@@ -611,8 +615,8 @@ export class BillingClient {
     return bootstrap;
   }
 
-  // Фоновый revalidate из stale-while-revalidate ветки. Дедуплицируется через
-  // `inflightBootstrap`, чтобы параллельные revalidate'ы не пересекались.
+  // Background revalidate from the stale-while-revalidate branch. Deduplicated
+  // via `inflightBootstrap` so that parallel revalidates don't cross.
   private revalidateBootstrap(signal?: AbortSignal): Promise<PaywallBootstrap> {
     if (this.inflightBootstrap) return this.inflightBootstrap;
     this.inflightBootstrap = this.fetchBootstrap({
@@ -624,11 +628,11 @@ export class BillingClient {
     return this.inflightBootstrap;
   }
 
-  // Применяет fresh bootstrap к state: emit listeners ТОЛЬКО при изменении
-  // version (т.е. structure реально другая). Это нужно, чтобы повторный
-  // applyBootstrap из storage.watch не перерисовал UI зря, если другая
-  // вкладка нашла тот же version. persist=false для пути «получили из
-  // storage» — там кто-то другой уже записал.
+  // Applies a fresh bootstrap to state: emit listeners ONLY on a version change
+  // (i.e. the structure is really different). This is needed so a repeated
+  // applyBootstrap from storage.watch doesn't redraw the UI for nothing if
+  // another tab found the same version. persist=false for the "got it from
+  // storage" path — there someone else already wrote it.
   private applyBootstrap(
     bootstrap: PaywallBootstrap,
     { persist }: { persist: boolean }
@@ -663,17 +667,17 @@ export class BillingClient {
       } | null;
       if (!parsed?.bootstrap) return;
       if (Date.now() - parsed.at > BOOTSTRAP_PERSIST_TTL_MS) return;
-      // Race-защита: если за время `await` кто-то успел положить свежий
-      // bootstrap (одновременный фоновый fetch) — не перетираем.
+      // Race protection: if during the `await` someone managed to store a fresh
+      // bootstrap (a concurrent background fetch) — don't overwrite.
       if (this.cachedBootstrap) return;
-      // Локали могут быть не применены в persisted-shape'е — гарантируем
-      // консистентность накатив их заново. applyLocaleOverrides идемпотентен.
+      // Locales may not be applied in the persisted shape — we guarantee
+      // consistency by reapplying them. applyLocaleOverrides is idempotent.
       applyLocaleOverrides(parsed.bootstrap);
       this.cachedBootstrap = parsed.bootstrap;
       this.cachedBootstrapAt = parsed.at;
-      // emit listener'ам — host'ы могут подписаться синхронно в конструкторе
-      // и ждать первый snapshot. user из persisted — может быть очень старый,
-      // не применяем (свежий придёт через сетевой запрос / hydrateUser).
+      // emit to listeners — hosts may subscribe synchronously in the constructor
+      // and wait for the first snapshot. user from persisted — may be very old,
+      // we don't apply it (a fresh one will come via the network request / hydrateUser).
       for (const cb of this.bootstrapListeners) {
         try {
           cb(parsed.bootstrap);
@@ -682,17 +686,18 @@ export class BillingClient {
         }
       }
     } catch {
-      /* corrupted entry — игнорируем */
+      /* corrupted entry — ignore */
     }
   }
 
   private async persistBootstrap(bootstrap: PaywallBootstrap): Promise<void> {
-    // Не персистим bootstrap без version — старый бэк не отдаёт его, и без
-    // version нет смысла в ревалидации (всегда придётся тянуть full payload).
+    // We don't persist a bootstrap without version — the old backend doesn't
+    // return it, and without version there's no point in revalidation (we'd
+    // always have to pull the full payload).
     if (!bootstrap.version) return;
     try {
-      // user'а в persisted не пишем — он живёт под своим ключом userState
-      // с собственным TTL/identity-маппингом.
+      // We don't write user into persisted — it lives under its own userState
+      // key with its own TTL/identity mapping.
       const { user: _user, ...rest } = bootstrap;
       await this.storage.setItem(
         STORAGE_KEYS.bootstrap(this.paywallId),
@@ -703,9 +708,9 @@ export class BillingClient {
     }
   }
 
-  // Cross-context sync: другая вкладка / popup / sw записали свежий bootstrap
-  // → мы подхватываем без сетевого запроса. Адаптеры без watch (memory) —
-  // no-op, всё работает как раньше через сеть.
+  // Cross-context sync: another tab / popup / sw wrote a fresh bootstrap → we
+  // pick it up without a network request. Adapters without watch (memory) — a
+  // no-op, everything works as before via the network.
   private subscribeBootstrapStorage(): void {
     if (typeof this.storage.watch !== 'function') return;
     this.bootstrapStorageUnwatch = this.storage.watch(
@@ -718,8 +723,8 @@ export class BillingClient {
             bootstrap: PaywallBootstrap;
           } | null;
           if (!parsed?.bootstrap) return;
-          // Если та же version — нет смысла перезаписывать (избежим лишних
-          // listener'ов из applyBootstrap).
+          // If it's the same version — no point overwriting (we avoid extra
+          // listener calls from applyBootstrap).
           if (
             this.cachedBootstrap?.version &&
             this.cachedBootstrap.version === parsed.bootstrap.version
@@ -736,21 +741,22 @@ export class BillingClient {
     );
   }
 
-  /** Возвращает последний загруженный bootstrap без сетевого запроса.
-   *  null = bootstrap ещё не загружали. Удобно для post-checkout-логики
-   *  (PaywallUI читает success_redirect_url, не делая второго round-trip'а). */
+  /** Returns the last loaded bootstrap without a network request.
+   *  null = the bootstrap hasn't been loaded yet. Handy for post-checkout logic
+   *  (PaywallUI reads success_redirect_url without doing a second round-trip). */
   getCachedBootstrap(): PaywallBootstrap | null {
     return this.cachedBootstrap;
   }
 
   /**
-   * Шорткат поверх `bootstrap()`: ждёт загрузку структуры пейвола и возвращает
-   * цены. Полезно когда host рисует цены вне модалки (карточки на лендинге,
-   * "Pricing" page и т.п.) и не хочет руками распаковывать bootstrap.
+   * A shortcut over `bootstrap()`: waits for the paywall structure to load and
+   * returns the prices. Useful when the host renders prices outside the modal
+   * (cards on a landing page, a "Pricing" page, etc.) and doesn't want to unpack
+   * the bootstrap by hand.
    *
-   * Locale-оверрайды (`label`/`description` под `navigator.language`) уже
-   * применены — массив готов к рендеру. Кэш/TTL/stale-while-revalidate — те
-   * же, что у `bootstrap()`: повторный вызов не штурмует сервер.
+   * Locale overrides (`label`/`description` under `navigator.language`) are
+   * already applied — the array is ready to render. Cache/TTL/stale-while-revalidate
+   * are the same as `bootstrap()`: a repeat call doesn't storm the server.
    */
   async getPrices(
     opts: { force?: boolean; signal?: AbortSignal } = {}
@@ -759,38 +765,39 @@ export class BillingClient {
     return b.prices;
   }
 
-  /** Sync-снимок цен из последнего bootstrap'а. null = ещё не загружали. */
+  /** Sync snapshot of prices from the last bootstrap. null = not loaded yet. */
   getCachedPrices(): PaywallPrice[] | null {
     return this.cachedBootstrap?.prices ?? null;
   }
 
-  /** Sync-снимок офферов из последнего bootstrap'а. null = bootstrap ещё не
-   *  загружали, пустой массив = бэк отдал пейвол без офферов. Бэк уже
-   *  применил серверный таргетинг (target_countries / target_emails /
-   *  targeting_mode из offer_settings) — наружу выезжает только то, что
-   *  применимо к текущему юзеру. Клиентская сторона остаётся ответственной
-   *  за price_id-matching и countdown (см. core/offer.ts → resolveOffer). */
+  /** Sync snapshot of offers from the last bootstrap. null = the bootstrap
+   *  hasn't been loaded yet, an empty array = the backend returned a paywall with
+   *  no offers. The backend has already applied server-side targeting
+   *  (target_countries / target_emails / targeting_mode from offer_settings) —
+   *  only what's applicable to the current user comes out. The client side
+   *  remains responsible for price_id matching and the countdown
+   *  (see core/offer.ts → resolveOffer). */
   getCachedOffers(): PaywallOffer[] | null {
     return this.cachedBootstrap?.offers ?? null;
   }
 
   /**
-   * Снимок того, какой язык SDK сейчас считает «языком юзера». Полезно для
-   * синхронизации i18n хоста с тем, что фактически показывает пейвол — чтобы
-   * окружающий UI не противоречил модалке (например, host рисует кнопку
-   * "Subscribe" на английском, а пейвол показывает «Подписаться» на русском).
+   * A snapshot of what language the SDK currently considers the "user's
+   * language". Useful for syncing the host's i18n with what the paywall actually
+   * shows — so the surrounding UI doesn't contradict the modal (e.g. the host
+   * renders a "Subscribe" button in English while the paywall shows «Подписаться» in Russian).
    *
-   * Возвращает структуру, а не один тэг, чтобы интегратор мог:
-   *  - быстро взять `tag` для своих переводов;
-   *  - отличить «пейвол реально на этом языке» (`applied !== null`) от
-   *    «SDK угадал, но локали для этого языка нет — рендерится база»;
-   *  - решить, чему доверять при противоречии browserLanguage vs countryLanguage
-   *    (тур, expat, VPN — у каждого свой ответ).
+   * Returns a structure rather than a single tag, so the integrator can:
+   *  - quickly take `tag` for their own translations;
+   *  - distinguish "the paywall is really in this language" (`applied !== null`)
+   *    from "the SDK guessed, but there's no locale for this language — the base is rendered";
+   *  - decide what to trust when browserLanguage vs countryLanguage conflict
+   *    (a trip, an expat, a VPN — each has its own answer).
    *
-   * Sync-вызов: данные уже в bootstrap'е, отдельных запросов не делает.
-   * Если `bootstrap()` ещё не вызывался — `applied` и `countryLanguage`
-   * будут `null`, но `browserLanguage` и `tag` всё равно отдадутся, если
-   * есть `navigator.language`.
+   * Sync call: the data is already in the bootstrap, no separate requests are
+   * made. If `bootstrap()` hasn't been called yet — `applied` and
+   * `countryLanguage` will be `null`, but `browserLanguage` and `tag` are still
+   * returned if `navigator.language` is present.
    */
   getUserLanguage(): UserLanguageInfo {
     const browserLanguage =
@@ -802,12 +809,12 @@ export class BillingClient {
   }
 
   /**
-   * Получить актуальное состояние подписки/покупок.
+   * Get the current subscription/purchases state.
    *
-   * - In-memory cache TTL 5с — naïve setInterval(1000) не нагружает сервер.
-   * - In-flight dedupe — параллельные вызовы получают один promise.
-   * - `force: true` обходит кеш (для post-checkout проверки).
-   * - Без identity возвращает empty-state (сервер тоже так делает).
+   * - In-memory cache TTL 5s — a naïve setInterval(1000) doesn't load the server.
+   * - In-flight dedupe — parallel calls get a single promise.
+   * - `force: true` bypasses the cache (for a post-checkout check).
+   * - Without identity it returns empty-state (the server does the same).
    */
   async getUser(
     { force = false, signal }: { force?: boolean; signal?: AbortSignal } = {}
@@ -838,21 +845,21 @@ export class BillingClient {
   }
 
   /**
-   * Подписка на изменения user-state. Колбек вызывается:
-   * - сразу с last-known user (если есть в кеше) — по умолчанию через
-   *   microtask, опционально SYNC (см. опции);
-   * - на каждое реальное изменение (getUser/bootstrap принёс другой shape).
+   * Subscribe to user-state changes. The callback is invoked:
+   * - immediately with the last-known user (if present in the cache) — by default
+   *   via a microtask, optionally SYNC (see options);
+   * - on every real change (getUser/bootstrap brought a different shape).
    *
    * `opts.immediate`:
-   *   - `'microtask'` (default) — initial snapshot отдаётся в queueMicrotask,
-   *     чтобы host успел доресетнуть state в том же тике. Безопасный выбор
-   *     для большинства интеграций.
-   *   - `'sync'` — initial snapshot отдаётся прямо в текущем frame'е, до
-   *     возврата из onUserChange. Удобно для React/Vue useEffect-cleanup'а
-   *     (избегаем лишнего ре-рендера) и SSR (мгновенная синхронизация).
-   *   - `'none'` — не отдавать initial snapshot, только реальные изменения.
+   *   - `'microtask'` (default) — the initial snapshot is delivered in
+   *     queueMicrotask, so the host can finish resetting state in the same tick.
+   *     The safe choice for most integrations.
+   *   - `'sync'` — the initial snapshot is delivered right in the current frame,
+   *     before onUserChange returns. Convenient for React/Vue useEffect cleanup
+   *     (avoids an extra re-render) and SSR (instant synchronization).
+   *   - `'none'` — don't deliver an initial snapshot, only real changes.
    *
-   * Возвращает функцию отписки.
+   * Returns the unsubscribe function.
    */
   onUserChange(
     cb: UserListener,
@@ -879,7 +886,7 @@ export class BillingClient {
     };
   }
 
-  /** Текущий cached user без сетевого запроса. null = ещё не загружали. */
+  /** The current cached user without a network request. null = not loaded yet. */
   getCachedUser(): PaywallUser | null {
     return this.cachedUser;
   }
@@ -912,12 +919,12 @@ export class BillingClient {
       const parsed = JSON.parse(raw) as { at: number; user: PaywallUser } | null;
       if (!parsed?.user) return;
       if (Date.now() - parsed.at > USER_PERSIST_TTL_MS) return;
-      // Только если за это время никто не успел положить свежий — иначе
-      // перетрём более актуальные данные.
+      // Only if no one managed to store a fresh one in the meantime — otherwise
+      // we'd overwrite more current data.
       if (this.cachedUser) return;
       this.applyUser(parsed.user);
     } catch {
-      /* corrupted entry — игнорируем, в сети возьмём свежий */
+      /* corrupted entry — ignore, we'll fetch a fresh one over the network */
     }
   }
 
@@ -928,22 +935,22 @@ export class BillingClient {
         JSON.stringify({ at: Date.now(), user })
       );
     } catch {
-      /* quota / disabled — не критично */
+      /* quota / disabled — not critical */
     }
   }
 
   /**
-   * Балансы AI-провайдеров (`paywall_balances` × `tokenization_queries`).
+   * AI provider balances (`paywall_balances` × `tokenization_queries`).
    *
-   * - In-memory cache TTL 5с — параллельные UI-renders не дёргают сеть;
-   * - In-flight dedupe — параллельные `getBalances` получают один promise;
-   * - `force: true` обходит кеш (типичный кейс — после QuotaExceededError);
-   * - Без auth (Bearer не выдан) возвращает пустой массив без сетевого
-   *   запроса: бэк всё равно ответит 401, нет смысла тратить round-trip.
+   * - In-memory cache TTL 5s — parallel UI renders don't hit the network;
+   * - In-flight dedupe — parallel `getBalances` calls get a single promise;
+   * - `force: true` bypasses the cache (the typical case — after QuotaExceededError);
+   * - Without auth (Bearer not issued) it returns an empty array without a
+   *   network request: the backend would answer 401 anyway, no point spending a round-trip.
    *
-   * Если у пейвола `tokenization=false` — бэк отдаёт `[]`, как для гостя.
-   * SDK не различает «нет квоты» и «нет квот вообще» — caller сам решает
-   * по `currentBalance` в QuotaExceededError или `balances.length`.
+   * If the paywall has `tokenization=false` — the backend returns `[]`, as for a
+   * guest. The SDK doesn't distinguish "no quota" from "no quotas at all" — the
+   * caller decides via `currentBalance` in QuotaExceededError or `balances.length`.
    */
   async getBalances(
     { force = false, signal }: { force?: boolean; signal?: AbortSignal } = {}
@@ -951,8 +958,8 @@ export class BillingClient {
     const now = Date.now();
     const age = this.cachedBalances ? now - this.cachedBalancesAt : Infinity;
 
-    // Стабильный путь: cache свежий (in-memory 5с или persisted младше
-    // BALANCES_STALE_THRESHOLD_MS). Возврат без сетевого запроса.
+    // Stable path: the cache is fresh (in-memory 5s or persisted younger than
+    // BALANCES_STALE_THRESHOLD_MS). Return without a network request.
     if (
       !force &&
       this.cachedBalances &&
@@ -961,34 +968,34 @@ export class BillingClient {
       return this.cachedBalances;
     }
 
-    // Stale-while-revalidate: cache есть, но возраст между
-    // STALE_THRESHOLD и PERSIST_TTL. Возвращаем кэш мгновенно, в фоне
-    // обновляем — listener'ы получат свежее через storage.watch +
-    // applyBalances. Force пропускает эту ветку — caller ждёт свежее.
+    // Stale-while-revalidate: there's a cache, but the age is between
+    // STALE_THRESHOLD and PERSIST_TTL. We return the cache instantly and update
+    // in the background — listeners get the fresh value via storage.watch +
+    // applyBalances. Force skips this branch — the caller waits for the fresh value.
     if (
       !force &&
       this.cachedBalances &&
       age < BALANCES_PERSIST_TTL_MS
     ) {
       void this.fetchBalances({ signal }).catch(() => {
-        /* swallow — fallback на cached, явный force даст следующую попытку */
+        /* swallow — fall back to cached, an explicit force gives the next attempt */
       });
       return this.cachedBalances;
     }
 
-    // Cache отсутствует или expired (>PERSIST_TTL) — блокирующий запрос.
+    // Cache is absent or expired (>PERSIST_TTL) — a blocking request.
     if (this.inflightBalances) return this.inflightBalances;
     return this.fetchBalances({ signal });
   }
 
-  // Network primitive — единая точка для force/stale-revalidate/cold-start.
-  // Дедуплицируется через `inflightBalances`.
+  // Network primitive — a single point for force/stale-revalidate/cold-start.
+  // Deduplicated via `inflightBalances`.
   private fetchBalances({ signal }: { signal?: AbortSignal } = {}): Promise<Balance[]> {
     if (this.inflightBalances) return this.inflightBalances;
     this.inflightBalances = (async () => {
       try {
-        // /balances требует Bearer. Без auth — пустой массив, listener'ы
-        // не дёргаем (это shape «не загружали», а не «изменилось»).
+        // /balances requires Bearer. Without auth — an empty array, we don't
+        // trigger listeners (this is the "not loaded" shape, not "changed").
         if (!this.auth) {
           this.applyBalances([]);
           return [];
@@ -1007,16 +1014,15 @@ export class BillingClient {
     return this.inflightBalances;
   }
 
-  /** Sync snapshot. null = ещё не загружали (или explicit clear на re-login). */
+  /** Sync snapshot. null = not loaded yet (or an explicit clear on re-login). */
   getCachedBalances(): Balance[] | null {
     return this.cachedBalances;
   }
 
   /**
-   * Подписка на изменения балансов: getBalances/decrementBalanceLocal/setIdentity.
-   * `opts.immediate` работает так же, как в `onUserChange`: 'microtask'
-   * (default), 'sync' (для React/Vue useEffect), 'none' (только изменения).
-   * Возвращает unsubscribe.
+   * Subscribe to balance changes: getBalances/decrementBalanceLocal/setIdentity.
+   * `opts.immediate` works the same as in `onUserChange`: 'microtask' (default),
+   * 'sync' (for React/Vue useEffect), 'none' (changes only). Returns an unsubscribe.
    */
   onBalanceChange(
     cb: BalancesListener,
@@ -1044,18 +1050,17 @@ export class BillingClient {
   }
 
   /**
-   * Оптимистично уменьшает count для `queryType` на 1 и нотифицирует
-   * listener'ов. Используется ApiGatewayClient'ом сразу после успешного
-   * gateway-вызова (бэк уже снял кредит, см. `chargeApiQueries`).
+   * Optimistically decrements the count for `queryType` by 1 and notifies
+   * listeners. Used by ApiGatewayClient right after a successful gateway call
+   * (the backend has already taken the credit, see `chargeApiQueries`).
    *
-   * Если queryType отсутствует в кеше или count<=0 — no-op (не уходим в
-   * отрицательные значения, бэк всё равно правильный source-of-truth).
-   * Если кеша нет вовсе — тоже no-op: явный getBalances({force:true}) на
-   * следующем рендере подтянет актуальный shape.
+   * If queryType is missing from the cache or count<=0 — a no-op (we don't go
+   * into negative values, the backend is the correct source-of-truth anyway). If
+   * there's no cache at all — also a no-op: an explicit getBalances({force:true})
+   * on the next render pulls in the current shape.
    *
-   * queryType может быть undefined (gateway не прислал X-Query-Type) —
-   * в этом случае декремент не делаем, но просим refreshBalances() для
-   * выравнивания.
+   * queryType may be undefined (the gateway didn't send X-Query-Type) — in that
+   * case we don't decrement but request refreshBalances() to realign.
    */
   decrementBalanceLocal(queryType: string | undefined): void {
     if (!queryType) {
@@ -1073,21 +1078,21 @@ export class BillingClient {
     this.applyBalances(next);
   }
 
-  /** Принудительный re-fetch — типичный вызов после QuotaExceededError, чтобы
-   *  UI получил актуальный balance=0 и нарисовал upgrade-prompt. */
+  /** A forced re-fetch — the typical call after QuotaExceededError, so the UI
+   *  gets the current balance=0 and renders an upgrade prompt. */
   refreshBalances(): Promise<Balance[]> {
     return this.getBalances({ force: true });
   }
 
   /**
-   * Фабрика ApiGatewayClient'а с подключённым к этому billing'у balance-стейтом:
-   *  - Bearer/identity берутся из текущего auth/identity;
-   *  - на success декрементим cachedBalances оптимистично;
-   *  - на 402 (QuotaExceededError) триггерим refreshBalances() для актуального snapshot'а.
+   * Factory for an ApiGatewayClient wired to this billing's balance state:
+   *  - Bearer/identity are taken from the current auth/identity;
+   *  - on success we decrement cachedBalances optimistically;
+   *  - on 402 (QuotaExceededError) we trigger refreshBalances() for the current snapshot.
    *
-   * Если переопределить опции через `overrides` — принимаются как есть, но
-   * `onChargeSuccess`/`onQuotaExceeded` всё равно вызываются (composable, host
-   * может добавить свой колбек поверх).
+   * If you override options via `overrides` — they're taken as-is, but
+   * `onChargeSuccess`/`onQuotaExceeded` are still called (composable, the host
+   * can add its own callback on top).
    */
   createApiGatewayClient(
     overrides: Partial<
@@ -1119,9 +1124,9 @@ export class BillingClient {
     const changed = !sameBalances(this.cachedBalances, balances);
     this.cachedBalances = balances;
     this.cachedBalancesAt = Date.now();
-    // Persist даже если !changed — обновляем `at` чтобы другие контексты
-    // считали кэш свежим (иначе они через 30с уйдут в сеть зря). persist=false
-    // для пути «прилетело через storage.watch» — там кто-то уже записал.
+    // Persist even if !changed — we update `at` so other contexts consider the
+    // cache fresh (otherwise they'd go to the network for nothing after 30s).
+    // persist=false for the "arrived via storage.watch" path — someone already wrote it there.
     if (persist) void this.persistBalances(balances);
     if (changed) {
       for (const cb of this.balanceListeners) {
@@ -1146,8 +1151,8 @@ export class BillingClient {
       const parsed = JSON.parse(raw) as { at: number; balances: Balance[] } | null;
       if (!parsed?.balances || !Array.isArray(parsed.balances)) return;
       if (Date.now() - parsed.at > BALANCES_PERSIST_TTL_MS) return;
-      // Race-защита: если за время `await` свежий уже прилетел из сети —
-      // не перетираем.
+      // Race protection: if during the `await` a fresh value already arrived from
+      // the network — don't overwrite.
       if (this.cachedBalances) return;
       this.cachedBalances = parsed.balances;
       this.cachedBalancesAt = parsed.at;
@@ -1159,7 +1164,7 @@ export class BillingClient {
         }
       }
     } catch {
-      /* corrupted entry — игнорируем */
+      /* corrupted entry — ignore */
     }
   }
 
@@ -1174,9 +1179,8 @@ export class BillingClient {
     }
   }
 
-  // Cross-context sync: другая вкладка / popup / SW обновили balances
-  // (свежий getBalances или оптимистичный decrement) → подхватываем без
-  // сетевого запроса.
+  // Cross-context sync: another tab / popup / SW updated balances (a fresh
+  // getBalances or an optimistic decrement) → we pick it up without a network request.
   private subscribeBalancesStorage(): void {
     if (typeof this.storage.watch !== 'function') return;
     this.balancesStorageUnwatch = this.storage.watch(
@@ -1186,8 +1190,8 @@ export class BillingClient {
         try {
           const parsed = JSON.parse(raw) as { at: number; balances: Balance[] } | null;
           if (!parsed?.balances || !Array.isArray(parsed.balances)) return;
-          // Если cached моложе или той же эпохи — наш свежее. Иначе applyBalances
-          // без повторного persist (writer уже записал).
+          // If cached is younger or of the same epoch — ours is fresher.
+          // Otherwise applyBalances without re-persisting (the writer already wrote it).
           if (parsed.at <= this.cachedBalancesAt) return;
           this.applyBalances(parsed.balances, { persist: false });
         } catch {
@@ -1203,35 +1207,34 @@ export class BillingClient {
     errorUrl?: string;
     shopUrl?: string;
     trialDays?: number;
-    /** Активный offer для этой цены — резолвится host'ом через
-     *  `paywall.getOfferForPrice(priceId)?.offer.id` или
-     *  `findApplicableOffer(client.getCachedOffers(), priceId)?.id`. Без
-     *  явной передачи бэк сделает auto-resolve по email — но только для
-     *  end_date-офферов. duration_minutes-офферы тикают в clientStorage и
-     *  сервер их не видит: для них offerId ОБЯЗАН прийти от клиента, иначе
-     *  скидка не применится на чекауте, хотя UI её показывал.
+    /** The active offer for this price — resolved by the host via
+     *  `paywall.getOfferForPrice(priceId)?.offer.id` or
+     *  `findApplicableOffer(client.getCachedOffers(), priceId)?.id`. Without
+     *  passing it explicitly the backend will auto-resolve by email — but only
+     *  for end_date offers. duration_minutes offers tick in clientStorage and the
+     *  server doesn't see them: for them offerId MUST come from the client,
+     *  otherwise the discount won't apply at checkout even though the UI showed it.
      *
-     *  Передавать offer-id всегда безопасно — бэк сам проверит applicable
-     *  ли offer к этому юзеру (страна/email/режим) и игнорирует если нет. */
+     *  Passing offer-id is always safe — the backend itself checks whether the
+     *  offer is applicable to this user (country/email/mode) and ignores it if not. */
     offerId?: string;
     /**
-     * Stage 1 защиты от дубликатов покупок. Идемпотентный ключ запроса
-     * (UUID). Повторный вызов с тем же ключом вернёт тот же checkout-URL
-     * без второго обращения к платёжному провайдеру. Если не передан —
-     * SDK генерит UUID v4 сам и дедуплицирует параллельные клики по
-     * `auto:${priceId}`.
+     * Stage 1 of protection against duplicate purchases. An idempotent request
+     * key (UUID). A repeat call with the same key returns the same checkout URL
+     * without a second hit to the payment provider. If not passed — the SDK
+     * generates a UUID v4 itself and deduplicates parallel clicks via `auto:${priceId}`.
      */
     idempotencyKey?: string;
-    /** Renewal/upgrade flow — игнорирует у бэка проверку has_active_subscription.
-     *  По умолчанию /start-checkout возвращает 409 если у юзера уже есть
-     *  active subscription (защита от случайных двойных оплат). С
-     *  `ignoreActivePurchase: true` бэк создаёт новый checkout, прежняя
-     *  подписка отменится после успешной оплаты. Передавать только когда
-     *  юзер явно выбрал "Renew/Upgrade" в host-UI. */
+    /** Renewal/upgrade flow — makes the backend skip the has_active_subscription
+     *  check. By default /start-checkout returns 409 if the user already has an
+     *  active subscription (protection against accidental double payments). With
+     *  `ignoreActivePurchase: true` the backend creates a new checkout, and the
+     *  previous subscription is canceled after a successful payment. Pass only
+     *  when the user explicitly chose "Renew/Upgrade" in the host UI. */
     ignoreActivePurchase?: boolean;
-    /** Отмена inflight-запроса. Параллельные вызовы дедуплицируются по
-     *  `inflightKey`, поэтому signal отменяет ВСЕ ожидающие на этот ключ —
-     *  это OK для типичного UX (юзер закрыл модалку — все checkout'ы отменены). */
+    /** Cancellation of the inflight request. Parallel calls are deduplicated by
+     *  `inflightKey`, so the signal cancels ALL waiters on that key — this is OK
+     *  for the typical UX (the user closed the modal — all checkouts are canceled). */
     signal?: AbortSignal;
   }): Promise<CheckoutResult> {
     if (!this.identity?.email) {
@@ -1247,26 +1250,27 @@ export class BillingClient {
 
     const idempotencyKey = params.idempotencyKey ?? generateUuid();
 
-    // Бэк-контракт camelCase (online/app/api/v1/paywall/[id]/start-checkout/route.ts):
+    // The backend contract is camelCase (online/app/api/v1/paywall/[id]/start-checkout/route.ts):
     // { email, priceId, successUrl, errorUrl, shopUrl, trial_days, userMeta, localCurrency }.
-    // Response: { checkoutUrl, userId, acquiring } — маппим в SDK-shape { url, sessionId }.
+    // Response: { checkoutUrl, userId, acquiring } — we map it to the SDK shape { url, sessionId }.
     const headers: Record<string, string> = {
       'Idempotency-Key': idempotencyKey
     };
     if (this.apiKey) headers['X-Api-Key'] = this.apiKey;
 
-    // Settings из bootstrap'а — fallback для shopUrl/successUrl. Caller всё
-    // ещё может перебить их явным аргументом (host-приложение со своим UX).
+    // Settings from the bootstrap — a fallback for shopUrl/successUrl. The caller
+    // can still override them with an explicit argument (a host app with its own UX).
     const settings = this.cachedBootstrap?.settings;
     const successUrl = params.successUrl ?? settings?.success_redirect_url ?? undefined;
     const shopUrl = params.shopUrl ?? settings?.checkout_shop_url ?? undefined;
 
-    // Резолвим local-currency по cached prices'ам. Бэк (checkout-with-acquiring)
-    // выбирает локализованную цену из paywall_internal_local_prices по этой
-    // валюте. Без явной передачи бэк падает на base-валюту (USD), и юзер,
-    // которому пейвол показывал £9.99, на Stripe увидит $9.99 — буквальный
-    // mismatch UI/чекаут. Каноничный источник — `price.local.currency` из
-    // bootstrap'а (бэк там сам резолвит по геолокации/настройкам).
+    // Resolve the local currency from the cached prices. The backend
+    // (checkout-with-acquiring) picks the localized price from
+    // paywall_internal_local_prices by this currency. Without passing it
+    // explicitly the backend falls back to the base currency (USD), and a user
+    // who was shown £9.99 on the paywall sees $9.99 on Stripe — a literal
+    // UI/checkout mismatch. The canonical source is `price.local.currency` from
+    // the bootstrap (where the backend resolves by geolocation/settings).
     const cachedPrice = this.cachedBootstrap?.prices.find(
       (p) => p.id === params.priceId
     );
@@ -1276,11 +1280,11 @@ export class BillingClient {
       .request<{
         checkoutUrl: string;
         userId: string;
-        // Бэк-контракт: имя acquirer'а, к которому ушёл checkout. SDK сам по
-        // acquiring ничего не ветвит (URL открывается одним и тем же
-        // window.open), но прокидывает его в CheckoutResult и в событие
-        // `checkout_started` — чтобы host и /events-аналитика могли строить
-        // конверсию по эквайрингам.
+        // Backend contract: the name of the acquirer the checkout went to. The
+        // SDK doesn't branch on acquiring itself (the URL opens with the same
+        // window.open), but passes it through to CheckoutResult and to the
+        // `checkout_started` event — so the host and /events analytics can build
+        // conversion by acquirer.
         acquiring: Acquiring;
       }>(`/api/v1/paywall/${this.paywallId}/start-checkout`, {
         method: 'POST',
@@ -1302,11 +1306,11 @@ export class BillingClient {
       })
       .then((resp): CheckoutResult => ({ url: resp.checkoutUrl, acquiring: resp.acquiring }))
       .catch((err): never => {
-        // Бэк отдаёт 409 + `{ hasActivePurchase: true }` когда у юзера уже есть
-        // активная подписка. Это не ошибка checkout-а — это сигнал «покажи
-        // success/restored». Нормализуем в отдельный код, чтобы PaywallRoot
-        // мог переключиться в purchase_success view без специфичной для этого
-        // эндпоинта проверки status+payload.
+        // The backend returns 409 + `{ hasActivePurchase: true }` when the user
+        // already has an active subscription. This isn't a checkout error — it's
+        // a signal to "show success/restored". We normalize it into a separate
+        // code so PaywallRoot can switch to the purchase_success view without an
+        // endpoint-specific status+payload check.
         if (
           err instanceof PaywallError &&
           err.status === 409 &&
@@ -1324,12 +1328,11 @@ export class BillingClient {
       });
 
     this.inflightCheckouts.set(inflightKey, promise);
-    // Очищаем после завершения, чтобы следующий клик после завершения
-    // получил новый ключ и новый запрос. Параллельные ретраи во время
-    // запроса при этом честно дедуплицируются на тот же promise.
-    // .catch(() => {}) — финализатор не должен превращать reject promise'а
-    // в unhandled rejection; caller createCheckout всё равно получит
-    // исходный reject через `return promise`.
+    // We clean up after completion so that the next click after completion gets
+    // a new key and a new request. Parallel retries during the request are still
+    // honestly deduplicated onto the same promise. .catch(() => {}) — the
+    // finalizer must not turn the promise's reject into an unhandled rejection;
+    // the createCheckout caller still receives the original reject via `return promise`.
     promise
       .finally(() => {
         if (this.inflightCheckouts.get(inflightKey) === promise) {
@@ -1342,9 +1345,9 @@ export class BillingClient {
   }
 
   /**
-   * URL Stripe/Paddle/Chargebee customer portal — место, где залогиненный
-   * юзер может управлять подпиской (отменить, обновить карту, скачать
-   * инвойсы). Опен-флоу управляется host'ом:
+   * The URL of the Stripe/Paddle/Chargebee customer portal — the place where a
+   * logged-in user can manage their subscription (cancel, update card, download
+   * invoices). The open flow is controlled by the host:
    *
    * ```ts
    * const { url } = await billing.getCustomerPortalUrl({
@@ -1353,22 +1356,21 @@ export class BillingClient {
    * window.open(url, '_blank');
    * ```
    *
-   * Auth: Bearer (через AuthClient) или server-side `apiKey`. Без auth и
-   * без apiKey бросает PaywallError('identity_required'). 403 от бэка
-   * (нет активной подписки / acquiring не поддерживает portal) пробрасывается
-   * как PaywallError('forbidden') с `status: 403` — host рендерит "no
-   * subscription to manage".
+   * Auth: Bearer (via AuthClient) or server-side `apiKey`. Without auth and
+   * without apiKey it throws PaywallError('identity_required'). A 403 from the
+   * backend (no active subscription / acquiring doesn't support a portal) is
+   * passed through as PaywallError('forbidden') with `status: 403` — the host
+   * renders "no subscription to manage".
    */
   async getCustomerPortalUrl(
     opts: {
       signal?: AbortSignal;
-      /** URL для return-button у провайдера (Stripe «Return to ...», Paddle
-       *  и Chargebee redirect_url'ы). Передавай туда страницу-аккаунт твоего
-       *  app'а — `https://your-app.com/account`. Без явного returnUrl бэк
-       *  применяет fallback в порядке: `paywall_settings.shop_url` →
-       *  custom_domain пейвола → NEXT_PUBLIC_ONLINE_ORIGIN (последнее — это
-       *  страница в самом online-сервисе, годится только для legacy
-       *  v2-iframe-флоу). */
+      /** The URL for the provider's return button (Stripe "Return to ...", Paddle
+       *  and Chargebee redirect_urls). Pass your app's account page there —
+       *  `https://your-app.com/account`. Without an explicit returnUrl the backend
+       *  applies a fallback in the order: `paywall_settings.shop_url` → the
+       *  paywall's custom_domain → NEXT_PUBLIC_ONLINE_ORIGIN (the last is a page
+       *  in the online service itself, suitable only for the legacy v2-iframe flow). */
       returnUrl?: string;
     } = {}
   ): Promise<{ url: string }> {
@@ -1380,10 +1382,10 @@ export class BillingClient {
     }
     const headers: Record<string, string> = {};
     if (this.apiKey) headers['X-Api-Key'] = this.apiKey;
-    // Без Bearer — legacy путь: email/userMeta в body. С Bearer — бэк сам
-    // достаёт email через GoTrue, body можно слать без identity-полей.
-    // returnUrl прокидываем в обоих режимах — host-controlled override
-    // не связан с auth-режимом.
+    // Without Bearer — the legacy path: email/userMeta in the body. With Bearer —
+    // the backend extracts email itself via GoTrue, the body can be sent without
+    // identity fields. We pass returnUrl in both modes — the host-controlled
+    // override isn't tied to the auth mode.
     const body =
       this.auth && this.auth.getCachedSession()
         ? { returnUrl: opts.returnUrl }
@@ -1407,19 +1409,19 @@ export class BillingClient {
   }
 
   /**
-   * Список покупок юзера с rich-полями (цена, валюта, interval, discount,
-   * cancel-метаданные). Подходит для customer-portal UI: cards с кнопками
-   * Cancel/Renew/Manage. Менее cache-friendly чем `getUser` — ходит в
-   * `/api/v1/paywall/[id]/user` без unstable_cache, потому что list для UI
-   * должен быть свежим после cancel-а.
+   * The list of the user's purchases with rich fields (price, currency,
+   * interval, discount, cancel metadata). Suitable for a customer-portal UI:
+   * cards with Cancel/Renew/Manage buttons. Less cache-friendly than `getUser` —
+   * it hits `/api/v1/paywall/[id]/user` without unstable_cache, because the list
+   * for the UI must be fresh after a cancel.
    *
-   * Auth (два пути):
-   *  - Bearer (через AuthClient) — user.id резолвится из сессии, identity
-   *    в query игнорируется.
-   *  - `apiKey` + `identity.email`/`identity.userId` — server-SDK путь для
-   *    интеграций со своей авторизацией. Бэк проверяет, что identity линкована
-   *    к этому пейволу (защита от cross-paywall lookup).
-   * Без auth и без apiKey+identity — `identity_required`.
+   * Auth (two paths):
+   *  - Bearer (via AuthClient) — user.id is resolved from the session, identity
+   *    in the query is ignored.
+   *  - `apiKey` + `identity.email`/`identity.userId` — the server-SDK path for
+   *    integrations with their own authorization. The backend checks that the
+   *    identity is linked to this paywall (protection against a cross-paywall lookup).
+   * Without auth and without apiKey+identity — `identity_required`.
    */
   async listPurchases(
     opts: { signal?: AbortSignal } = {}
@@ -1434,8 +1436,8 @@ export class BillingClient {
     const headers: Record<string, string> = {};
     if (this.apiKey) headers['X-Api-Key'] = this.apiKey;
 
-    // identity в query — только в apiKey-пути, где бэк ожидает её. С Bearer
-    // identity берётся из сессии и в query не нужна.
+    // identity in the query — only on the apiKey path, where the backend expects
+    // it. With Bearer, identity is taken from the session and isn't needed in the query.
     const search = new URLSearchParams();
     if (this.apiKey && this.identity?.email) {
       search.set('email', this.identity.email);
@@ -1459,19 +1461,20 @@ export class BillingClient {
   }
 
   /**
-   * Отменить подписку. Бэк проверит, что subscription принадлежит юзеру
-   * (Bearer-путь — из сессии; apiKey-путь — из identity), и сделает cancel у
-   * acquiring'а (Stripe/Paddle/Chargebee/Overpay). По умолчанию cancel в
-   * конце текущего периода — юзер сохраняет access до renewal date'ы.
+   * Cancel a subscription. The backend checks that the subscription belongs to
+   * the user (Bearer path — from the session; apiKey path — from identity) and
+   * cancels it at the acquirer (Stripe/Paddle/Chargebee/Overpay). By default the
+   * cancel happens at the end of the current period — the user keeps access until
+   * the renewal date.
    *
-   * `reason` обязательна (валидация на бэке).
+   * `reason` is required (validated on the backend).
    *
-   * Auth (два пути):
-   *  - Bearer (через AuthClient) — стандартный путь для UI customer-portal'a.
-   *  - `apiKey` + `identity.email`/`identity.userId` — для self-service UI на
-   *    бэке клиента со своей авторизацией. Бэк дополнительно фильтрует
-   *    subscription по paywall_id, чтобы owner пейвола A не отменил подписку
-   *    пейвола B.
+   * Auth (two paths):
+   *  - Bearer (via AuthClient) — the standard path for a customer-portal UI.
+   *  - `apiKey` + `identity.email`/`identity.userId` — for a self-service UI on
+   *    the client's backend with its own authorization. The backend additionally
+   *    filters the subscription by paywall_id so that the owner of paywall A
+   *    can't cancel a subscription of paywall B.
    */
   async cancelSubscription(params: {
     subscriptionId: string;
@@ -1519,12 +1522,14 @@ export class BillingClient {
   }
 
   /**
-   * Создаёт саппорт-тикет. Если есть `files` — multipart/form-data, иначе JSON.
-   * Email берётся (1) из явного поля payload.email; (2) из identity если оно есть.
-   * Если ни того, ни другого нет — бэк отвергнет тикет (`email_required`).
+   * Creates a support ticket. If `files` are present — multipart/form-data,
+   * otherwise JSON. Email is taken (1) from the explicit payload.email field;
+   * (2) from identity if present. If neither exists — the backend rejects the
+   * ticket (`email_required`).
    *
-   * Bearer-токен (если AuthClient подключён) добавляется автоматически — бэк
-   * перевешивает customer_email на email из сессии (защита от подделки).
+   * The Bearer token (if an AuthClient is wired up) is added automatically — the
+   * backend overrides customer_email with the email from the session (protection
+   * against spoofing).
    */
   async createSupportTicket(payload: {
     subject: string;
@@ -1571,11 +1576,11 @@ function sameIdentity(a: Identity | undefined, b: Identity | undefined): boolean
   );
 }
 
-// Нормализация: `URL(...)`.origin приводит "pay.example.com" / "https://pay.example.com/"
-// / "https://pay.example.com:443" к каноничному "https://pay.example.com".
-// Без схемы — подставляем https (паттерн совпадает с serverside `normalizeOrigin`
-// в online/utils/urls.ts, чтобы сверка была симметричной). Не-URL → null
-// (defensive — формы валидации в платформе должны это отсекать заранее).
+// Normalization: `URL(...)`.origin reduces "pay.example.com" / "https://pay.example.com/"
+// / "https://pay.example.com:443" to the canonical "https://pay.example.com".
+// Without a scheme — we prepend https (the pattern matches the server-side
+// `normalizeOrigin` in online/utils/urls.ts so the comparison is symmetric).
+// Non-URL → null (defensive — the validation forms in the platform should cut this off in advance).
 function normalizeOrigin(candidate: string | null | undefined): string | null {
   if (!candidate) return null;
   const trimmed = candidate.trim();
@@ -1587,10 +1592,10 @@ function normalizeOrigin(candidate: string | null | undefined): string | null {
   }
 }
 
-// Проверка bootstrap.settings.custom_domain ↔ init.apiOrigin. Пустой custom_domain
-// (legacy v2 paywall, не подключённый к новому SDK) — skip: значит, конфигурация
-// не предполагает строгой привязки. Расхождение — фатально: интегратор передал
-// не тот origin, и весь дальнейший трафик пойдёт мимо custom_domain мерчанта.
+// Check bootstrap.settings.custom_domain ↔ init.apiOrigin. An empty custom_domain
+// (a legacy v2 paywall not connected to the new SDK) — skip: it means the
+// configuration doesn't imply a strict binding. A mismatch is fatal: the
+// integrator passed the wrong origin and all further traffic would bypass the merchant's custom_domain.
 function assertApiOriginMatchesCustomDomain(
   customDomain: string | null | undefined,
   apiOrigin: string
@@ -1609,9 +1614,9 @@ function buildDefaultLayout(settings: PaywallSettings, prices: PaywallPrice[]): 
   return {
     type: 'modal',
     blocks: [
-      // offer_banner НЕ в default layout — PaywallRoot рендерит его как
-      // top-tab над dialog'ом (rounded-top, negative margin), за пределами
-      // scrollable area. Блок остаётся в registry для opt-in inline-вариантa.
+      // offer_banner is NOT in the default layout — PaywallRoot renders it as a
+      // top-tab above the dialog (rounded-top, negative margin), outside the
+      // scrollable area. The block stays in the registry for the opt-in inline variant.
       { type: 'heading', text: settings.name || 'Upgrade', level: 1 },
       { type: 'price_grid', priceIds: prices.map((p) => p.id) },
       { type: 'cta_button', action: 'checkout' },
@@ -1621,10 +1626,10 @@ function buildDefaultLayout(settings: PaywallSettings, prices: PaywallPrice[]): 
   };
 }
 
-/** Подбирает оверрайды по `navigator.language` (с fallback на base-tag и
- *  на `settings.locale_default`). Возвращает первый существующий ключ из
- *  карты — без normalize'а кейсов: ключи в bootstrap всё равно приходят
- *  с бэка в едином формате. */
+/** Picks overrides by `navigator.language` (with a fallback to the base tag and
+ *  to `settings.locale_default`). Returns the first existing key from the map —
+ *  without case normalization: the keys in the bootstrap come from the backend
+ *  in a uniform format anyway. */
 function pickLocaleKey(bootstrap: PaywallBootstrap): string | null {
   const map = bootstrap.locales;
   if (!map) return null;
@@ -1654,8 +1659,8 @@ function applyLocaleOverrides(bootstrap: PaywallBootstrap): void {
     bootstrap.prices = bootstrap.prices.map((p) => {
       const o = overrides.prices?.[p.id];
       if (!o) return p;
-      // Точечно перетираем только переданные поля, остальное оставляем как есть.
-      // null в overrides — явный сброс (например, скрыть description в этой локали).
+      // We selectively overwrite only the passed fields, leaving the rest as-is.
+      // null in overrides — an explicit reset (e.g. hide description in this locale).
       const next: PaywallPrice = { ...p };
       if ('label' in o) next.label = o.label ?? null;
       if ('description' in o) next.description = o.description ?? null;

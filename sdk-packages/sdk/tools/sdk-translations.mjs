@@ -1,14 +1,14 @@
 /**
- * SDK-specific переводы для ключей, у которых нет аналога в legacy.
+ * SDK-specific translations for keys that have no legacy counterpart.
  *
- * Структура: `SDK_TRANSLATIONS[v3Key][lang] = "translation"`.
+ * Structure: `SDK_TRANSLATIONS[v3Key][lang] = "translation"`.
  *
- * Покрытие — лучшее, что я мог сделать на основе общеизвестных UI-паттернов
- * (Continue with X, Loading…, Sign out, Try again, …). Native-speaker review
- * желателен для thai/hindi/hebrew/arabic/finnish/greek — там моя уверенность
- * ниже. Major-languages (ru/de/es/fr/it/pt/nl/ja/ko/zh) — высокая.
+ * Coverage is the best I could do based on well-known UI patterns
+ * (Continue with X, Loading…, Sign out, Try again, …). A native-speaker review
+ * is desirable for thai/hindi/hebrew/arabic/finnish/greek — my confidence there
+ * is lower. For major languages (ru/de/es/fr/it/pt/nl/ja/ko/zh) it is high.
  *
- * Используется `gen-locales.mjs` для эмиссии финальных `locales/<lang>.ts`.
+ * Used by `gen-locales.mjs` to emit the final `locales/<lang>.ts` files.
  */
 export const SDK_TRANSLATIONS = {
   // ============ navigation ============
@@ -83,59 +83,53 @@ export const SDK_TRANSLATIONS = {
     zh: '已收到付款', hi: 'भुगतान प्राप्त हुआ', th: 'รับการชำระเงินแล้ว',
     vi: 'Đã nhận thanh toán', he: 'התקבל תשלום'
   },
+  // Neutral "all set" wording — works for both subscriptions and one-time /
+  // lifetime purchases (a lifetime buy is not a "subscription"). Shared verbatim
+  // with purchase_restored_subtitle below.
   'modal.purchase_success_subtitle': {
-    ru: 'Подписка активна.', uk: 'Підписка активна.', de: 'Ihr Abonnement ist jetzt aktiv.',
-    es: 'Tu suscripción ahora está activa.', fr: 'Votre abonnement est maintenant actif.',
-    it: 'Il tuo abbonamento è ora attivo.', pt: 'Sua assinatura está ativa.',
-    pl: 'Twoja subskrypcja jest aktywna.', cs: 'Vaše předplatné je nyní aktivní.',
-    hu: 'Az előfizetése aktív.', ro: 'Abonamentul tău este acum activ.',
-    nl: 'Je abonnement is nu actief.', sv: 'Din prenumeration är nu aktiv.',
-    da: 'Dit abonnement er nu aktivt.', no: 'Abonnementet ditt er nå aktivt.',
-    fi: 'Tilauksesi on nyt aktiivinen.', el: 'Η συνδρομή σας είναι πλέον ενεργή.',
-    tr: 'Aboneliğiniz artık aktif.', id: 'Langganan Anda sekarang aktif.',
-    ar: 'اشتراكك نشط الآن.', ja: 'サブスクリプションが有効になりました。',
-    ko: '구독이 활성화되었습니다.', zh: '您的订阅已激活。',
-    hi: 'आपकी सदस्यता अब सक्रिय है।', th: 'การสมัครสมาชิกของคุณเปิดใช้งานแล้ว',
-    vi: 'Đăng ký của bạn đã được kích hoạt.', he: 'המינוי שלך פעיל כעת.'
+    ru: 'Всё готово — пользуйтесь!', uk: 'Усе готово — користуйтеся!',
+    de: 'Alles bereit — viel Spaß!', es: '¡Todo listo — que lo disfrutes!',
+    fr: 'Tout est prêt — profitez-en !', it: 'Tutto pronto — buon divertimento!',
+    pt: 'Tudo pronto — aproveite!', pl: 'Wszystko gotowe — korzystaj!',
+    cs: 'Vše je připraveno — užívejte!', hu: 'Minden készen áll — jó használatot!',
+    ro: 'Totul e gata — bucură-te!', nl: 'Alles is klaar — veel plezier!',
+    sv: 'Allt är klart — ha så kul!', da: 'Alt er klar — god fornøjelse!',
+    no: 'Alt er klart — kos deg!', fi: 'Kaikki valmista — nauti!',
+    el: 'Όλα έτοιμα — απόλαυσέ το!', tr: 'Her şey hazır — keyfini çıkarın!',
+    id: 'Semua siap — selamat menikmati!', ar: 'كل شيء جاهز — استمتع!',
+    ja: '準備完了 — お楽しみください！', ko: '모든 준비가 끝났어요 — 즐겨보세요!',
+    zh: '一切就绪 — 尽情享受吧！', hi: 'सब कुछ तैयार है — आनंद लें!',
+    th: 'ทุกอย่างพร้อมแล้ว — ขอให้สนุก!', vi: 'Mọi thứ đã sẵn sàng — chúc bạn vui vẻ!',
+    he: 'הכול מוכן — תיהנו!'
   },
   'modal.purchase_restored_title': {
-    ru: 'Подписка восстановлена', uk: 'Підписку відновлено', de: 'Abonnement wiederhergestellt',
-    es: 'Suscripción restaurada', fr: 'Abonnement restauré', it: 'Abbonamento ripristinato',
-    pt: 'Assinatura restaurada', pl: 'Subskrypcja przywrócona', cs: 'Předplatné obnoveno',
-    hu: 'Előfizetés visszaállítva', ro: 'Abonament restabilit', nl: 'Abonnement hersteld',
-    sv: 'Prenumeration återställd', da: 'Abonnement gendannet', no: 'Abonnement gjenopprettet',
-    fi: 'Tilaus palautettu', el: 'Η συνδρομή αποκαταστάθηκε', tr: 'Abonelik geri yüklendi',
-    id: 'Langganan dipulihkan', ar: 'تمت استعادة الاشتراك', ja: 'サブスクリプションを復元しました',
-    ko: '구독이 복원되었습니다', zh: '订阅已恢复', hi: 'सदस्यता बहाल की गई',
-    th: 'กู้คืนการสมัครสมาชิกแล้ว', vi: 'Đã khôi phục đăng ký', he: 'המינוי שוחזר'
+    ru: 'С возвращением', uk: 'Із поверненням', de: 'Willkommen zurück',
+    es: 'Bienvenido de nuevo', fr: 'Bon retour', it: 'Bentornato',
+    pt: 'Bem-vindo de volta', pl: 'Witamy ponownie', cs: 'Vítejte zpět',
+    hu: 'Üdvözöljük újra', ro: 'Bine ai revenit', nl: 'Welkom terug',
+    sv: 'Välkommen tillbaka', da: 'Velkommen tilbage', no: 'Velkommen tilbake',
+    fi: 'Tervetuloa takaisin', el: 'Καλώς ήρθατε ξανά', tr: 'Tekrar hoş geldiniz',
+    id: 'Selamat datang kembali', ar: 'مرحبًا بعودتك', ja: 'おかえりなさい',
+    ko: '다시 오신 것을 환영합니다', zh: '欢迎回来', hi: 'वापसी पर स्वागत है',
+    th: 'ยินดีต้อนรับกลับ', vi: 'Chào mừng trở lại', he: 'ברוך שובך'
   },
+  // Same neutral wording as purchase_success_subtitle — restored vs fresh
+  // purchase differ only by the title (Welcome back / Payment received).
   'modal.purchase_restored_subtitle': {
-    ru: 'С возвращением — подписка уже активна.', uk: 'Із поверненням — підписка вже активна.',
-    de: 'Willkommen zurück — Ihr Abonnement ist bereits aktiv.',
-    es: 'Bienvenido de nuevo — tu suscripción ya está activa.',
-    fr: 'Bon retour — votre abonnement est déjà actif.',
-    it: 'Bentornato — il tuo abbonamento è già attivo.',
-    pt: 'Bem-vindo de volta — sua assinatura já está ativa.',
-    pl: 'Witamy ponownie — subskrypcja jest już aktywna.',
-    cs: 'Vítejte zpět — vaše předplatné je již aktivní.',
-    hu: 'Üdvözöljük újra — előfizetése már aktív.',
-    ro: 'Bine ai revenit — abonamentul tău este deja activ.',
-    nl: 'Welkom terug — je abonnement is al actief.',
-    sv: 'Välkommen tillbaka — din prenumeration är redan aktiv.',
-    da: 'Velkommen tilbage — dit abonnement er allerede aktivt.',
-    no: 'Velkommen tilbake — abonnementet ditt er allerede aktivt.',
-    fi: 'Tervetuloa takaisin — tilauksesi on jo aktiivinen.',
-    el: 'Καλώς ήρθατε ξανά — η συνδρομή σας είναι ήδη ενεργή.',
-    tr: 'Tekrar hoş geldiniz — aboneliğiniz zaten aktif.',
-    id: 'Selamat datang kembali — langganan Anda sudah aktif.',
-    ar: 'مرحبًا بعودتك — اشتراكك نشط بالفعل.',
-    ja: 'おかえりなさい — サブスクリプションはすでに有効です。',
-    ko: '다시 오신 것을 환영합니다 — 구독이 이미 활성화되어 있습니다.',
-    zh: '欢迎回来 — 您的订阅已激活。',
-    hi: 'वापसी पर स्वागत है — आपकी सदस्यता पहले से सक्रिय है।',
-    th: 'ยินดีต้อนรับกลับ — การสมัครสมาชิกของคุณยังคงใช้งานอยู่',
-    vi: 'Chào mừng trở lại — đăng ký của bạn vẫn đang hoạt động.',
-    he: 'ברוך שובך — המינוי שלך כבר פעיל.'
+    ru: 'Всё готово — пользуйтесь!', uk: 'Усе готово — користуйтеся!',
+    de: 'Alles bereit — viel Spaß!', es: '¡Todo listo — que lo disfrutes!',
+    fr: 'Tout est prêt — profitez-en !', it: 'Tutto pronto — buon divertimento!',
+    pt: 'Tudo pronto — aproveite!', pl: 'Wszystko gotowe — korzystaj!',
+    cs: 'Vše je připraveno — užívejte!', hu: 'Minden készen áll — jó használatot!',
+    ro: 'Totul e gata — bucură-te!', nl: 'Alles is klaar — veel plezier!',
+    sv: 'Allt är klart — ha så kul!', da: 'Alt er klar — god fornøjelse!',
+    no: 'Alt er klart — kos deg!', fi: 'Kaikki valmista — nauti!',
+    el: 'Όλα έτοιμα — απόλαυσέ το!', tr: 'Her şey hazır — keyfini çıkarın!',
+    id: 'Semua siap — selamat menikmati!', ar: 'كل شيء جاهز — استمتع!',
+    ja: '準備完了 — お楽しみください！', ko: '모든 준비가 끝났어요 — 즐겨보세요!',
+    zh: '一切就绪 — 尽情享受吧！', hi: 'सब कुछ तैयार है — आनंद लें!',
+    th: 'ทุกอย่างพร้อมแล้ว — ขอให้สนุก!', vi: 'Mọi thứ đã sẵn sàng — chúc bạn vui vẻ!',
+    he: 'הכול מוכן — תיהנו!'
   },
 
   // ============ payment flow ============
@@ -338,11 +332,11 @@ export const SDK_TRANSLATIONS = {
     id: 'Selamat datang!', ar: 'مرحبًا!', ja: 'ようこそ!', ko: '환영합니다!',
     zh: '欢迎！', hi: 'स्वागत है!', th: 'ยินดีต้อนรับ!', vi: 'Chào mừng!', he: 'ברוך הבא!'
   },
-  // Override legacy: legacy переводит `auth.check_email_title` длинной фразой
-  // "Перейдите по ссылке в письме для завершения регистрации" — это значение
-  // подходит для `check_email_message` (signup-confirmation), но не для
-  // нейтрального заголовка экрана "Check your email" после forgot-password.
-  // EN-канонический — короткий "Check your email"; переводим так же коротко.
+  // Override legacy: legacy translates `auth.check_email_title` with the long
+  // phrase "Follow the link in the email to complete registration" — that value
+  // fits `check_email_message` (signup-confirmation) but not the neutral screen
+  // heading "Check your email" shown after forgot-password.
+  // The canonical EN is the short "Check your email"; we translate just as short.
   'auth.check_email_title': {
     ru: 'Проверьте почту', uk: 'Перевірте пошту', de: 'Prüfen Sie Ihre E-Mails',
     es: 'Revisa tu correo', fr: 'Vérifiez votre e-mail', it: 'Controlla la tua email',
@@ -409,8 +403,8 @@ export const SDK_TRANSLATIONS = {
     ko: '이메일의 코드와 새 비밀번호를 입력하세요.',
     zh: '请输入邮件中的代码和新密码。'
   },
-  // Email-confirmation после signup'а (mode='signup_verify' в AuthPanel).
-  // Отдельно от reset_password_* — у юзера уже есть пароль, нужен только OTP.
+  // Email confirmation after signup (mode='signup_verify' in AuthPanel).
+  // Separate from reset_password_* — the user already has a password, only the OTP is needed.
   'auth.confirm_email_title': {
     ru: 'Подтвердите почту', uk: 'Підтвердіть пошту',
     de: 'Bestätigen Sie Ihre E-Mail', es: 'Confirma tu correo',
@@ -469,9 +463,9 @@ export const SDK_TRANSLATIONS = {
     vi: 'Nếu email đó tồn tại, mã đặt lại đã được gửi.',
     he: 'אם הדואר קיים, נשלח קוד איפוס.'
   },
-  // Используется в reset_sent view вместе с auth.check_email_title.
-  // Заменяет старое короткое auth.reset_sent_message — теперь это полноценный
-  // success-экран с пояснением, что юзер должен сделать.
+  // Used in the reset_sent view together with auth.check_email_title.
+  // Replaces the old short auth.reset_sent_message — now it is a full success
+  // screen explaining what the user should do.
   'auth.reset_sent_subtitle': {
     ru: 'Мы отправили ссылку для сброса пароля. Следуйте инструкциям в письме.',
     uk: 'Ми надіслали посилання для скидання пароля. Дотримуйтесь інструкцій у листі.',
@@ -559,7 +553,7 @@ export const SDK_TRANSLATIONS = {
     vi: 'Quay lại đăng nhập',
     he: 'חזרה להתחברות'
   },
-  // ============ auth — error mapping (для authErrorMessage в AuthPanel) ============
+  // ============ auth — error mapping (for authErrorMessage in AuthPanel) ============
   'auth.signup_failed': {
     ru: 'Регистрация не удалась', uk: 'Реєстрація не вдалася',
     de: 'Registrierung fehlgeschlagen', es: 'Error al registrarse',
@@ -987,11 +981,11 @@ export const SDK_TRANSLATIONS = {
     hi: 'कोई मूल्य उपलब्ध नहीं।', th: 'ไม่มีราคา', vi: 'Không có giá khả dụng.',
     he: 'אין מחירים זמינים.'
   },
-  // pricing.money_back — override legacy. Legacy для большинства языков давал
-  // "100% Money-Back Guarantee" (без числа дней), а для RU/UK — просто
-  // "Гарантия возврата денег". Унифицируем под EN-canonical "30-day money-back
-  // guarantee" — везде явно 30 дней. EN остаётся inline-fallback'ом из
-  // canonical-en.ts, его не дублируем здесь.
+  // pricing.money_back — override legacy. For most languages legacy gave
+  // "100% Money-Back Guarantee" (without a day count), and for RU/UK just
+  // "Money-back guarantee". We unify under the EN-canonical "30-day money-back
+  // guarantee" — explicitly 30 days everywhere. EN stays as the inline fallback
+  // from canonical-en.ts, so we do not duplicate it here.
   'pricing.money_back': {
     ru: '30-дневная гарантия возврата денег', uk: '30-денна гарантія повернення коштів',
     de: '30-Tage-Geld-zurück-Garantie', es: 'Garantía de devolución de 30 días',
@@ -1067,10 +1061,10 @@ export const SDK_TRANSLATIONS = {
     ja: '期間', ko: '기간', zh: '周期', hi: 'अवधि', th: 'งวด', vi: 'kỳ',
     he: 'תקופה'
   },
-  // pricing.interval.lifetime_short — суффикс после цены ("$X / lifetime"),
-  // короткое слово вместо полного. В RU это "навсегда" (legacy.
-  // pricing.interval.lifetime), но мы НЕ маппим legacy ключ через автогенератор
-  // потому что v3 имеет 2 разных ключа (plan_label vs interval-suffix).
+  // pricing.interval.lifetime_short — a suffix after the price ("$X / lifetime"),
+  // a short word instead of the full one. In RU this is "навсегда" (legacy.
+  // pricing.interval.lifetime), but we do NOT map the legacy key via the
+  // autogenerator because v3 has 2 different keys (plan_label vs interval-suffix).
   'pricing.interval.lifetime_short': {
     ru: 'навсегда', uk: 'назавжди', de: 'lebenslang', es: 'de por vida',
     fr: 'à vie', it: 'a vita', pt: 'vitalício', pl: 'dożywotnio', cs: 'navždy',
@@ -1096,9 +1090,9 @@ export const SDK_TRANSLATIONS = {
     ko: '한정 기간 제안', zh: '限时优惠', hi: 'सीमित समय का ऑफर',
     th: 'ข้อเสนอช่วงเวลาจำกัด', vi: 'Ưu đãi có thời hạn', he: 'הצעה לזמן מוגבל'
   },
-  // countdown — почти везде латиница (d/h/m/s) либо локальные сокращения.
-  // Большинство языков используют латинские буквы (как индустриальный паттерн).
-  // Только RU/UK/AR/EL/JA/ZH имеют локальные эквиваленты.
+  // countdown — almost everywhere Latin letters (d/h/m/s) or local abbreviations.
+  // Most languages use Latin letters (as the industry pattern).
+  // Only RU/UK/AR/EL/JA/ZH have local equivalents.
   'countdown.d': {
     ru: 'д', uk: 'д', ja: '日', ko: '일', zh: '天', ar: 'ي', el: 'η',
     he: 'י', hi: 'दि', th: 'ว'
@@ -1281,9 +1275,9 @@ export const SDK_TRANSLATIONS = {
     vi: 'Đóng', he: 'סגור'
   },
 
-  // ============ JA/KO/ZH override для pricing.included_per ============
-  // Legacy дал "含まれる期間 {interval}" — грамматически коряво. Перекрываем
-  // правильным word order'ом для CJK: "{interval}に含まれる", "{interval}당 포함:", "每{interval}包含:"
+  // ============ JA/KO/ZH override for pricing.included_per ============
+  // Legacy gave "含まれる期間 {interval}" — grammatically clumsy. We override it
+  // with the correct CJK word order: "{interval}に含まれる", "{interval}당 포함:", "每{interval}包含:"
   'pricing.included_per': {
     ja: '{interval}に含まれる:', ko: '{interval}당 포함:', zh: '每{interval}包含:'
   }

@@ -1,10 +1,10 @@
 /**
- * Static-translations для cs. Сгенерировано из:
- *  - `online/lang/static-translations.ts` (legacy, через KEY_MAP)
- *  - `tools/sdk-translations.mjs` (SDK-specific строки)
+ * Static-translations for cs. Generated from:
+ *  - `online/lang/static-translations.ts` (legacy, via KEY_MAP)
+ *  - `tools/sdk-translations.mjs` (SDK-specific strings)
  *
- * Не править вручную — изменения теряются при следующем `node tools/gen-locales.mjs`.
- * Чтобы исправить перевод — править legacy/sdk-translations.mjs и регенерить.
+ * Do not edit by hand — changes are lost on the next `node tools/gen-locales.mjs`.
+ * To fix a translation, edit legacy/sdk-translations.mjs and regenerate.
  */
 const cs = {
   'anon.heading_default': 'Pokračovat jako host',
@@ -47,7 +47,6 @@ const cs = {
   'auth.reset_password_title': 'Resetovat heslo',
   'auth.reset_sent_message': 'Pokud tento e-mail existuje, byl odeslán kód pro reset.',
   'auth.reset_sent_subtitle': 'Poslali jsme odkaz pro obnovení hesla. Postupujte podle pokynů v e-mailu.',
-  'auth.signup_sent_subtitle': 'Poslali jsme vám na e-mail potvrzovací odkaz. Kliknutím na něj aktivujete účet a poté se přihlaste.',
   'auth.restore_purchases_heading': 'Obnovit nákupy',
   'auth.restore_purchases_subheading': 'Přihlaste se pro obnovení svých nákupů.',
   'auth.send_reset': 'Odeslat obnovovací e-mail',
@@ -75,9 +74,9 @@ const cs = {
   'modal.continue': 'Pokračovat',
   'modal.error_generic': 'Něco se pokazilo',
   'modal.loading': 'Načítání…',
-  'modal.purchase_restored_subtitle': 'Vítejte zpět — vaše předplatné je již aktivní.',
-  'modal.purchase_restored_title': 'Předplatné obnoveno',
-  'modal.purchase_success_subtitle': 'Vaše předplatné je nyní aktivní.',
+  'modal.purchase_restored_subtitle': 'Vše je připraveno — užívejte!',
+  'modal.purchase_restored_title': 'Vítejte zpět',
+  'modal.purchase_success_subtitle': 'Vše je připraveno — užívejte!',
   'modal.purchase_success_title': 'Platba přijata',
   'modal.verifying_subscription': 'Ověřování předplatného…',
   'nav.back': '← Zpět',

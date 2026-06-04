@@ -4,10 +4,10 @@ import { resolve } from 'node:path';
 export default defineConfig({
   resolve: {
     alias: {
-      // Те же aliasы, что и в основном vite.config.ts — sdk-extension импортит
-      // @sdk/* напрямую из ../sdk/src.
+      // The same aliases as in the main vite.config.ts — sdk-extension imports
+      // @sdk/* directly from ../sdk/src.
       '@sdk': resolve(__dirname, '../sdk/src'),
-      // Preact-compat: JSX в @sdk/ui/* транспилится в preact/jsx-runtime.
+      // Preact-compat: JSX in @sdk/ui/* is transpiled to preact/jsx-runtime.
       react: 'preact/compat',
       'react-dom': 'preact/compat'
     }
@@ -17,7 +17,7 @@ export default defineConfig({
     jsxImportSource: 'preact'
   },
   test: {
-    // tests-e2e/ — Playwright spec'и, vitest их не должен подхватывать.
+    // tests-e2e/ — Playwright specs, vitest must not pick them up.
     exclude: ['**/node_modules/**', '**/dist/**', '**/tests-e2e/**', '**/demo-extension/**']
   }
 });
