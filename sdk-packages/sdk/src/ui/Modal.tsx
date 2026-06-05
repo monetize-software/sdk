@@ -52,8 +52,19 @@ export function Modal({
 
     const dialog = dialogRef.current;
     if (dialog) {
-      const first = dialog.querySelector<HTMLElement>(FOCUSABLE);
-      (first ?? dialog).focus({ preventScroll: true });
+      // Don't auto-focus the first interactive control. When the paywall
+      // auto-opens (no preceding user gesture), the browser's focus-visible
+      // heuristic draws a ring on whatever we focus — and the first focusable
+      // is the first plan card (e.g. the monthly tariff), while the *selected*
+      // plan is the popular one. The ring then sits on a different card than
+      // the accent-border selection, which reads as two conflicting "active"
+      // states and confuses users. Focus the dialog container itself instead
+      // (tabIndex=-1, outline-none → no ring); the focus trap still has its
+      // anchor inside the dialog and Tab walks the focusables normally.
+      // A view that genuinely wants an input focused (e.g. an email field)
+      // opts in explicitly via [data-pw-autofocus].
+      const target = dialog.querySelector<HTMLElement>('[data-pw-autofocus]');
+      (target ?? dialog).focus({ preventScroll: true });
     }
 
     const onKey = (e: KeyboardEvent) => {
