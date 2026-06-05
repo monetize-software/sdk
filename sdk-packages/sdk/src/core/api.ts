@@ -1,6 +1,12 @@
 import { PaywallError } from './types';
+import { version } from '../../package.json';
 
-export const SDK_VERSION = '3.0.0-alpha.0';
+// Версия читается из package.json (resolveJsonModule), а не хардкодится литералом —
+// иначе протухает (раньше торчал '3.0.0-alpha.0' через все релизы и засорял
+// аналитику в ClickHouse одной версией). Обычный import, а не build-time define:
+// sdk-extension/sdk-react бандлят ИСХОДНИК sdk (alias @sdk → ../sdk/src), а define
+// пер-пакетный и до них не доходит. Import же резолвит любой tsc/бандлер.
+export const SDK_VERSION: string = version;
 
 export interface ApiClientOptions {
   apiOrigin: string;

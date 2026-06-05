@@ -37,6 +37,7 @@
     "sdk-popup-bugfixes-alpha5",
     "sdk-react-dts-paths-fix",
     "sdk-react-initial-release",
+    "sdk-version-from-pkg",
     "success-view-style-and-event-gating",
     "use-paywall-user-discriminated-union"
   ]
