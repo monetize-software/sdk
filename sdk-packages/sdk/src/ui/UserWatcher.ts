@@ -148,17 +148,21 @@ export class UserWatcher {
 
 // Decide whether it even makes sense to run the watcher in the current runtime.
 // false → the code that should close the paywall on payment relies on a
-// different path (bootstrap on the next open for the extension popup; the
-// absence of document — for the service worker).
+// different path (the absence of document — for the MV3 service worker).
+//
+// The watcher needs a DOM + window: it hangs on visibilitychange/focus/message
+// events and a timer. That requirement filters out the service worker.
+//
+// We DON'T gate on the chrome-extension:// protocol. A full extension page /
+// side panel survives the checkout (it opens in a separate tab), so it both
+// can and must poll — gating it out left the awaiting screen with no way to
+// close (the transition funnels through this watcher). The one context this
+// doesn't help is the ephemeral toolbar action-popup: window.open() for the
+// checkout steals focus and Chrome destroys the popup, taking the watcher with
+// it — there the watcher harmlessly tears down and the next-open bootstrap
+// covers detection. So running it everywhere with a DOM is safe.
 export function shouldRunUserWatcher(): boolean {
   if (typeof document === 'undefined') return false;
   if (typeof window === 'undefined') return false;
-  // The Chrome extension popup lives only while it's open. The checkout
-  // provider's window.open() immediately grabs focus → the popup closes → the
-  // entire JS context (including the SDK and watcher) is destroyed. Polling is
-  // useless here.
-  if (typeof location !== 'undefined' && location.protocol === 'chrome-extension:') {
-    return false;
-  }
   return true;
 }

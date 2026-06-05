@@ -364,6 +364,20 @@ export class PaywallUI {
     // paywall.onUserChange and the watcher itself via billing.onUserChange).
     this.userUnsub = this.billing.onUserChange((user) => {
       this.emit('userChange', user);
+      // Drive the awaiting→success transition from the user-state itself, not
+      // only from UserWatcher. The manual "I've paid" button (getUser → applyUser
+      // → here) and cross-context broadcasts flip cachedUser to active and land
+      // here even where the watcher doesn't run (a full extension page on
+      // chrome-extension://). Guard on the checkout views so we don't transition
+      // when the paywall opens for an already-subscribed user — that path is
+      // getAccess=granted and never mounts awaiting_payment.
+      if (
+        user.has_active_subscription &&
+        (this.lastMountedView === 'awaiting_payment' ||
+          this.lastMountedView === 'popup_blocked')
+      ) {
+        this.handlePurchaseDetected(user);
+      }
     });
 
     if (this.auth) {
@@ -1509,46 +1523,65 @@ export class PaywallUI {
 
     this.watcher = new UserWatcher({
       client: this.billing,
-      onActive: (user) => {
-        this.watcher = null;
-        // The server truth — we emit the final purchase_completed
-        // (server-confirmed) so the host gets a consistent signal regardless of
-        // whether there was a URL marker. userChange is emitted by the
-        // billing-listener itself.
-        this.emit('purchase_completed', { priceId: null, sessionId: null });
-        // success_redirect_url from settings — the host explicitly asked to
-        // send the user into its apps-flow after payment. The redirect takes
-        // priority over PurchaseSuccessView: drawing success for 200ms before
-        // the transition would flicker. We take the snapshot from cached
-        // bootstrap (it's guaranteed loaded — otherwise the watcher wouldn't
-        // have started).
-        const redirect = this.billing
-          .getCachedBootstrap()
-          ?.settings.success_redirect_url;
-        if (redirect && typeof window !== 'undefined') {
-          try {
-            window.location.assign(redirect);
-            return;
-          } catch {
-            /* navigation blocked — fall back to the success-view */
-          }
-        }
-        // If the paywall is open — we switch to the "Payment received" view
-        // with a Continue button. A silent close confused the user: the window
-        // just disappeared, without confirmation that the payment went through.
-        // If the paywall is closed — the event has already been emitted, the
-        // host decides itself.
-        if (this.isOpen && this.handle) {
-          this.purchased = true;
-          this.handle.update({ purchased: true });
-        }
-        void user; // the shape is available via paywall.billing.getCachedUser()
-      },
+      onActive: (user) => this.handlePurchaseDetected(user),
       onTimeout: () => {
         this.watcher = null;
       }
     });
     this.watcher.start();
+  }
+
+  // Single funnel for "subscription became active during a checkout flow".
+  // Reached from THREE independent sources:
+  //   1. UserWatcher.onActive — the background poll (where it runs).
+  //   2. billing.onUserChange — the manual "I've paid" button (getUser →
+  //      applyUser → onUserChange) and cross-context user-state broadcasts
+  //      (sdk-extension offscreen → RemoteBillingClient → onUserChange).
+  //   3. (future) any other path that flips cachedUser to active.
+  // Idempotent via `this.purchased` (reset to false at the start of every
+  // checkout flow — see the direct-checkout/headless mounts).
+  //
+  // Previously this logic lived ONLY inside watcher.onActive, and the manual
+  // button merely posted a `paywall_purchase` window-message to wake the
+  // watcher. In runtimes where the watcher doesn't run — a full extension page
+  // on chrome-extension:// (shouldRunUserWatcher was false for the whole
+  // protocol) — neither the poll nor the manual button could close the awaiting
+  // screen: the message had no listener. Funneling through onUserChange fixes
+  // both, regardless of whether a watcher exists.
+  private handlePurchaseDetected(user: PaywallUser): void {
+    if (this.purchased) return;
+    this.purchased = true;
+    if (this.watcher) {
+      this.watcher.stop();
+      this.watcher = null;
+    }
+    // Server-confirmed purchase — a consistent signal for the host regardless
+    // of whether there was a URL marker. userChange is emitted by the
+    // billing-listener itself.
+    this.emit('purchase_completed', { priceId: null, sessionId: null });
+    // success_redirect_url from settings — the host explicitly asked to send the
+    // user into its apps-flow after payment. The redirect takes priority over
+    // PurchaseSuccessView: drawing success for 200ms before the transition would
+    // flicker.
+    const redirect = this.billing
+      .getCachedBootstrap()
+      ?.settings.success_redirect_url;
+    if (redirect && typeof window !== 'undefined') {
+      try {
+        window.location.assign(redirect);
+        return;
+      } catch {
+        /* navigation blocked — fall back to the success-view */
+      }
+    }
+    // If the paywall is open — switch to the "Payment received" view with a
+    // Continue button. A silent close confused the user: the window just
+    // disappeared, without confirmation that the payment went through. If the
+    // paywall is closed — the event already fired, the host decides itself.
+    if (this.isOpen && this.handle) {
+      this.handle.update({ purchased: true });
+    }
+    void user; // the shape is available via paywall.billing.getCachedUser()
   }
 
   close(): void {
