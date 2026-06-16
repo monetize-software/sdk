@@ -63,6 +63,10 @@ type ExcludedFromProxy =
   | 'getCustomerPortalUrl'
   | 'getIdentity'
   | 'setIdentity'
+  // Server-SDK only (apiKey): manual token credit/debit. apiKey can't exist in a
+  // browser/extension context, so these are intentionally NOT proxied to offscreen.
+  | 'creditTokens'
+  | 'debitTokens'
   | 'auth';
 
 type RequiredBillingAPI = Pick<

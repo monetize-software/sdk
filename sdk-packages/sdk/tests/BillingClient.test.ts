@@ -451,6 +451,72 @@ describe('BillingClient', () => {
     expect(String(url)).toContain('user_id=u_42');
   });
 
+  // Token credit/debit — server-SDK (apiKey) ONLY. Must never work from the
+  // browser/Bearer path (a user could top up their own balance).
+  it('creditTokens throws apikey_required without apiKey', async () => {
+    const client = new BillingClient({
+      apiOrigin: TEST_API_ORIGIN,
+      paywallId: 'pw_1',
+      identity: { userId: 'u_42' }
+    });
+    await expect(client.creditTokens({ type: 'gpt', amount: 10 })).rejects.toMatchObject({
+      code: 'apikey_required'
+    });
+  });
+
+  it('creditTokens throws identity_required with apiKey but no identity', async () => {
+    const client = new BillingClient({
+      apiOrigin: TEST_API_ORIGIN,
+      paywallId: 'pw_1',
+      apiKey: 'ak_test'
+    });
+    await expect(client.creditTokens({ type: 'gpt', amount: 10 })).rejects.toMatchObject({
+      code: 'identity_required'
+    });
+  });
+
+  it('creditTokens POSTs op=credit with X-Api-Key + identity and returns the new count', async () => {
+    const adjFetch = vi.fn<typeof fetch>(async () =>
+      json({ success: true, user_id: 'u_42', type: 'gpt', count: 110 })
+    );
+    const client = new BillingClient({
+      apiOrigin: TEST_API_ORIGIN,
+      paywallId: 'pw_1',
+      apiKey: 'ak_test',
+      identity: { userId: 'u_42' },
+      fetch: adjFetch
+    });
+
+    const res = await client.creditTokens({ type: 'gpt', amount: 10 });
+    expect(res).toEqual({ type: 'gpt', count: 110 });
+
+    const [url, init] = adjFetch.mock.calls[0];
+    expect(String(url)).toContain('/api/v1/paywall/pw_1/balances');
+    expect(init?.method).toBe('POST');
+    expect((init?.headers as Headers).get('X-Api-Key')).toBe('ak_test');
+    const body = JSON.parse(init!.body as string);
+    expect(body).toMatchObject({ op: 'credit', type: 'gpt', amount: 10, user_id: 'u_42' });
+  });
+
+  it('debitTokens surfaces insufficient as a PaywallError', async () => {
+    const adjFetch = vi.fn<typeof fetch>(async () =>
+      json({ error: 'insufficient', code: 'insufficient', type: 'gpt', available: 3 }, 400)
+    );
+    const client = new BillingClient({
+      apiOrigin: TEST_API_ORIGIN,
+      paywallId: 'pw_1',
+      apiKey: 'ak_test',
+      identity: { email: 'a@b.c' },
+      fetch: adjFetch
+    });
+
+    await expect(client.debitTokens({ type: 'gpt', amount: 10 })).rejects.toMatchObject({
+      code: 'insufficient'
+    });
+    const body = JSON.parse(adjFetch.mock.calls[0][1]!.body as string);
+    expect(body.op).toBe('debit');
+  });
+
   it('cancelSubscription throws identity_required without auth and without apiKey+identity', async () => {
     const client = new BillingClient({ apiOrigin: TEST_API_ORIGIN, paywallId: 'pw_1' });
 

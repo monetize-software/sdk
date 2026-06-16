@@ -17,6 +17,7 @@
     "awaiting-transition-no-watcher",
     "billing-apikey-browser-throw",
     "billing-apikey-list-cancel",
+    "billing-credit-debit-tokens",
     "createcheckout-local-currency",
     "customer-portal-return-url",
     "drop-paywall-opened-event",

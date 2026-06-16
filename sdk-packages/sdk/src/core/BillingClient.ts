@@ -1461,6 +1461,86 @@ export class BillingClient {
   }
 
   /**
+   * Credit tokens to a user's tokenized balance (server-SDK only).
+   *
+   * Adds `amount` tokens of `type` to the user's balance for this paywall
+   * (creates the type if absent) and returns the new count. Server-side ONLY:
+   * requires `apiKey` + identity (email/userId). Token grants must never be
+   * callable from the browser — a user could top up their own balance — so this
+   * throws `apikey_required` without an apiKey (and the constructor already
+   * forbids apiKey in a browser context).
+   *
+   * The backend mutation is atomic (no lost updates vs concurrent api-gateway
+   * debits), and a credit above the daily-trial limit is NOT clawed back by the
+   * daily trial top-up (it only tops balances UP to the limit, never down).
+   */
+  async creditTokens(params: {
+    type: string;
+    amount: number;
+    signal?: AbortSignal;
+  }): Promise<{ type: string; count: number }> {
+    return this.adjustTokens('credit', params);
+  }
+
+  /**
+   * Debit tokens from a user's tokenized balance (server-SDK only). Subtracts
+   * `amount` of `type` and returns the new count. Throws
+   * `PaywallError('insufficient')` if the balance would drop below zero — no
+   * partial debit. Same server-only constraints as {@link creditTokens}.
+   */
+  async debitTokens(params: {
+    type: string;
+    amount: number;
+    signal?: AbortSignal;
+  }): Promise<{ type: string; count: number }> {
+    return this.adjustTokens('debit', params);
+  }
+
+  private async adjustTokens(
+    op: 'credit' | 'debit',
+    params: { type: string; amount: number; signal?: AbortSignal }
+  ): Promise<{ type: string; count: number }> {
+    if (!this.apiKey) {
+      throw new PaywallError(
+        'apikey_required',
+        'creditTokens/debitTokens are server-SDK only — set apiKey + identity. Token balance changes must not be callable from the browser.'
+      );
+    }
+    if (!this.identity?.email && !this.identity?.userId) {
+      throw new PaywallError(
+        'identity_required',
+        'creditTokens/debitTokens require identity.email or identity.userId'
+      );
+    }
+    if (!params.type || !Number.isInteger(params.amount) || params.amount <= 0) {
+      throw new PaywallError(
+        'invalid_argument',
+        'type is required and amount must be a positive integer'
+      );
+    }
+
+    const resp = await this.api.request<{
+      success: true;
+      user_id: string;
+      type: string;
+      count: number;
+      balances?: Balance[];
+    }>(`/api/v1/paywall/${this.paywallId}/balances`, {
+      method: 'POST',
+      headers: { 'X-Api-Key': this.apiKey },
+      body: JSON.stringify({
+        email: this.identity?.email,
+        user_id: this.identity?.userId,
+        type: params.type,
+        amount: params.amount,
+        op
+      }),
+      signal: params.signal
+    });
+    return { type: resp.type, count: resp.count };
+  }
+
+  /**
    * Cancel a subscription. The backend checks that the subscription belongs to
    * the user (Bearer path — from the session; apiKey path — from identity) and
    * cancels it at the acquirer (Stripe/Paddle/Chargebee/Overpay). By default the
