@@ -31,6 +31,14 @@ export interface AuthUser {
   /** null for an anonymous user (signInAnonymously). For all other flows — filled in. */
   email: string | null;
   country?: string | null;
+  /** Display name from the provider profile (OAuth `full_name`/`name`). null for
+   *  anonymous / email users without a name. */
+  name?: string | null;
+  /** Avatar URL from the provider profile (OAuth `avatar_url`/`picture`). Present
+   *  for Google and most social logins; null for Apple "hide email" / email /
+   *  anonymous users. Carried in the session so the UI can show it from
+   *  `auth.getCachedUser()?.avatar` without an extra request. */
+  avatar?: string | null;
   /** true — a Supabase anonymous user. The UI uses it to decide "sign in" vs
    *  "signed in as ...", and to call linkIdentity instead of signInWithOAuth on an
    *  OAuth upgrade (mirrors the legacy StartAuthPage.tsx). */
