@@ -18,7 +18,7 @@ import type {
   OtpVerifyType,
   SignUpResult
 } from '@sdk/core/auth';
-import { waitForOAuthCode } from '@sdk/core/auth';
+import { waitForOAuthResult } from '@sdk/core/auth';
 import { PaywallError } from '@sdk/core/types';
 import { TransportClient } from '../shared/transport-client';
 
@@ -227,6 +227,9 @@ export class RemoteAuthClient {
     scopes?: string;
     userMeta?: Record<string, string>;
     onPopupOpened?: () => void;
+    /** Force a plain signin (no anon-upgrade linkIdentity) into the account that
+     *  owns the identity. Passed by the UI "sign in with that account" button. */
+    switchAccount?: boolean;
   }): Promise<AuthSession> {
     if (typeof window === 'undefined') {
       throw new PaywallError('oauth_unavailable', 'window is required for OAuth');
@@ -257,7 +260,8 @@ export class RemoteAuthClient {
       const { authorizeUrl, state } = await this.transport.request('auth.oauthStart', {
         provider: input.provider,
         scopes: input.scopes,
-        userMeta: input.userMeta
+        userMeta: input.userMeta,
+        switchAccount: input.switchAccount
       });
 
       // Before navigating, rename the popup to the format the callback page
@@ -269,8 +273,58 @@ export class RemoteAuthClient {
 
       input.onPopupOpened?.();
 
-      const code = await waitForOAuthCode(popup, state);
-      const session = await this.transport.request('auth.oauthExchange', { state, code });
+      let result = await waitForOAuthResult(popup, state);
+
+      // Auto switch-account (mirrors @monetize.software/sdk AuthClient.signInWithOAuth):
+      // the anon-upgrade linkIdentity failed because this identity already belongs
+      // to another user. We re-run as a plain signin reusing the SAME popup + state
+      // (provider SSO is established → near-instant). reuseState keeps window.name
+      // matching; we can't reset popup.name once it's cross-origin anyway.
+      if (
+        !input.switchAccount &&
+        result.kind === 'error' &&
+        result.errorCode === 'identity_already_exists'
+      ) {
+        const retry = await this.transport.request('auth.oauthStart', {
+          provider: input.provider,
+          scopes: input.scopes,
+          userMeta: input.userMeta,
+          switchAccount: true,
+          reuseState: state
+        });
+        try {
+          popup.location.replace(retry.authorizeUrl);
+          result = await waitForOAuthResult(popup, state);
+        } catch {
+          // Popup unusable — fall through to the error mapping below.
+        }
+      }
+
+      try {
+        popup.close();
+      } catch {
+        /* ignore */
+      }
+
+      if (result.kind === 'cancelled') {
+        throw new PaywallError('oauth_cancelled', 'auth popup was closed');
+      }
+      if (result.kind === 'timeout') {
+        throw new PaywallError('oauth_timeout', 'OAuth flow timed out');
+      }
+      if (result.kind === 'error') {
+        throw new PaywallError(
+          result.errorCode === 'identity_already_exists'
+            ? 'oauth_identity_already_linked'
+            : 'oauth_failed',
+          result.description || result.error || 'OAuth provider returned error'
+        );
+      }
+
+      const session = await this.transport.request('auth.oauthExchange', {
+        state,
+        code: result.code
+      });
       this.applySession('SIGNED_IN', session);
       return session;
     } catch (e) {

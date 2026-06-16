@@ -20,6 +20,7 @@
     "drop-paywall-opened-event",
     "getaccess-stale-user",
     "modal-focus-no-plan-ring",
+    "oauth-switch-account-and-email-collision",
     "offer-banner-farming-fix",
     "offer-pricegrid-checkout-expiry",
     "offer-resolver-api",

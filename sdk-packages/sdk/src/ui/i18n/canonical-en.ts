@@ -97,6 +97,8 @@ const en = {
   'auth.invalid_credentials': 'Invalid email or password',
   'auth.email_not_confirmed': 'Please confirm your email before signing in.',
   'auth.email_exists': 'An account with this email already exists.',
+  'auth.email_already_registered': 'This email is already registered. Sign in below with your password or the account you used to sign up.',
+  'auth.identity_already_linked': 'This account is already registered. Sign in to it below.',
   'auth.weak_password': 'Password is too weak.',
   'auth.invalid_otp': 'The code is invalid or has expired.',
   'auth.rate_limited': 'Too many requests. Please try again later.',

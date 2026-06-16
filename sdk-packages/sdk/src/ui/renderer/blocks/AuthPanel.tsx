@@ -158,6 +158,12 @@ function AuthForm({ block, allowSignup, allowReset, ctx }: FormProps) {
   // We reset on mode change — the signin↔signup transition always starts from
   // the collapsed form.
   const [signupExpanded, setSignupExpanded] = useState(false);
+  // When an OAuth signin hits identity_already_exists — the chosen Google/Apple
+  // account already belongs to an existing user (not the current anon/guest) and
+  // the seamless in-popup switch-account retry couldn't complete — we surface a
+  // one-tap "sign in to that account" button. The click is a fresh user gesture,
+  // so it can open a popup again; switchAccount=true skips linkIdentity.
+  const [switchProvider, setSwitchProvider] = useState<OAuthProvider | null>(null);
 
   // Last-used auth method and email (per-paywall). Async-loaded from storage on mount,
   // while null — the UI just renders without the badge. Pre-fill email only if
@@ -193,6 +199,7 @@ function AuthForm({ block, allowSignup, allowReset, ctx }: FormProps) {
     setError(null);
     setInfo(null);
     setSignupExpanded(false);
+    setSwitchProvider(null);
   };
 
   const onSubmit = async (e: Event): Promise<void> => {
@@ -231,6 +238,20 @@ function AuthForm({ block, allowSignup, allowReset, ctx }: FormProps) {
             // by itself. We clear the password so it doesn't linger in state.
             setPassword('');
             setMode('signup_sent');
+          } else if (res.kind === 'already_registered') {
+            // The email is already registered (possibly via Google/Apple). Send
+            // the user to sign in instead of a fake "check your email" dead-end —
+            // we keep the email prefilled and reveal the signin form (OAuth
+            // buttons stay visible above it for the social-login case).
+            setMode('signin');
+            setSignupExpanded(false);
+            setConfirmPassword('');
+            setInfo(
+              t(
+                'auth.email_already_registered',
+                'This email is already registered. Sign in below — with your password or the social account you used.'
+              )
+            );
           }
         } else if (mode === 'forgot') {
           await auth.requestPasswordReset({ email });
@@ -246,6 +267,26 @@ function AuthForm({ block, allowSignup, allowReset, ctx }: FormProps) {
           }
         }
       } catch (err) {
+        // Signup with email-confirm OFF: GoTrue throws email_exists/user_already_exists
+        // (the confirm-ON variant comes back as kind:'already_registered' above).
+        // Same UX: send the user to sign in with the email prefilled instead of a
+        // bare "account exists" error.
+        if (
+          mode === 'signup' &&
+          err instanceof PaywallError &&
+          (err.code === 'email_exists' || err.code === 'user_already_exists')
+        ) {
+          setMode('signin');
+          setSignupExpanded(false);
+          setConfirmPassword('');
+          setInfo(
+            t(
+              'auth.email_already_registered',
+              'This email is already registered. Sign in below with your password or the account you used to sign up.'
+            )
+          );
+          return;
+        }
         const errMode =
           mode === 'signup' ? 'signup'
             : mode === 'reset_verify' ? 'otp'
@@ -259,19 +300,39 @@ function AuthForm({ block, allowSignup, allowReset, ctx }: FormProps) {
     }
   };
 
-  const onOAuth = async (provider: OAuthProvider): Promise<void> => {
+  const onOAuth = async (
+    provider: OAuthProvider,
+    opts?: { switchAccount?: boolean }
+  ): Promise<void> => {
     if (submittingRef.current || busy) return;
     submittingRef.current = true;
     setBusy(provider);
     setError(null);
     setInfo(null);
+    // Clear a stale switch-account prompt on any fresh non-switch attempt.
+    if (!opts?.switchAccount) setSwitchProvider(null);
     try {
       await auth.signInWithOAuth({
         provider,
+        switchAccount: opts?.switchAccount,
         onPopupOpened: () => setBusy(null)
       });
+      setSwitchProvider(null);
     } catch (err) {
       if (err instanceof PaywallError && (err.code === 'oauth_cancelled' || err.code === 'oauth_timeout')) {
+        return;
+      }
+      // The OAuth identity already belongs to an existing account (the user signed
+      // in with it before, on another device). Offer a one-tap sign-in into that
+      // account — switchAccount drops the current anon/guest session.
+      if (err instanceof PaywallError && err.code === 'oauth_identity_already_linked') {
+        setSwitchProvider(provider);
+        setError(
+          t(
+            'auth.identity_already_linked',
+            'This account is already registered. Sign in to it below.'
+          )
+        );
         return;
       }
       setError(authErrorMessage(err, 'signin', t));
@@ -388,6 +449,22 @@ function AuthForm({ block, allowSignup, allowReset, ctx }: FormProps) {
 
         {error && <p class="text-sm text-red-600">{error}</p>}
         {info && <p class="text-sm text-gray-500">{info}</p>}
+
+        {switchProvider && (
+          <button
+            type="button"
+            onClick={() => onOAuth(switchProvider, { switchAccount: true })}
+            disabled={busy !== null}
+            class="flex h-12 w-full items-center justify-center gap-2.5 rounded-full border-1 border-gray-200 bg-white px-5 text-base font-medium text-gray-900 transition-all hover:border-gray-300 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--pw-accent)]"
+          >
+            {busy === switchProvider ? (
+              <span class="inline-block h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-gray-700" />
+            ) : (
+              <ProviderIcon provider={switchProvider} />
+            )}
+            <span>{providerLabel(switchProvider, t)}</span>
+          </button>
+        )}
 
         <PrimaryButton
           busy={busy === 'email'}

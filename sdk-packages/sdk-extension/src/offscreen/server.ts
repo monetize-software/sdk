@@ -172,7 +172,9 @@ export class OffscreenServer {
       const { authorize_url, state } = await auth.startOAuthFlow({
         provider: params.provider,
         scopes: params.scopes,
-        userMeta: params.userMeta
+        userMeta: params.userMeta,
+        switchAccount: params.switchAccount,
+        reuseState: params.reuseState
       });
       return { authorizeUrl: authorize_url, state };
     });

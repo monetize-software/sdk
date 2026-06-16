@@ -92,6 +92,12 @@ declare module './protocol' {
       provider: OAuthProvider;
       scopes?: string;
       userMeta?: Record<string, string>;
+      /** Skip the anon-upgrade linkIdentity path (no Bearer) → plain signin into
+       *  the account that owns the identity. Set by the switch-account retry. */
+      switchAccount?: boolean;
+      /** Reuse an existing popup state for the in-place switch-account retry (the
+       *  popup's window.name is pw-oauth-<state> and must keep matching). */
+      reuseState?: string;
     };
     /** Exchange the code for a session. The state from the oauthStart resolution
      *  comes here — offscreen looks up the stored verifier by state. */

@@ -47,7 +47,13 @@ export interface AuthSession {
 
 export type SignUpResult =
   | { kind: 'signed_in'; session: AuthSession }
-  | { kind: 'confirmation_required'; user: { id: string; email: string } };
+  | { kind: 'confirmation_required'; user: { id: string; email: string } }
+  /** The email is already registered (possibly via an OAuth provider). GoTrue's
+   *  anti-enumeration makes /signup look like "confirmation pending", so the
+   *  backend disambiguates it for us — the UI should send the user to sign in
+   *  (password or the social button they used) instead of a dead-end "check your
+   *  email" screen. */
+  | { kind: 'already_registered'; email: string };
 
 /** The result of `upgradeAnonymousToEmail`. `updated` — confirmation is off or
  *  already passed; session.user.email is updated, is_anonymous=false. `confirmation_required` —
@@ -342,6 +348,7 @@ export class AuthClient {
     const visitorId = await this.readVisitorId();
     type Resp =
       | { status: 'confirmation_required'; user: { id: string; email: string } }
+      | { status: 'already_registered'; email: string }
       | (RawTokens & { status: 'signed_in'; user: AuthUser });
     const headers: Record<string, string> = {};
     if (input.idempotencyKey) headers['Idempotency-Key'] = input.idempotencyKey;
@@ -358,6 +365,11 @@ export class AuthClient {
         })
       }
     );
+    if (resp.status === 'already_registered') {
+      // Don't record a last-login method — we didn't actually sign anyone in, and
+      // we don't know which method the existing account uses.
+      return { kind: 'already_registered', email: resp.email };
+    }
     if (resp.status === 'confirmation_required') {
       // We record the email method ahead of time: after verifyOtp the user comes
       // back without our knowledge of the chosen flow (verifyOtp is shared with
@@ -758,19 +770,25 @@ export class AuthClient {
     scopes?: string;
     userMeta?: Record<string, string>;
     onPopupOpened?: () => void;
+    /** Skip the anon-upgrade linkIdentity path and sign straight into the account
+     *  that owns the OAuth identity (dropping the current anon session). The UI
+     *  passes this from the "sign in with that account" button after an
+     *  `oauth_identity_already_linked` error. */
+    switchAccount?: boolean;
   }): Promise<AuthSession> {
     if (typeof window === 'undefined') {
       throw new PaywallError('oauth_unavailable', 'window is required for OAuth');
     }
 
-    // Single-process path: start → openPopup → waitForOAuthCode → complete. The
+    // Single-process path: start → openPopup → waitForOAuthResult → complete. The
     // flow state lives on our heap until complete; for the split mode
     // (offscreen-architecture in @monetize/sdk-extension) start and complete are
     // called as separate requests — the verifier stays inside AuthClient.
     const { authorize_url, state } = await this.startOAuthFlow({
       provider: input.provider,
       scopes: input.scopes,
-      userMeta: input.userMeta
+      userMeta: input.userMeta,
+      switchAccount: input.switchAccount
     });
 
     const popup = this.openPopup(authorize_url, `pw-oauth-${state}`);
@@ -784,14 +802,67 @@ export class AuthClient {
     }
     input.onPopupOpened?.();
 
-    const code = await waitForOAuthCode(popup, state);
+    let result = await waitForOAuthResult(popup, state);
+
+    // Auto switch-account: the anon-upgrade linkIdentity failed because this
+    // OAuth identity already belongs to another user (the user signed in with it
+    // before, on another device). We re-run as a plain sign-in (no Bearer) reusing
+    // the SAME still-open popup + state: the provider SSO session is already
+    // established, so the round-trip is near-instant and the user lands in their
+    // existing account. We don't open a NEW popup — that would be blocked outside
+    // the original click gesture. If the popup can't be reused (closed / handle
+    // severed by COOP) the navigation no-ops and we fall through to the error
+    // below, which the UI turns into a "sign in with that account" button.
+    if (
+      !input.switchAccount &&
+      result.kind === 'error' &&
+      result.errorCode === 'identity_already_exists'
+    ) {
+      this.oauthFlows.delete(state);
+      const retry = await this.startOAuthFlow({
+        provider: input.provider,
+        scopes: input.scopes,
+        userMeta: input.userMeta,
+        switchAccount: true,
+        reuseState: state
+      });
+      try {
+        popup.location.replace(retry.authorize_url);
+        result = await waitForOAuthResult(popup, state);
+      } catch {
+        // Popup handle unusable — leave `result` as the original error so the
+        // caller surfaces oauth_identity_already_linked (UI shows the button).
+      }
+    }
+
+    try {
+      popup.close();
+    } catch {
+      /* ignore */
+    }
 
     if (this.destroyed) {
       this.oauthFlows.delete(state);
       throw new PaywallError('aborted', 'AuthClient destroyed mid-flow');
     }
 
-    return this.completeOAuthFlow({ state, code });
+    if (result.kind === 'cancelled') {
+      throw new PaywallError('oauth_cancelled', 'auth popup was closed');
+    }
+    if (result.kind === 'timeout') {
+      throw new PaywallError('oauth_timeout', 'OAuth flow timed out');
+    }
+    if (result.kind === 'error') {
+      this.oauthFlows.delete(state);
+      throw new PaywallError(
+        result.errorCode === 'identity_already_exists'
+          ? 'oauth_identity_already_linked'
+          : 'oauth_failed',
+        result.description || result.error || 'OAuth provider returned error'
+      );
+    }
+
+    return this.completeOAuthFlow({ state, code: result.code });
   }
 
   /**
@@ -812,13 +883,24 @@ export class AuthClient {
     provider: OAuthProvider;
     scopes?: string;
     userMeta?: Record<string, string>;
+    /** Force a plain sign-in instead of the anon-upgrade `linkIdentity` path: we
+     *  do NOT attach the Bearer, so /oauth/init returns the signin authorize URL.
+     *  Used by the `identity_already_exists` switch-account retry and by the UI
+     *  "sign in with that account" fallback button — the user lands in the
+     *  account that already owns the OAuth identity (the anon session is dropped). */
+    switchAccount?: boolean;
+    /** Reuse an existing popup `state` instead of generating a new one. The
+     *  switch-account retry navigates the SAME still-open popup, whose
+     *  `window.name` is `pw-oauth-<state>` and survives cross-origin redirects —
+     *  so the retry flow must keep that state for the callback's messageId to match. */
+    reuseState?: string;
   }): Promise<{ authorize_url: string; state: string }> {
     await this.hydrated;
     this.gcOAuthFlows();
 
     const verifier = generateCodeVerifier();
     const challenge = await deriveCodeChallenge(verifier);
-    const state = generateState();
+    const state = input.reuseState ?? generateState();
 
     // Anon-upgrade hand-off: if we already have a session (usually — anonymous
     // after signInAnonymously()), we send its access_token to /oauth/init. The
@@ -827,12 +909,15 @@ export class AuthClient {
     // trial-balances/purchases linked to it don't go anywhere.
     // Mirrors the legacy StartAuthPage.tsx (is_anonymous → linkIdentity).
     //
-    // If the host wants specifically a "switch account" (a new user_id) — it must
-    // first signOut({forgetAnonymous: true}), then session=null, Bearer won't go,
-    // and /oauth/init returns the usual signin flow.
+    // switchAccount skips the Bearer entirely → /oauth/init returns the plain
+    // signin flow (no linking), so the user logs into whatever account owns the
+    // OAuth identity. The host can also reach this by signOut({forgetAnonymous})
+    // first (then session=null and the Bearer wouldn't go either).
     const headers: Record<string, string> = {};
-    const accessToken = await this.getAccessToken().catch((): string | null => null);
-    if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+    if (!input.switchAccount) {
+      const accessToken = await this.getAccessToken().catch((): string | null => null);
+      if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+    }
 
     const { authorize_url } = await this.api.request<{ authorize_url: string }>(
       `/api/v1/paywall/${this.paywallId}/auth/oauth/init`,
@@ -1339,15 +1424,30 @@ interface OAuthMessage {
   status?: string;
   code?: string;
   error?: string;
+  /** Machine code from GoTrue (e.g. `identity_already_exists`). The callback page
+   *  forwards it so the SDK can branch into the switch-account retry. */
+  errorCode?: string;
   description?: string;
   messageId?: string;
 }
 
-/** Waits for the OAuth callback in the popup and resolves with the code. Used in
- *  `signInWithOAuth` and in the split-API flow (where the popup is opened
- *  externally, e.g. in the extension's content-script with an offscreen AuthClient). */
-export function waitForOAuthCode(popup: Window, expectedState: string): Promise<string> {
-  return new Promise((resolve, reject) => {
+/** The structured outcome of an OAuth popup round-trip. */
+export type OAuthResult =
+  | { kind: 'code'; code: string }
+  | { kind: 'error'; error: string; errorCode?: string; description?: string }
+  | { kind: 'cancelled' }
+  | { kind: 'timeout' };
+
+/** Waits for the OAuth callback in the popup and resolves with a structured
+ *  {@link OAuthResult}. Unlike {@link waitForOAuthCode} it does NOT close the
+ *  popup — the caller decides whether to close it or REUSE it (the
+ *  `identity_already_exists` → switch-account retry navigates the same popup).
+ *  Never rejects: provider errors / cancel / timeout come back as result kinds. */
+export function waitForOAuthResult(
+  popup: Window,
+  expectedState: string
+): Promise<OAuthResult> {
+  return new Promise((resolve) => {
     let settled = false;
 
     const cleanup = () => {
@@ -1369,17 +1469,15 @@ export function waitForOAuthCode(popup: Window, expectedState: string): Promise<
 
       if (data.status === 'success' && data.code) {
         cleanup();
-        try { popup.close(); } catch { /* ignore */ }
-        resolve(data.code);
+        resolve({ kind: 'code', code: data.code });
       } else if (data.status === 'error') {
         cleanup();
-        try { popup.close(); } catch { /* ignore */ }
-        reject(
-          new PaywallError(
-            'oauth_failed',
-            data.description || data.error || 'OAuth provider returned error'
-          )
-        );
+        resolve({
+          kind: 'error',
+          error: data.error || 'oauth_error',
+          errorCode: data.errorCode,
+          description: data.description
+        });
       }
     };
 
@@ -1397,18 +1495,39 @@ export function waitForOAuthCode(popup: Window, expectedState: string): Promise<
       }
       if (closed) {
         cleanup();
-        reject(new PaywallError('oauth_cancelled', 'auth popup was closed'));
+        resolve({ kind: 'cancelled' });
       }
     }, OAUTH_POLL_MS);
 
     const timeoutTimer = setTimeout(() => {
       if (settled) return;
       cleanup();
-      try { popup.close(); } catch { /* ignore */ }
-      reject(new PaywallError('oauth_timeout', 'OAuth flow timed out'));
+      resolve({ kind: 'timeout' });
     }, OAUTH_TIMEOUT_MS);
 
     window.addEventListener('message', onMessage);
+  });
+}
+
+/** Back-compat wrapper around {@link waitForOAuthResult}: resolves with the code,
+ *  closes the popup, and throws a PaywallError for cancel/timeout/provider-error.
+ *  Used by the extension's content-script split flow. */
+export function waitForOAuthCode(popup: Window, expectedState: string): Promise<string> {
+  return waitForOAuthResult(popup, expectedState).then((result) => {
+    try { popup.close(); } catch { /* ignore */ }
+    if (result.kind === 'code') return result.code;
+    if (result.kind === 'cancelled') {
+      throw new PaywallError('oauth_cancelled', 'auth popup was closed');
+    }
+    if (result.kind === 'timeout') {
+      throw new PaywallError('oauth_timeout', 'OAuth flow timed out');
+    }
+    throw new PaywallError(
+      result.errorCode === 'identity_already_exists'
+        ? 'oauth_identity_already_linked'
+        : 'oauth_failed',
+      result.description || result.error || 'OAuth provider returned error'
+    );
   });
 }
 
