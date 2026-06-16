@@ -839,111 +839,22 @@ describe('AuthClient', () => {
     await expect(p).rejects.toThrow(/cancelled|access_denied/i);
   });
 
-  it('signInWithOAuth auto-switches to plain signin on identity_already_exists', async () => {
+  it('signInWithOAuth surfaces oauth_identity_already_linked on identity_already_exists', async () => {
+    // Button-primary: the OAuth identity already belongs to another account. We do
+    // NOT auto-retry in the same popup (COOP makes popup reuse unreliable) — we
+    // surface a distinct code the UI turns into a "sign in with that account"
+    // button (a fresh click does signInWithOAuth({ switchAccount: true })).
     let initCalls = 0;
     const fetchMock = vi.fn<typeof fetch>(async (input) => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
       if (url.endsWith('/auth/oauth/init')) {
         initCalls++;
-        return jsonResponse({
-          authorize_url: `https://gotrue.example.com/auth/v1/authorize?try=${initCalls}`
-        });
-      }
-      if (url.endsWith('/auth/oauth/exchange')) {
-        return jsonResponse({
-          access_token: 'oa1',
-          refresh_token: 'or1',
-          ...expiresInSeconds(3600),
-          token_type: 'bearer',
-          user: USER
-        });
+        return jsonResponse({ authorize_url: 'https://gotrue.example.com/auth/v1/authorize' });
       }
       throw new Error('unexpected ' + url);
     });
 
-    // The popup is REUSED for the switch-account retry: location.replace navigates
-    // it to the plain-signin authorize URL (same window.name/state).
-    const replaced: string[] = [];
-    const popupShape = {
-      closed: false,
-      close() {
-        this.closed = true;
-      },
-      location: {
-        replace: (u: string) => {
-          replaced.push(u);
-        }
-      }
-    };
-    const fakePopup = popupShape as unknown as Window;
-
-    let openedName = '';
-    const auth = new AuthClient({
-      paywallId: PAYWALL_ID,
-      apiOrigin: API_ORIGIN,
-      fetch: fetchMock,
-      storage: freshStorage(),
-      openPopup: (_url, name) => {
-        openedName = name;
-        return fakePopup;
-      }
-    });
-
-    const sessionPromise = auth.signInWithOAuth({ provider: 'google' });
-    await vi.waitFor(() => expect(openedName).toBeTruthy());
-    const state = openedName.replace(/^pw-oauth-/, '');
-
-    // Round 1: linkIdentity fails — identity already belongs to another account.
-    window.dispatchEvent(
-      new MessageEvent('message', {
-        data: {
-          type: 'pw-oauth',
-          status: 'error',
-          error: 'server_error',
-          errorCode: 'identity_already_exists',
-          description: 'Identity is already linked to another user',
-          messageId: state
-        }
-      })
-    );
-
-    // SDK re-inits in switchAccount mode and navigates the SAME popup.
-    await vi.waitFor(() => expect(replaced.length).toBe(1));
-    expect(initCalls).toBe(2);
-    expect(replaced[0]).toContain('try=2');
-
-    // Round 2: plain signin succeeds — same state, popup window.name unchanged.
-    window.dispatchEvent(
-      new MessageEvent('message', {
-        data: { type: 'pw-oauth', status: 'success', code: 'switch_code', messageId: state }
-      })
-    );
-
-    const session = await sessionPromise;
-    expect(session.access_token).toBe('oa1');
-
-    const exchangeCall = fetchMock.mock.calls.find(([url]) =>
-      String(url).endsWith('/auth/oauth/exchange')
-    );
-    expect(JSON.parse(exchangeCall![1]!.body as string).auth_code).toBe('switch_code');
-  });
-
-  it('signInWithOAuth surfaces oauth_identity_already_linked when popup reuse fails', async () => {
-    const fetchMock = vi.fn<typeof fetch>(async () =>
-      jsonResponse({ authorize_url: 'https://gotrue.example.com/auth/v1/authorize' })
-    );
-    // Popup handle severed (COOP) — location.replace throws, so the seamless
-    // retry can't proceed and we surface the actionable error for the UI button.
-    const fakePopup = {
-      closed: false,
-      close: vi.fn(),
-      location: {
-        replace: () => {
-          throw new Error('cross-origin handle severed');
-        }
-      }
-    } as unknown as Window;
-
+    const fakePopup = { closed: false, close: vi.fn() } as unknown as Window;
     let openedName = '';
     const auth = new AuthClient({
       paywallId: PAYWALL_ID,
@@ -967,11 +878,15 @@ describe('AuthClient', () => {
           status: 'error',
           error: 'server_error',
           errorCode: 'identity_already_exists',
+          description: 'Identity is already linked to another user',
           messageId: state
         }
       })
     );
 
     await expect(p).rejects.toMatchObject({ code: 'oauth_identity_already_linked' });
+    // No auto-retry: a single /oauth/init, and the popup is closed by the SDK.
+    expect(initCalls).toBe(1);
+    expect(fakePopup.close).toHaveBeenCalled();
   });
 });

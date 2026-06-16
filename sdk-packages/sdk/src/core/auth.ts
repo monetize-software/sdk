@@ -802,38 +802,7 @@ export class AuthClient {
     }
     input.onPopupOpened?.();
 
-    let result = await waitForOAuthResult(popup, state);
-
-    // Auto switch-account: the anon-upgrade linkIdentity failed because this
-    // OAuth identity already belongs to another user (the user signed in with it
-    // before, on another device). We re-run as a plain sign-in (no Bearer) reusing
-    // the SAME still-open popup + state: the provider SSO session is already
-    // established, so the round-trip is near-instant and the user lands in their
-    // existing account. We don't open a NEW popup — that would be blocked outside
-    // the original click gesture. If the popup can't be reused (closed / handle
-    // severed by COOP) the navigation no-ops and we fall through to the error
-    // below, which the UI turns into a "sign in with that account" button.
-    if (
-      !input.switchAccount &&
-      result.kind === 'error' &&
-      result.errorCode === 'identity_already_exists'
-    ) {
-      this.oauthFlows.delete(state);
-      const retry = await this.startOAuthFlow({
-        provider: input.provider,
-        scopes: input.scopes,
-        userMeta: input.userMeta,
-        switchAccount: true,
-        reuseState: state
-      });
-      try {
-        popup.location.replace(retry.authorize_url);
-        result = await waitForOAuthResult(popup, state);
-      } catch {
-        // Popup handle unusable — leave `result` as the original error so the
-        // caller surfaces oauth_identity_already_linked (UI shows the button).
-      }
-    }
+    const result = await waitForOAuthResult(popup, state);
 
     try {
       popup.close();
@@ -885,22 +854,17 @@ export class AuthClient {
     userMeta?: Record<string, string>;
     /** Force a plain sign-in instead of the anon-upgrade `linkIdentity` path: we
      *  do NOT attach the Bearer, so /oauth/init returns the signin authorize URL.
-     *  Used by the `identity_already_exists` switch-account retry and by the UI
-     *  "sign in with that account" fallback button — the user lands in the
-     *  account that already owns the OAuth identity (the anon session is dropped). */
+     *  Set by the UI "sign in with that account" button shown after an
+     *  `oauth_identity_already_linked` error — the user lands in the account that
+     *  already owns the OAuth identity (the anon session is dropped). */
     switchAccount?: boolean;
-    /** Reuse an existing popup `state` instead of generating a new one. The
-     *  switch-account retry navigates the SAME still-open popup, whose
-     *  `window.name` is `pw-oauth-<state>` and survives cross-origin redirects —
-     *  so the retry flow must keep that state for the callback's messageId to match. */
-    reuseState?: string;
   }): Promise<{ authorize_url: string; state: string }> {
     await this.hydrated;
     this.gcOAuthFlows();
 
     const verifier = generateCodeVerifier();
     const challenge = await deriveCodeChallenge(verifier);
-    const state = input.reuseState ?? generateState();
+    const state = generateState();
 
     // Anon-upgrade hand-off: if we already have a session (usually — anonymous
     // after signInAnonymously()), we send its access_token to /oauth/init. The

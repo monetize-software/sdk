@@ -173,8 +173,7 @@ export class OffscreenServer {
         provider: params.provider,
         scopes: params.scopes,
         userMeta: params.userMeta,
-        switchAccount: params.switchAccount,
-        reuseState: params.reuseState
+        switchAccount: params.switchAccount
       });
       return { authorizeUrl: authorize_url, state };
     });

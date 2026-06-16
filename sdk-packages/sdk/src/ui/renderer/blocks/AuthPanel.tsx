@@ -335,6 +335,16 @@ function AuthForm({ block, allowSignup, allowReset, ctx }: FormProps) {
         );
         return;
       }
+      // Surface the real cause to the console — the user-facing string is a
+      // generic fallback, but merchants debugging a failed OAuth need the actual
+      // code/description (e.g. a GoTrue error_description that didn't map to a key).
+      if (typeof console !== 'undefined') {
+        console.warn('[paywall] OAuth sign-in failed', {
+          provider,
+          code: err instanceof PaywallError ? err.code : undefined,
+          message: err instanceof Error ? err.message : String(err)
+        });
+      }
       setError(authErrorMessage(err, 'signin', t));
     } finally {
       submittingRef.current = false;

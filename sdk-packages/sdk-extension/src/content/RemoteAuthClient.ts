@@ -273,32 +273,7 @@ export class RemoteAuthClient {
 
       input.onPopupOpened?.();
 
-      let result = await waitForOAuthResult(popup, state);
-
-      // Auto switch-account (mirrors @monetize.software/sdk AuthClient.signInWithOAuth):
-      // the anon-upgrade linkIdentity failed because this identity already belongs
-      // to another user. We re-run as a plain signin reusing the SAME popup + state
-      // (provider SSO is established → near-instant). reuseState keeps window.name
-      // matching; we can't reset popup.name once it's cross-origin anyway.
-      if (
-        !input.switchAccount &&
-        result.kind === 'error' &&
-        result.errorCode === 'identity_already_exists'
-      ) {
-        const retry = await this.transport.request('auth.oauthStart', {
-          provider: input.provider,
-          scopes: input.scopes,
-          userMeta: input.userMeta,
-          switchAccount: true,
-          reuseState: state
-        });
-        try {
-          popup.location.replace(retry.authorizeUrl);
-          result = await waitForOAuthResult(popup, state);
-        } catch {
-          // Popup unusable — fall through to the error mapping below.
-        }
-      }
+      const result = await waitForOAuthResult(popup, state);
 
       try {
         popup.close();
