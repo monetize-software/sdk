@@ -824,9 +824,7 @@ export class AuthClient {
     if (result.kind === 'error') {
       this.oauthFlows.delete(state);
       throw new PaywallError(
-        result.errorCode === 'identity_already_exists'
-          ? 'oauth_identity_already_linked'
-          : 'oauth_failed',
+        isIdentityAlreadyLinked(result) ? 'oauth_identity_already_linked' : 'oauth_failed',
         result.description || result.error || 'OAuth provider returned error'
       );
     }
@@ -1487,12 +1485,30 @@ export function waitForOAuthCode(popup: Window, expectedState: string): Promise<
       throw new PaywallError('oauth_timeout', 'OAuth flow timed out');
     }
     throw new PaywallError(
-      result.errorCode === 'identity_already_exists'
-        ? 'oauth_identity_already_linked'
-        : 'oauth_failed',
+      isIdentityAlreadyLinked(result) ? 'oauth_identity_already_linked' : 'oauth_failed',
       result.description || result.error || 'OAuth provider returned error'
     );
   });
+}
+
+/**
+ * True when an OAuth popup error means the chosen provider identity already
+ * belongs to ANOTHER account (so the anon-upgrade linkIdentity was rejected and
+ * the user should sign straight into that account).
+ *
+ * Primary signal — the machine `errorCode` (`identity_already_exists`). But we
+ * also match the GoTrue `error_description` ("Identity is already linked to
+ * another user") as a fallback: the hosted callback page and the SDK deploy
+ * independently, and an older/cached callback build forwards only the human
+ * description, not the machine code. Matching the description keeps the
+ * switch-account UX working across that version skew instead of degrading to a
+ * generic "Sign-in failed".
+ */
+export function isIdentityAlreadyLinked(result: OAuthResult): boolean {
+  if (result.kind !== 'error') return false;
+  if (result.errorCode === 'identity_already_exists') return true;
+  const text = `${result.error ?? ''} ${result.description ?? ''}`.toLowerCase();
+  return text.includes('identity_already_exists') || text.includes('already linked');
 }
 
 function isLastLoginMethod(v: unknown): v is LastLoginMethod {

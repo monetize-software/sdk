@@ -18,7 +18,7 @@ import type {
   OtpVerifyType,
   SignUpResult
 } from '@sdk/core/auth';
-import { waitForOAuthResult } from '@sdk/core/auth';
+import { waitForOAuthResult, isIdentityAlreadyLinked } from '@sdk/core/auth';
 import { PaywallError } from '@sdk/core/types';
 import { TransportClient } from '../shared/transport-client';
 
@@ -289,9 +289,7 @@ export class RemoteAuthClient {
       }
       if (result.kind === 'error') {
         throw new PaywallError(
-          result.errorCode === 'identity_already_exists'
-            ? 'oauth_identity_already_linked'
-            : 'oauth_failed',
+          isIdentityAlreadyLinked(result) ? 'oauth_identity_already_linked' : 'oauth_failed',
           result.description || result.error || 'OAuth provider returned error'
         );
       }

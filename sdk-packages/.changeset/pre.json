@@ -20,6 +20,7 @@
     "drop-paywall-opened-event",
     "getaccess-stale-user",
     "modal-focus-no-plan-ring",
+    "oauth-identity-linked-description-fallback",
     "oauth-switch-account-and-email-collision",
     "oauth-switch-account-button-primary",
     "offer-banner-farming-fix",

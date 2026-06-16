@@ -889,4 +889,44 @@ describe('AuthClient', () => {
     expect(initCalls).toBe(1);
     expect(fakePopup.close).toHaveBeenCalled();
   });
+
+  it('signInWithOAuth classifies identity-already-linked from the description (no errorCode)', async () => {
+    // Callback/SDK version skew: an older hosted callback forwards only the human
+    // error_description, not the machine error_code. We still must show the
+    // switch-account button, not a generic "Sign-in failed".
+    const fetchMock = vi.fn<typeof fetch>(async () =>
+      jsonResponse({ authorize_url: 'https://gotrue.example.com/auth/v1/authorize' })
+    );
+    const fakePopup = { closed: false, close: vi.fn() } as unknown as Window;
+    let openedName = '';
+    const auth = new AuthClient({
+      paywallId: PAYWALL_ID,
+      apiOrigin: API_ORIGIN,
+      fetch: fetchMock,
+      storage: freshStorage(),
+      openPopup: (_url, name) => {
+        openedName = name;
+        return fakePopup;
+      }
+    });
+
+    const p = auth.signInWithOAuth({ provider: 'google' });
+    await vi.waitFor(() => expect(openedName).toBeTruthy());
+    const state = openedName.replace(/^pw-oauth-/, '');
+
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        data: {
+          type: 'pw-oauth',
+          status: 'error',
+          error: 'server_error',
+          // No errorCode — only the description, as an old callback would send.
+          description: 'Identity is already linked to another user',
+          messageId: state
+        }
+      })
+    );
+
+    await expect(p).rejects.toMatchObject({ code: 'oauth_identity_already_linked' });
+  });
 });
