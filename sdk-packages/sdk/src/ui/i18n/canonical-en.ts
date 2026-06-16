@@ -69,7 +69,8 @@ const en = {
   'auth.log_in_link': 'Log In',
   'auth.show_password': 'Show password',
   'auth.hide_password': 'Hide password',
-  'auth.last_used': 'Last · {email}',
+  'auth.last_used': 'Last used · {email}',
+  'auth.last_used_no_email': 'Last used',
 
   // === auth / heading + subtitle ===
   'auth.welcome': 'Welcome back!',

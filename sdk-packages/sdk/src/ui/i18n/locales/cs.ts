@@ -33,6 +33,7 @@ const cs = {
   'auth.identity_already_linked': 'Tento účet je již zaregistrován. Přihlaste se jím níže.',
   'auth.invalid_credentials': 'Nesprávný e-mail nebo heslo',
   'auth.invalid_otp': 'Kód je neplatný nebo vypršel.',
+  'auth.last_used': 'Naposledy · {email}',
   'auth.last_used_no_email': 'Naposledy',
   'auth.link_purchase_subheading': 'Propojíme nákup s vaším účtem, aby přístup zůstal zachován.',
   'auth.log_in': 'Přihlásit se',

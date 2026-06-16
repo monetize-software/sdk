@@ -8,6 +8,7 @@
   },
   "changesets": [
     "auth-flows-and-i18n-fixes",
+    "auth-last-used-badge-wording",
     "auth-mv3-i18n-fixes",
     "auth-reset-sent-i18n",
     "auth-reset-sent-view",

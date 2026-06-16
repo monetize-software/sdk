@@ -782,8 +782,8 @@ function LastUsedBadge({ email }: { email: string | null }) {
   // email (which would overflow the button edges). pointer-events-none — so the click lands
   // on the button itself, not on the badge on top.
   const label = email
-    ? t('auth.last_used', 'Last · {email}', { email: maskEmail(email) })
-    : t('auth.last_used_no_email', 'Last');
+    ? t('auth.last_used', 'Last used · {email}', { email: maskEmail(email) })
+    : t('auth.last_used_no_email', 'Last used');
   return (
     <span class="pointer-events-none absolute -top-2 right-3 max-w-[75%] truncate rounded-full bg-gray-900 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-white shadow-sm">
       {label}

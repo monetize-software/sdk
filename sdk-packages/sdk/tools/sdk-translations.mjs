@@ -924,18 +924,29 @@ export const SDK_TRANSLATIONS = {
     he: 'הסתר סיסמה'
   },
   'auth.last_used': {
-    de: 'Zuletzt · {email}', es: 'Última · {email}', fr: 'Dernière · {email}',
-    it: 'Ultimo · {email}', pt: 'Último · {email}', nl: 'Laatste · {email}',
-    ja: '前回 · {email}', ko: '최근 · {email}', zh: '最近 · {email}',
-    ru: 'Последний · {email}', uk: 'Останній · {email}'
+    ru: 'Последний вход · {email}', uk: 'Останній вхід · {email}',
+    de: 'Zuletzt genutzt · {email}', es: 'Última vez · {email}',
+    fr: 'Dernière fois · {email}', it: 'Ultima volta · {email}',
+    pt: 'Última vez · {email}', pl: 'Ostatnio użyte · {email}',
+    cs: 'Naposledy · {email}', hu: 'Legutóbb · {email}',
+    ro: 'Ultima dată · {email}', nl: 'Laatst gebruikt · {email}',
+    sv: 'Senast använd · {email}', da: 'Sidst brugt · {email}',
+    no: 'Sist brukt · {email}', fi: 'Viimeksi käytetty · {email}',
+    el: 'Τελευταία χρήση · {email}', tr: 'Son kullanılan · {email}',
+    id: 'Terakhir dipakai · {email}', ar: 'آخر استخدام · {email}',
+    ja: '前回使用 · {email}', ko: '최근 사용 · {email}', zh: '上次使用 · {email}',
+    hi: 'पिछली बार · {email}', th: 'ใช้ล่าสุด · {email}', vi: 'Dùng gần nhất · {email}',
+    he: 'בשימוש אחרון · {email}'
   },
   'auth.last_used_no_email': {
-    ru: 'Последний', uk: 'Останній', de: 'Zuletzt', es: 'Última', fr: 'Dernière',
-    it: 'Ultimo', pt: 'Último', pl: 'Ostatni', cs: 'Naposledy', hu: 'Utolsó',
-    ro: 'Ultimul', nl: 'Laatste', sv: 'Senast', da: 'Sidst', no: 'Sist',
-    fi: 'Viimeisin', el: 'Τελευταίο', tr: 'Son', id: 'Terakhir', ar: 'الأخير',
-    ja: '前回', ko: '최근', zh: '最近', hi: 'अंतिम', th: 'ล่าสุด', vi: 'Gần nhất',
-    he: 'אחרון'
+    ru: 'Последний вход', uk: 'Останній вхід', de: 'Zuletzt genutzt',
+    es: 'Última vez', fr: 'Dernière fois', it: 'Ultima volta', pt: 'Última vez',
+    pl: 'Ostatnio użyte', cs: 'Naposledy', hu: 'Legutóbb', ro: 'Ultima dată',
+    nl: 'Laatst gebruikt', sv: 'Senast använd', da: 'Sidst brugt', no: 'Sist brukt',
+    fi: 'Viimeksi käytetty', el: 'Τελευταία χρήση', tr: 'Son kullanılan',
+    id: 'Terakhir dipakai', ar: 'آخر استخدام', ja: '前回使用', ko: '최근 사용',
+    zh: '上次使用', hi: 'पिछली बार', th: 'ใช้ล่าสุด', vi: 'Dùng gần nhất',
+    he: 'בשימוש אחרון'
   },
 
   // ============ cta button ============

@@ -1,6 +1,6 @@
 {
   "name": "@monetize.software/sdk-extension",
-  "version": "3.0.0-beta.10",
+  "version": "3.0.0-beta.11",
   "description": "Monetize SDK for Chrome extensions — single source of truth via offscreen document, drop-in compatible with @monetize.software/sdk public API",
   "keywords": [
     "paywall",
