@@ -57,163 +57,163 @@
 
 ### Patch Changes
 
-- 5902c36: UI: бейдж последнего метода входа возле OAuth-кнопок — «Last» → «Last used» (понятнее, что это «последний использованный метод»).
+- 5902c36: UI: last-sign-in-method badge next to the OAuth buttons — "Last" → "Last used" (clearer that it means "last used method").
 
-  Переименовано в canonical EN, inline-фоллбэках `AuthPanel` и во всех 27 локалях
+  Renamed in canonical EN, the `AuthPanel` inline fallbacks and across all 27 locales
   (`auth.last_used` / `auth.last_used_no_email`): EN `Last used · {email}`, RU
-  `Последний вход · …`, DE `Zuletzt genutzt`, ES `Última vez`, JA `前回使用` и т.д.
-  Заодно закрыт пробел в покрытии — раньше `auth.last_used` (с email) был переведён
-  лишь частично и часть локалей падала на английский inline-фоллбэк.
+  `Последний вход · …`, DE `Zuletzt genutzt`, ES `Última vez`, JA `前回使用`, etc.
+  Also closed a coverage gap — previously `auth.last_used` (with email) was only
+  partially translated and some locales fell back to the English inline fallback.
 
-- c13ffc5: Auth: `AuthUser` теперь несёт профиль из OAuth-провайдера — `name` и `avatar`.
+- c13ffc5: Auth: `AuthUser` now carries the profile from the OAuth provider — `name` and `avatar`.
 
-  Раньше SDK отдавал только `{ id, email, country, is_anonymous }`, а аватар (Google
-  кладёт его в `user_metadata.avatar_url`) нигде наружу не пробрасывался. Добавлены
-  опциональные `name` / `avatar` в `AuthUser` — заполняются из OAuth-профиля при
-  `/oauth/exchange` и доступны из сессии (`auth.getCachedUser()?.avatar`,
-  `onAuthChange`) без доп. запроса. У email/anon-юзеров — `null` (аватара нет).
+  Previously the SDK exposed only `{ id, email, country, is_anonymous }`, and the avatar (Google
+  puts it in `user_metadata.avatar_url`) was never surfaced anywhere. Added
+  optional `name` / `avatar` to `AuthUser` — filled from the OAuth profile at
+  `/oauth/exchange` and available from the session (`auth.getCachedUser()?.avatar`,
+  `onAuthChange`) without an extra request. For email/anon users they are `null` (no avatar).
 
-  Требует парного деплоя online (`/oauth/exchange` теперь кладёт `name`/`avatar` из
-  `user_metadata`). Без него поля будут `undefined` — не ломает существующее.
+  Requires a paired online deploy (`/oauth/exchange` now puts `name`/`avatar` from
+  `user_metadata`). Without it the fields will be `undefined` — does not break existing behavior.
 
-- 8b859cb: Фикс зависания awaiting-экрана после оплаты в extension-странице.
+- 8b859cb: Fix the awaiting screen hanging after payment on an extension page.
 
-  Переход awaiting→success был завязан **исключительно** на `UserWatcher.onActive`,
-  а сам watcher не запускался для всего `chrome-extension://` протокола
-  (`shouldRunUserWatcher` считал любой такой контекст эфемерным action-popup'ом).
-  В полноценной extension-странице (side panel / отдельная вкладка), которая
-  переживает checkout, поллер был выключен, и закрыть awaiting было некому — даже
-  ручная кнопка «я оплатил» лишь слала `window.postMessage` для пробуждения
-  несуществующего watcher'а. Покупка проходила, `/user-state` отдавал
-  `has_active_subscription: true`, а экран висел.
+  The awaiting→success transition was wired **exclusively** to `UserWatcher.onActive`,
+  and the watcher itself didn't run for the entire `chrome-extension://` protocol
+  (`shouldRunUserWatcher` treated any such context as an ephemeral action-popup).
+  On a full extension page (side panel / standalone tab) that survives the
+  checkout, the poller was off and there was no one to close the awaiting screen — even
+  the manual "I've paid" button only sent `window.postMessage` to wake a
+  nonexistent watcher. The purchase went through, `/user-state` returned
+  `has_active_subscription: true`, and the screen kept hanging.
 
-  - Переход централизован в идемпотентный `handlePurchaseDetected`, который
-    вызывается из `billing.onUserChange` — любой источник свежего active
-    user-state (ручной `getUser`, cross-context broadcast, watcher) закрывает
-    awaiting. Гейт на checkout-вью (`awaiting_payment`/`popup_blocked`), чтобы
-    открытие пейвола уже-подписанному юзеру не давало ложного срабатывания.
-  - `shouldRunUserWatcher` больше не режет `chrome-extension://` — переживающая
-    страница и может, и должна поллить; эфемерный action-popup безвредно
-    тёрдаунится вместе с контекстом (детект там покрывает bootstrap при
-    следующем открытии).
+  - The transition is centralized in the idempotent `handlePurchaseDetected`, which
+    is called from `billing.onUserChange` — any source of fresh active
+    user-state (manual `getUser`, cross-context broadcast, watcher) closes the
+    awaiting screen. Gated on the checkout views (`awaiting_payment`/`popup_blocked`) so that
+    opening the paywall for an already-subscribed user doesn't trigger a false positive.
+  - `shouldRunUserWatcher` no longer cuts off `chrome-extension://` — a surviving
+    page both can and should poll; an ephemeral action-popup harmlessly
+    tears down with its context (detection there covers bootstrap on the
+    next open).
 
-- c6418f7: Server-SDK: ручное зачисление/списание токенов — `BillingClient.creditTokens()` / `debitTokens()`.
+- c6418f7: Server-SDK: manual token credit/debit — `BillingClient.creditTokens()` / `debitTokens()`.
 
-  apiKey-only методы правят токен-баланс юзера токенизированного пейвола от лица
-  бэкенда мерчанта (identity по email/userId). `creditTokens` добавляет, `debitTokens`
-  вычитает и бросает `PaywallError('insufficient')`, если ушло бы ниже нуля.
-  Из браузера недоступны (нет apiKey → `apikey_required`) — клиент не должен мочь
-  начислить себе токены. Возвращают `{ type, count }` с новым балансом.
+  apiKey-only methods that adjust the token balance of a user of a tokenized paywall on behalf of
+  the merchant backend (identity by email/userId). `creditTokens` adds, `debitTokens`
+  subtracts and throws `PaywallError('insufficient')` if it would go below zero.
+  Not available from the browser (no apiKey → `apikey_required`) — a client must not be able to
+  credit itself tokens. They return `{ type, count }` with the new balance.
 
-  Требует парного деплоя: online-эндпоинт `POST /api/v1/paywall/[id]/balances` +
-  применение SQL-миграции `adjust_paywall_balance` (атомарная дельта в JSONB, без
-  lost-update от параллельных списаний api-gateway'я). Daily-триал балансы выше
-  лимита не перезатирает.
+  Requires a paired deploy: online endpoint `POST /api/v1/paywall/[id]/balances` +
+  applying the SQL migration `adjust_paywall_balance` (atomic delta in JSONB, with no
+  lost-update from concurrent api-gateway debits). Does not overwrite daily-trial balances above
+  the limit.
 
-- a6b7a3a: Убрано аналитическое событие `paywall_opened`. Теперь показ пейвола фиксирует
-  единственный сигнал — `paywall_viewed` (эмитится на `'ready'`, после загрузки
-  bootstrap, с `prices_count`/`offers_count`/`is_test_mode`). `'open'` больше не
-  трекается отдельно ни в основном SDK, ни в extension-канале.
+- a6b7a3a: Removed the `paywall_opened` analytics event. Showing a paywall now records
+  a single signal — `paywall_viewed` (emitted on `'ready'`, after the
+  bootstrap loads, with `prices_count`/`offers_count`/`is_test_mode`). `'open'` is no longer
+  tracked separately in either the main SDK or the extension channel.
 
-  Мотивация: `opened` и `viewed` дублировали друг друга в доминирующем паттерне
-  (тёплый bootstrap → оба события в одном батче), а лишнее событие на каждое
-  открытие умножало POST-нагрузку на `/events` и строки в `paywall_sdk_events`
-  при прод-масштабе (тысячи одновременных открытий). Воронка строится от
-  `viewed`. Сервер (`online`) больше не принимает `paywall_opened` в whitelist.
+  Motivation: `opened` and `viewed` duplicated each other in the dominant pattern
+  (warm bootstrap → both events in one batch), and the extra event on every
+  open multiplied the POST load on `/events` and the rows in `paywall_sdk_events`
+  at prod scale (thousands of simultaneous opens). The funnel is built from
+  `viewed`. The server (`online`) no longer accepts `paywall_opened` in the whitelist.
 
-- 63dc291: Фикс расходящихся фокуса и выбора при открытии пейвола.
+- 63dc291: Fix diverging focus and selection when the paywall opens.
 
-  При авто-открытии модалки (без предшествующего user-gesture) браузерная
-  эвристика `:focus-visible` рисовала кольцо на первом фокусируемом контроле — а
-  первый `button` в DOM это первая карточка тарифа (напр. месячный), тогда как
-  _выбран_ популярный план (`popular_price_id`), у которого акцентная рамка.
-  Кольцо фокуса оказывалось на одной карточке, выделение выбора — на другой; два
-  конфликтующих «активных» состояния сбивали с толку.
+  On auto-open of the modal (without a preceding user gesture) the browser's
+  `:focus-visible` heuristic drew a ring on the first focusable control — but the
+  first `button` in the DOM is the first plan card (e.g. monthly), whereas the
+  _selected_ plan is the popular one (`popular_price_id`), which has the accent border.
+  The focus ring landed on one card and the selection highlight on another; two
+  conflicting "active" states were confusing.
 
-  `Modal` больше не наводит фокус на первый интерактивный элемент — фокус уходит
-  на сам контейнер диалога (`tabIndex=-1`, `outline-none` → кольца нет). Ловушка
-  фокуса сохраняет якорь внутри диалога, `Tab` обходит контролы как раньше, для
-  скринридеров фокус на `aria-modal`-диалоге корректен. Добавлен явный опт-ин
-  `[data-pw-autofocus]` для вью, которым нужен автофокус инпута.
+  `Modal` no longer moves focus to the first interactive element — focus goes
+  to the dialog container itself (`tabIndex=-1`, `outline-none` → no ring). The focus
+  trap keeps the anchor inside the dialog, `Tab` walks the controls as before, and for
+  screen readers focus on the `aria-modal` dialog is correct. Added an explicit opt-in
+  `[data-pw-autofocus]` for views that need input autofocus.
 
-- da0c8c5: OAuth identity-already-linked: классификация по описанию ошибки — устойчивость к version skew callback↔SDK.
+- da0c8c5: OAuth identity-already-linked: classification by error description — resilience to version skew callback↔SDK.
 
-  В проде выяснилось, что hosted OAuth-callback может форвардить только
-  человекочитаемый `error_description` («Identity is already linked to another
-  user»), но НЕ машинный `error_code` (страница callback'а деплоится независимо от
-  npm-SDK; старый/закешированный билд не прокидывает `error_code`). beta.9
-  классифицировал switch-account только по `errorCode`, поэтому
-  `identity_already_exists` прилетал как generic `oauth_failed` → «Sign-in failed»
-  без кнопки.
+  In prod it turned out that the hosted OAuth-callback may forward only the
+  human-readable `error_description` ("Identity is already linked to another
+  user"), but NOT the machine `error_code` (the callback page deploys independently of the
+  npm-SDK; an old/cached build doesn't pass `error_code`). beta.9
+  classified switch-account only by `errorCode`, so
+  `identity_already_exists` arrived as a generic `oauth_failed` → "Sign-in failed"
+  with no button.
 
-  - `isIdentityAlreadyLinked()` теперь матчит и `errorCode === 'identity_already_exists'`,
-    и текст ошибки (`already linked` / `identity_already_exists`) как fallback —
-    кнопка «sign in with that account» показывается независимо от того, форвардит
-    ли развёрнутый callback `error_code`.
+  - `isIdentityAlreadyLinked()` now matches both `errorCode === 'identity_already_exists'`
+    and the error text (`already linked` / `identity_already_exists`) as a fallback —
+    the "sign in with that account" button is shown regardless of whether the
+    deployed callback forwards `error_code`.
 
-- f128fd3: OAuth: авто-переключение на существующий аккаунт при `identity_already_exists` + понятный UX коллизии email.
+- f128fd3: OAuth: auto-switch to an existing account on `identity_already_exists` + clear UX for the email collision.
 
-  Раньше вход через Google/Apple под анонимной сессией шёл через `linkIdentity`, и если
-  провайдер уже привязан к другому аккаунту, GoTrue возвращал `identity_already_exists`,
-  а SDK показывал глухое «Sign-in failed».
+  Previously, signing in via Google/Apple under an anonymous session went through `linkIdentity`, and if
+  the provider was already linked to another account, GoTrue returned `identity_already_exists`,
+  and the SDK showed a dead-end "Sign-in failed".
 
-  - `signInWithOAuth` ловит `identity_already_exists` и бесшовно переключается на обычный
-    signin, **переиспользуя тот же popup** (`popup.location.replace` на signin-флоу с тем же
-    state; SSO провайдера уже активна → почти мгновенно). Добавлены `switchAccount` в
-    `signInWithOAuth`/`startOAuthFlow` (не шлёт Bearer → без linkIdentity) и `waitForOAuthResult`
-    (структурный исход с `errorCode`, не закрывает popup сам). Если popup переиспользовать
-    нельзя (COOP оборвал handle) — фоллбэк-кнопка «войти в тот аккаунт» (свежий user-gesture).
-    Зеркально реализовано в `sdk-extension` split-flow (`auth.oauthStart` получил
+  - `signInWithOAuth` catches `identity_already_exists` and seamlessly switches to a regular
+    signin, **reusing the same popup** (`popup.location.replace` to the signin flow with the same
+    state; the provider SSO is already active → near-instant). Added `switchAccount` to
+    `signInWithOAuth`/`startOAuthFlow` (doesn't send Bearer → no linkIdentity) and `waitForOAuthResult`
+    (a structured outcome with `errorCode`, doesn't close the popup itself). If the popup can't be reused
+    (COOP severed the handle) — a fallback "sign in to that account" button (a fresh user gesture).
+    Mirrored in the `sdk-extension` split-flow (`auth.oauthStart` got
     `switchAccount`/`reuseState`).
-  - Email-коллизия: GoTrue из-за анти-энумерации маскирует занятый email (в т.ч. OAuth-only)
-    под «подтвердите почту». `signUp` теперь возвращает `already_registered`, а `AuthPanel`
-    уводит юзера на форму входа с понятной подсказкой вместо тупика «проверьте почту».
-  - Новые i18n-ключи `auth.email_already_registered` / `auth.identity_already_linked`
-    (canonical EN + 27 локалей).
+  - Email collision: due to anti-enumeration GoTrue masks a taken email (including an OAuth-only one)
+    as "confirm your email". `signUp` now returns `already_registered`, and `AuthPanel`
+    routes the user to the signin form with a clear hint instead of the "check your email" dead-end.
+  - New i18n keys `auth.email_already_registered` / `auth.identity_already_linked`
+    (canonical EN + 27 locales).
 
-  Требует парного деплоя online-части (v3 OAuth callback теперь прокидывает `error_code` и
-  не закрывает popup на `identity_already_exists`; `/auth/email/signup` отдаёт
-  `already_registered`). Старый SDK с новым callback и новый SDK со старым callback
-  деградируют корректно — без бесконечных popup'ов.
+  Requires a paired deploy of the online part (the v3 OAuth callback now passes `error_code` and
+  doesn't close the popup on `identity_already_exists`; `/auth/email/signup` returns
+  `already_registered`). An old SDK with the new callback and a new SDK with the old callback
+  degrade gracefully — without endless popups.
 
-- 4a8a00a: OAuth `identity_already_exists`: надёжный one-click «switch account» вместо бесшовного popup-reuse.
+- 4a8a00a: OAuth `identity_already_exists`: reliable one-click "switch account" instead of seamless popup-reuse.
 
-  beta.8 пытался бесшовно переключить аккаунт, переиспользуя тот же popup
-  (`popup.location.replace`). В реальном окружении это нестабильно: COOP (Google)
-  обрывает хэндл opener↔popup, а второй обмен в том же флоу добавлял точку отказа —
-  в итоге всплывал generic «Sign-in failed» вместо switch-ветки.
+  beta.8 tried to seamlessly switch accounts by reusing the same popup
+  (`popup.location.replace`). In a real environment this is unstable: COOP (Google)
+  severs the opener↔popup handle, and a second exchange in the same flow added a point of failure —
+  ending up surfacing a generic "Sign-in failed" instead of the switch branch.
 
-  - Убрали popup-reuse. `identity_already_exists` сразу пробрасывается как
-    `oauth_identity_already_linked`, и `AuthPanel` показывает понятный текст +
-    кнопку «Continue with <provider>». Свежий клик → `signInWithOAuth({ switchAccount: true })`
-    → чистый signin (новый popup, новый PKCE-обмен) в аккаунт, которому принадлежит
-    identity. Паритет с legacy-веткой `switch_account`.
-  - `AuthPanel` логирует реальный код/описание OAuth-ошибки в `console.warn` —
-    раньше generic-фоллбэк прятал причину.
-  - Убран неиспользуемый `reuseState` из `startOAuthFlow` и `auth.oauthStart`.
+  - Dropped popup-reuse. `identity_already_exists` is now passed straight through as
+    `oauth_identity_already_linked`, and `AuthPanel` shows clear text +
+    a "Continue with <provider>" button. A fresh click → `signInWithOAuth({ switchAccount: true })`
+    → a clean signin (new popup, new PKCE exchange) into the account that owns the
+    identity. Parity with the legacy `switch_account` branch.
+  - `AuthPanel` logs the actual OAuth-error code/description to `console.warn` —
+    previously the generic fallback hid the cause.
+  - Removed the unused `reuseState` from `startOAuthFlow` and `auth.oauthStart`.
 
-- 67e0954: Правки модалки пейвола и формулировок success-экрана.
+- 67e0954: Paywall modal fixes and success-screen wording.
 
-  **1. Скролл для self-contained статус-вью.** Диалог модалки ограничен по высоте
-  (`max-h … overflow-hidden`), а скролл-зону (`flex-1 min-h-0 overflow-y-auto`)
-  настраивали только `Renderer`/`AuthGate`/`SupportGate`. Простые статус-вью
+  **1. Scroll for self-contained status views.** The modal dialog is height-constrained
+  (`max-h … overflow-hidden`), but the scroll zone (`flex-1 min-h-0 overflow-y-auto`)
+  was set up only by `Renderer`/`AuthGate`/`SupportGate`. Simple status views
   (`PurchaseSuccessView`, `LoadingView`, `ErrorView`, `AwaitingPaymentView`,
-  `PopupBlockedView`) рендерились без обёртки и при нехватке высоты (маленькие
-  экраны, extension-попап ~600px) обрезались без возможности проскроллить.
-  Добавлен общий `Scroll`-враппер для этих вью; `Renderer`/`AuthGate`/`SupportGate`
-  не оборачиваются — у них свой scroll + закреплённый футер.
+  `PopupBlockedView`) rendered without a wrapper and, when height was short (small
+  screens, an extension popup ~600px), were clipped with no way to scroll.
+  Added a shared `Scroll` wrapper for these views; `Renderer`/`AuthGate`/`SupportGate`
+  are not wrapped — they have their own scroll + a pinned footer.
 
-  **2. Горизонтальные отступы у `PurchaseSuccessView`.** У корня вью были только
-  вертикальные отступы, а кнопка `Continue` — `w-full`, из-за чего она
-  растягивалась до краёв диалога, а её glow/shimmer вылезали за край. Добавлен
-  `px-6 sm:px-8` — как у соседних вью.
+  **2. Horizontal padding for `PurchaseSuccessView`.** The view root had only
+  vertical padding, while the `Continue` button was `w-full`, so it
+  stretched to the dialog edges and its glow/shimmer spilled over the edge. Added
+  `px-6 sm:px-8` — matching the neighboring views.
 
-  **3. Нейтральные формулировки success/restored.** «Your subscription is now
-  active.» / «Subscription restored» некорректны для lifetime-покупок (это не
-  подписка). Success-сабтайтл → «You're all set — enjoy!», restored-заголовок →
-  «Welcome back», restored-сабтайтл → тот же «You're all set — enjoy!». Обновлён
-  EN-эталон, inline-fallback'и и все 27 локалей (`tools/sdk-translations.mjs` +
-  регенерация `gen-locales.mjs`).
+  **3. Neutral success/restored wording.** "Your subscription is now
+  active." / "Subscription restored" are incorrect for lifetime purchases (those aren't
+  a subscription). Success subtitle → "You're all set — enjoy!", restored title →
+  "Welcome back", restored subtitle → the same "You're all set — enjoy!". Updated the
+  EN reference, inline fallbacks and all 27 locales (`tools/sdk-translations.mjs` +
+  regenerating `gen-locales.mjs`).
 
 - 9399d2e: docs: README cleanup across all three packages
 
@@ -256,25 +256,25 @@
 
 - 3b263a1: Popup bug fixes + UI polish
 
-  - `PaywallRoot`: анон-сессия больше не блокирует кнопку «Restore Purchases» и preauth-checkout (трактуется как «нет логина» в обоих местах, консистентно с `CurrentSession`/`AuthPanel`)
-  - `PaywallRoot`: X-крестик возвращается на standalone `openAuth()` — без Back-стрелки модалку было нельзя закрыть кроме ESC
-  - `PaywallRoot`: `useLayoutEffect` вместо `useEffect` для синхронизации gate-state на `open/initialView` — фиксит flash layout'а тарифов при повторном `openAuth()` (заметно в extension-popup'е из-за RemoteAuth/RemoteBilling RTT)
-  - `RemoteAuthClient`: реализован `getLastLogin()` (был не зеркалирован, AuthPanel падал с `r.getLastLogin is not a function` в console попапа)
-  - `AuthPanel`: defensive guard на `getLastLogin` — старые билды sdk-extension'а / кастомные AuthClient'ы не валят signin-форму
-  - Compile-time tests: `RemoteAuthClient.test-d.ts` и `RemoteBillingClient.test-d.ts` ловят расхождения proxy-классов с базовыми ещё на `tsc --noEmit`
+  - `PaywallRoot`: an anon session no longer blocks the "Restore Purchases" button and preauth-checkout (treated as "not logged in" in both places, consistent with `CurrentSession`/`AuthPanel`)
+  - `PaywallRoot`: the X-close returns to standalone `openAuth()` — without the Back arrow the modal couldn't be closed except via ESC
+  - `PaywallRoot`: `useLayoutEffect` instead of `useEffect` for syncing gate-state on `open/initialView` — fixes a flash of the plans layout on a repeat `openAuth()` (noticeable in the extension popup because of RemoteAuth/RemoteBilling RTT)
+  - `RemoteAuthClient`: implemented `getLastLogin()` (was not mirrored, AuthPanel crashed with `r.getLastLogin is not a function` in the popup console)
+  - `AuthPanel`: defensive guard on `getLastLogin` — old sdk-extension builds / custom AuthClients don't break the signin form
+  - Compile-time tests: `RemoteAuthClient.test-d.ts` and `RemoteBillingClient.test-d.ts` catch divergences of the proxy classes from the base ones already at `tsc --noEmit`
 
-- 0605621: Версия SDK инжектится из package.json при сборке, а не хардкодится.
+- 0605621: The SDK version is injected from package.json at build time rather than hardcoded.
 
-  `SDK_VERSION` торчал захардкоженным литералом `'3.0.0-alpha.0'` через все
-  релизы (alpha.x → beta.x) — его ни разу не подняли. Он уходит в `X-SDK-Version`
-  на всех запросах, в `sdk_version` каждого события аналитики (ClickHouse) и в
-  ApiGateway, поэтому вся аналитика по версиям была слепой: события всех релизов
-  писались как одна версия.
+  `SDK_VERSION` sat as a hardcoded literal `'3.0.0-alpha.0'` through all
+  releases (alpha.x → beta.x) — it was never bumped. It goes into `X-SDK-Version`
+  on all requests, into `sdk_version` of every analytics event (ClickHouse) and into
+  ApiGateway, so all version analytics were blind: events from all releases were
+  written as a single version.
 
-  Теперь версия прокидывается из package.json через vite `define`
-  (`__SDK_VERSION__`) — в бандле строковый литерал, в `.d.ts` остаётся
-  `const SDK_VERSION: string`. `define` продублирован в vitest.config (он не
-  наследует vite.config), иначе токен не замещался бы в тестах.
+  Now the version is passed from package.json via vite `define`
+  (`__SDK_VERSION__`) — a string literal in the bundle, in `.d.ts` it stays
+  `const SDK_VERSION: string`. `define` is duplicated in vitest.config (it does not
+  inherit vite.config), otherwise the token wouldn't be substituted in tests.
 
 - Updated dependencies [3b7a329]
 - Updated dependencies [5902c36]
@@ -316,18 +316,18 @@
 
 ### Patch Changes
 
-- Server-SDK: ручное зачисление/списание токенов — `BillingClient.creditTokens()` / `debitTokens()`.
+- Server-SDK: manual token credit/debit — `BillingClient.creditTokens()` / `debitTokens()`.
 
-  apiKey-only методы правят токен-баланс юзера токенизированного пейвола от лица
-  бэкенда мерчанта (identity по email/userId). `creditTokens` добавляет, `debitTokens`
-  вычитает и бросает `PaywallError('insufficient')`, если ушло бы ниже нуля.
-  Из браузера недоступны (нет apiKey → `apikey_required`) — клиент не должен мочь
-  начислить себе токены. Возвращают `{ type, count }` с новым балансом.
+  apiKey-only methods that adjust the token balance of a user of a tokenized paywall on behalf of
+  the merchant backend (identity by email/userId). `creditTokens` adds, `debitTokens`
+  subtracts and throws `PaywallError('insufficient')` if it would go below zero.
+  Not available from the browser (no apiKey → `apikey_required`) — a client must not be able to
+  credit itself tokens. They return `{ type, count }` with the new balance.
 
-  Требует парного деплоя: online-эндпоинт `POST /api/v1/paywall/[id]/balances` +
-  применение SQL-миграции `adjust_paywall_balance` (атомарная дельта в JSONB, без
-  lost-update от параллельных списаний api-gateway'я). Daily-триал балансы выше
-  лимита не перезатирает.
+  Requires a paired deploy: online endpoint `POST /api/v1/paywall/[id]/balances` +
+  applying the SQL migration `adjust_paywall_balance` (atomic delta in JSONB, with no
+  lost-update from concurrent api-gateway debits). Does not overwrite daily-trial balances above
+  the limit.
 
 - Updated dependencies
   - @monetize.software/sdk@3.0.0-beta.13
@@ -336,16 +336,16 @@
 
 ### Patch Changes
 
-- Auth: `AuthUser` теперь несёт профиль из OAuth-провайдера — `name` и `avatar`.
+- Auth: `AuthUser` now carries the profile from the OAuth provider — `name` and `avatar`.
 
-  Раньше SDK отдавал только `{ id, email, country, is_anonymous }`, а аватар (Google
-  кладёт его в `user_metadata.avatar_url`) нигде наружу не пробрасывался. Добавлены
-  опциональные `name` / `avatar` в `AuthUser` — заполняются из OAuth-профиля при
-  `/oauth/exchange` и доступны из сессии (`auth.getCachedUser()?.avatar`,
-  `onAuthChange`) без доп. запроса. У email/anon-юзеров — `null` (аватара нет).
+  Previously the SDK exposed only `{ id, email, country, is_anonymous }`, and the avatar (Google
+  puts it in `user_metadata.avatar_url`) was never surfaced anywhere. Added
+  optional `name` / `avatar` to `AuthUser` — filled from the OAuth profile at
+  `/oauth/exchange` and available from the session (`auth.getCachedUser()?.avatar`,
+  `onAuthChange`) without an extra request. For email/anon users they are `null` (no avatar).
 
-  Требует парного деплоя online (`/oauth/exchange` теперь кладёт `name`/`avatar` из
-  `user_metadata`). Без него поля будут `undefined` — не ломает существующее.
+  Requires a paired online deploy (`/oauth/exchange` now puts `name`/`avatar` from
+  `user_metadata`). Without it the fields will be `undefined` — does not break existing behavior.
 
 - Updated dependencies
   - @monetize.software/sdk@3.0.0-beta.12
@@ -354,13 +354,13 @@
 
 ### Patch Changes
 
-- UI: бейдж последнего метода входа возле OAuth-кнопок — «Last» → «Last used» (понятнее, что это «последний использованный метод»).
+- UI: last-sign-in-method badge next to the OAuth buttons — "Last" → "Last used" (clearer that it means "last used method").
 
-  Переименовано в canonical EN, inline-фоллбэках `AuthPanel` и во всех 27 локалях
+  Renamed in canonical EN, the `AuthPanel` inline fallbacks and across all 27 locales
   (`auth.last_used` / `auth.last_used_no_email`): EN `Last used · {email}`, RU
-  `Последний вход · …`, DE `Zuletzt genutzt`, ES `Última vez`, JA `前回使用` и т.д.
-  Заодно закрыт пробел в покрытии — раньше `auth.last_used` (с email) был переведён
-  лишь частично и часть локалей падала на английский inline-фоллбэк.
+  `Последний вход · …`, DE `Zuletzt genutzt`, ES `Última vez`, JA `前回使用`, etc.
+  Also closed a coverage gap — previously `auth.last_used` (with email) was only
+  partially translated and some locales fell back to the English inline fallback.
 
 - Updated dependencies
   - @monetize.software/sdk@3.0.0-beta.11
@@ -369,20 +369,20 @@
 
 ### Patch Changes
 
-- OAuth identity-already-linked: классификация по описанию ошибки — устойчивость к version skew callback↔SDK.
+- OAuth identity-already-linked: classification by error description — resilience to version skew callback↔SDK.
 
-  В проде выяснилось, что hosted OAuth-callback может форвардить только
-  человекочитаемый `error_description` («Identity is already linked to another
-  user»), но НЕ машинный `error_code` (страница callback'а деплоится независимо от
-  npm-SDK; старый/закешированный билд не прокидывает `error_code`). beta.9
-  классифицировал switch-account только по `errorCode`, поэтому
-  `identity_already_exists` прилетал как generic `oauth_failed` → «Sign-in failed»
-  без кнопки.
+  In prod it turned out that the hosted OAuth-callback may forward only the
+  human-readable `error_description` ("Identity is already linked to another
+  user"), but NOT the machine `error_code` (the callback page deploys independently of the
+  npm-SDK; an old/cached build doesn't pass `error_code`). beta.9
+  classified switch-account only by `errorCode`, so
+  `identity_already_exists` arrived as a generic `oauth_failed` → "Sign-in failed"
+  with no button.
 
-  - `isIdentityAlreadyLinked()` теперь матчит и `errorCode === 'identity_already_exists'`,
-    и текст ошибки (`already linked` / `identity_already_exists`) как fallback —
-    кнопка «sign in with that account» показывается независимо от того, форвардит
-    ли развёрнутый callback `error_code`.
+  - `isIdentityAlreadyLinked()` now matches both `errorCode === 'identity_already_exists'`
+    and the error text (`already linked` / `identity_already_exists`) as a fallback —
+    the "sign in with that account" button is shown regardless of whether the
+    deployed callback forwards `error_code`.
 
 - Updated dependencies
   - @monetize.software/sdk@3.0.0-beta.10
@@ -391,21 +391,21 @@
 
 ### Patch Changes
 
-- OAuth `identity_already_exists`: надёжный one-click «switch account» вместо бесшовного popup-reuse.
+- OAuth `identity_already_exists`: reliable one-click "switch account" instead of seamless popup-reuse.
 
-  beta.8 пытался бесшовно переключить аккаунт, переиспользуя тот же popup
-  (`popup.location.replace`). В реальном окружении это нестабильно: COOP (Google)
-  обрывает хэндл opener↔popup, а второй обмен в том же флоу добавлял точку отказа —
-  в итоге всплывал generic «Sign-in failed» вместо switch-ветки.
+  beta.8 tried to seamlessly switch accounts by reusing the same popup
+  (`popup.location.replace`). In a real environment this is unstable: COOP (Google)
+  severs the opener↔popup handle, and a second exchange in the same flow added a point of failure —
+  ending up surfacing a generic "Sign-in failed" instead of the switch branch.
 
-  - Убрали popup-reuse. `identity_already_exists` сразу пробрасывается как
-    `oauth_identity_already_linked`, и `AuthPanel` показывает понятный текст +
-    кнопку «Continue with <provider>». Свежий клик → `signInWithOAuth({ switchAccount: true })`
-    → чистый signin (новый popup, новый PKCE-обмен) в аккаунт, которому принадлежит
-    identity. Паритет с legacy-веткой `switch_account`.
-  - `AuthPanel` логирует реальный код/описание OAuth-ошибки в `console.warn` —
-    раньше generic-фоллбэк прятал причину.
-  - Убран неиспользуемый `reuseState` из `startOAuthFlow` и `auth.oauthStart`.
+  - Dropped popup-reuse. `identity_already_exists` is now passed straight through as
+    `oauth_identity_already_linked`, and `AuthPanel` shows clear text +
+    a "Continue with <provider>" button. A fresh click → `signInWithOAuth({ switchAccount: true })`
+    → a clean signin (new popup, new PKCE exchange) into the account that owns the
+    identity. Parity with the legacy `switch_account` branch.
+  - `AuthPanel` logs the actual OAuth-error code/description to `console.warn` —
+    previously the generic fallback hid the cause.
+  - Removed the unused `reuseState` from `startOAuthFlow` and `auth.oauthStart`.
 
 - Updated dependencies
   - @monetize.software/sdk@3.0.0-beta.9
@@ -414,30 +414,30 @@
 
 ### Patch Changes
 
-- OAuth: авто-переключение на существующий аккаунт при `identity_already_exists` + понятный UX коллизии email.
+- OAuth: auto-switch to an existing account on `identity_already_exists` + clear UX for the email collision.
 
-  Раньше вход через Google/Apple под анонимной сессией шёл через `linkIdentity`, и если
-  провайдер уже привязан к другому аккаунту, GoTrue возвращал `identity_already_exists`,
-  а SDK показывал глухое «Sign-in failed».
+  Previously, signing in via Google/Apple under an anonymous session went through `linkIdentity`, and if
+  the provider was already linked to another account, GoTrue returned `identity_already_exists`,
+  and the SDK showed a dead-end "Sign-in failed".
 
-  - `signInWithOAuth` ловит `identity_already_exists` и бесшовно переключается на обычный
-    signin, **переиспользуя тот же popup** (`popup.location.replace` на signin-флоу с тем же
-    state; SSO провайдера уже активна → почти мгновенно). Добавлены `switchAccount` в
-    `signInWithOAuth`/`startOAuthFlow` (не шлёт Bearer → без linkIdentity) и `waitForOAuthResult`
-    (структурный исход с `errorCode`, не закрывает popup сам). Если popup переиспользовать
-    нельзя (COOP оборвал handle) — фоллбэк-кнопка «войти в тот аккаунт» (свежий user-gesture).
-    Зеркально реализовано в `sdk-extension` split-flow (`auth.oauthStart` получил
+  - `signInWithOAuth` catches `identity_already_exists` and seamlessly switches to a regular
+    signin, **reusing the same popup** (`popup.location.replace` to the signin flow with the same
+    state; the provider SSO is already active → near-instant). Added `switchAccount` to
+    `signInWithOAuth`/`startOAuthFlow` (doesn't send Bearer → no linkIdentity) and `waitForOAuthResult`
+    (a structured outcome with `errorCode`, doesn't close the popup itself). If the popup can't be reused
+    (COOP severed the handle) — a fallback "sign in to that account" button (a fresh user gesture).
+    Mirrored in the `sdk-extension` split-flow (`auth.oauthStart` got
     `switchAccount`/`reuseState`).
-  - Email-коллизия: GoTrue из-за анти-энумерации маскирует занятый email (в т.ч. OAuth-only)
-    под «подтвердите почту». `signUp` теперь возвращает `already_registered`, а `AuthPanel`
-    уводит юзера на форму входа с понятной подсказкой вместо тупика «проверьте почту».
-  - Новые i18n-ключи `auth.email_already_registered` / `auth.identity_already_linked`
-    (canonical EN + 27 локалей).
+  - Email collision: due to anti-enumeration GoTrue masks a taken email (including an OAuth-only one)
+    as "confirm your email". `signUp` now returns `already_registered`, and `AuthPanel`
+    routes the user to the signin form with a clear hint instead of the "check your email" dead-end.
+  - New i18n keys `auth.email_already_registered` / `auth.identity_already_linked`
+    (canonical EN + 27 locales).
 
-  Требует парного деплоя online-части (v3 OAuth callback теперь прокидывает `error_code` и
-  не закрывает popup на `identity_already_exists`; `/auth/email/signup` отдаёт
-  `already_registered`). Старый SDK с новым callback и новый SDK со старым callback
-  деградируют корректно — без бесконечных popup'ов.
+  Requires a paired deploy of the online part (the v3 OAuth callback now passes `error_code` and
+  doesn't close the popup on `identity_already_exists`; `/auth/email/signup` returns
+  `already_registered`). An old SDK with the new callback and a new SDK with the old callback
+  degrade gracefully — without endless popups.
 
 - Updated dependencies
   - @monetize.software/sdk@3.0.0-beta.8
@@ -446,26 +446,26 @@
 
 ### Patch Changes
 
-- Фикс зависания awaiting-экрана после оплаты в extension-странице.
+- Fix the awaiting screen hanging after payment on an extension page.
 
-  Переход awaiting→success был завязан **исключительно** на `UserWatcher.onActive`,
-  а сам watcher не запускался для всего `chrome-extension://` протокола
-  (`shouldRunUserWatcher` считал любой такой контекст эфемерным action-popup'ом).
-  В полноценной extension-странице (side panel / отдельная вкладка), которая
-  переживает checkout, поллер был выключен, и закрыть awaiting было некому — даже
-  ручная кнопка «я оплатил» лишь слала `window.postMessage` для пробуждения
-  несуществующего watcher'а. Покупка проходила, `/user-state` отдавал
-  `has_active_subscription: true`, а экран висел.
+  The awaiting→success transition was wired **exclusively** to `UserWatcher.onActive`,
+  and the watcher itself didn't run for the entire `chrome-extension://` protocol
+  (`shouldRunUserWatcher` treated any such context as an ephemeral action-popup).
+  On a full extension page (side panel / standalone tab) that survives the
+  checkout, the poller was off and there was no one to close the awaiting screen — even
+  the manual "I've paid" button only sent `window.postMessage` to wake a
+  nonexistent watcher. The purchase went through, `/user-state` returned
+  `has_active_subscription: true`, and the screen kept hanging.
 
-  - Переход централизован в идемпотентный `handlePurchaseDetected`, который
-    вызывается из `billing.onUserChange` — любой источник свежего active
-    user-state (ручной `getUser`, cross-context broadcast, watcher) закрывает
-    awaiting. Гейт на checkout-вью (`awaiting_payment`/`popup_blocked`), чтобы
-    открытие пейвола уже-подписанному юзеру не давало ложного срабатывания.
-  - `shouldRunUserWatcher` больше не режет `chrome-extension://` — переживающая
-    страница и может, и должна поллить; эфемерный action-popup безвредно
-    тёрдаунится вместе с контекстом (детект там покрывает bootstrap при
-    следующем открытии).
+  - The transition is centralized in the idempotent `handlePurchaseDetected`, which
+    is called from `billing.onUserChange` — any source of fresh active
+    user-state (manual `getUser`, cross-context broadcast, watcher) closes the
+    awaiting screen. Gated on the checkout views (`awaiting_payment`/`popup_blocked`) so that
+    opening the paywall for an already-subscribed user doesn't trigger a false positive.
+  - `shouldRunUserWatcher` no longer cuts off `chrome-extension://` — a surviving
+    page both can and should poll; an ephemeral action-popup harmlessly
+    tears down with its context (detection there covers bootstrap on the
+    next open).
 
 - Updated dependencies
   - @monetize.software/sdk@3.0.0-beta.7
@@ -474,18 +474,18 @@
 
 ### Patch Changes
 
-- Версия SDK инжектится из package.json при сборке, а не хардкодится.
+- The SDK version is injected from package.json at build time rather than hardcoded.
 
-  `SDK_VERSION` торчал захардкоженным литералом `'3.0.0-alpha.0'` через все
-  релизы (alpha.x → beta.x) — его ни разу не подняли. Он уходит в `X-SDK-Version`
-  на всех запросах, в `sdk_version` каждого события аналитики (ClickHouse) и в
-  ApiGateway, поэтому вся аналитика по версиям была слепой: события всех релизов
-  писались как одна версия.
+  `SDK_VERSION` sat as a hardcoded literal `'3.0.0-alpha.0'` through all
+  releases (alpha.x → beta.x) — it was never bumped. It goes into `X-SDK-Version`
+  on all requests, into `sdk_version` of every analytics event (ClickHouse) and into
+  ApiGateway, so all version analytics were blind: events from all releases were
+  written as a single version.
 
-  Теперь версия прокидывается из package.json через vite `define`
-  (`__SDK_VERSION__`) — в бандле строковый литерал, в `.d.ts` остаётся
-  `const SDK_VERSION: string`. `define` продублирован в vitest.config (он не
-  наследует vite.config), иначе токен не замещался бы в тестах.
+  Now the version is passed from package.json via vite `define`
+  (`__SDK_VERSION__`) — a string literal in the bundle, in `.d.ts` it stays
+  `const SDK_VERSION: string`. `define` is duplicated in vitest.config (it does not
+  inherit vite.config), otherwise the token wouldn't be substituted in tests.
 
 - Updated dependencies
   - @monetize.software/sdk@3.0.0-beta.6
@@ -494,20 +494,20 @@
 
 ### Patch Changes
 
-- Фикс расходящихся фокуса и выбора при открытии пейвола.
+- Fix diverging focus and selection when the paywall opens.
 
-  При авто-открытии модалки (без предшествующего user-gesture) браузерная
-  эвристика `:focus-visible` рисовала кольцо на первом фокусируемом контроле — а
-  первый `button` в DOM это первая карточка тарифа (напр. месячный), тогда как
-  _выбран_ популярный план (`popular_price_id`), у которого акцентная рамка.
-  Кольцо фокуса оказывалось на одной карточке, выделение выбора — на другой; два
-  конфликтующих «активных» состояния сбивали с толку.
+  On auto-open of the modal (without a preceding user gesture) the browser's
+  `:focus-visible` heuristic drew a ring on the first focusable control — but the
+  first `button` in the DOM is the first plan card (e.g. monthly), whereas the
+  _selected_ plan is the popular one (`popular_price_id`), which has the accent border.
+  The focus ring landed on one card and the selection highlight on another; two
+  conflicting "active" states were confusing.
 
-  `Modal` больше не наводит фокус на первый интерактивный элемент — фокус уходит
-  на сам контейнер диалога (`tabIndex=-1`, `outline-none` → кольца нет). Ловушка
-  фокуса сохраняет якорь внутри диалога, `Tab` обходит контролы как раньше, для
-  скринридеров фокус на `aria-modal`-диалоге корректен. Добавлен явный опт-ин
-  `[data-pw-autofocus]` для вью, которым нужен автофокус инпута.
+  `Modal` no longer moves focus to the first interactive element — focus goes
+  to the dialog container itself (`tabIndex=-1`, `outline-none` → no ring). The focus
+  trap keeps the anchor inside the dialog, `Tab` walks the controls as before, and for
+  screen readers focus on the `aria-modal` dialog is correct. Added an explicit opt-in
+  `[data-pw-autofocus]` for views that need input autofocus.
 
 - Updated dependencies
   - @monetize.software/sdk@3.0.0-beta.5
@@ -516,28 +516,28 @@
 
 ### Patch Changes
 
-- Правки модалки пейвола и формулировок success-экрана.
+- Paywall modal fixes and success-screen wording.
 
-  **1. Скролл для self-contained статус-вью.** Диалог модалки ограничен по высоте
-  (`max-h … overflow-hidden`), а скролл-зону (`flex-1 min-h-0 overflow-y-auto`)
-  настраивали только `Renderer`/`AuthGate`/`SupportGate`. Простые статус-вью
+  **1. Scroll for self-contained status views.** The modal dialog is height-constrained
+  (`max-h … overflow-hidden`), but the scroll zone (`flex-1 min-h-0 overflow-y-auto`)
+  was set up only by `Renderer`/`AuthGate`/`SupportGate`. Simple status views
   (`PurchaseSuccessView`, `LoadingView`, `ErrorView`, `AwaitingPaymentView`,
-  `PopupBlockedView`) рендерились без обёртки и при нехватке высоты (маленькие
-  экраны, extension-попап ~600px) обрезались без возможности проскроллить.
-  Добавлен общий `Scroll`-враппер для этих вью; `Renderer`/`AuthGate`/`SupportGate`
-  не оборачиваются — у них свой scroll + закреплённый футер.
+  `PopupBlockedView`) rendered without a wrapper and, when height was short (small
+  screens, an extension popup ~600px), were clipped with no way to scroll.
+  Added a shared `Scroll` wrapper for these views; `Renderer`/`AuthGate`/`SupportGate`
+  are not wrapped — they have their own scroll + a pinned footer.
 
-  **2. Горизонтальные отступы у `PurchaseSuccessView`.** У корня вью были только
-  вертикальные отступы, а кнопка `Continue` — `w-full`, из-за чего она
-  растягивалась до краёв диалога, а её glow/shimmer вылезали за край. Добавлен
-  `px-6 sm:px-8` — как у соседних вью.
+  **2. Horizontal padding for `PurchaseSuccessView`.** The view root had only
+  vertical padding, while the `Continue` button was `w-full`, so it
+  stretched to the dialog edges and its glow/shimmer spilled over the edge. Added
+  `px-6 sm:px-8` — matching the neighboring views.
 
-  **3. Нейтральные формулировки success/restored.** «Your subscription is now
-  active.» / «Subscription restored» некорректны для lifetime-покупок (это не
-  подписка). Success-сабтайтл → «You're all set — enjoy!», restored-заголовок →
-  «Welcome back», restored-сабтайтл → тот же «You're all set — enjoy!». Обновлён
-  EN-эталон, inline-fallback'и и все 27 локалей (`tools/sdk-translations.mjs` +
-  регенерация `gen-locales.mjs`).
+  **3. Neutral success/restored wording.** "Your subscription is now
+  active." / "Subscription restored" are incorrect for lifetime purchases (those aren't
+  a subscription). Success subtitle → "You're all set — enjoy!", restored title →
+  "Welcome back", restored subtitle → the same "You're all set — enjoy!". Updated the
+  EN reference, inline fallbacks and all 27 locales (`tools/sdk-translations.mjs` +
+  regenerating `gen-locales.mjs`).
 
 - Updated dependencies
   - @monetize.software/sdk@3.0.0-beta.4
@@ -546,16 +546,16 @@
 
 ### Patch Changes
 
-- a6b7a3a: Убрано аналитическое событие `paywall_opened`. Теперь показ пейвола фиксирует
-  единственный сигнал — `paywall_viewed` (эмитится на `'ready'`, после загрузки
-  bootstrap, с `prices_count`/`offers_count`/`is_test_mode`). `'open'` больше не
-  трекается отдельно ни в основном SDK, ни в extension-канале.
+- a6b7a3a: Removed the `paywall_opened` analytics event. Showing a paywall now records
+  a single signal — `paywall_viewed` (emitted on `'ready'`, after the
+  bootstrap loads, with `prices_count`/`offers_count`/`is_test_mode`). `'open'` is no longer
+  tracked separately in either the main SDK or the extension channel.
 
-  Мотивация: `opened` и `viewed` дублировали друг друга в доминирующем паттерне
-  (тёплый bootstrap → оба события в одном батче), а лишнее событие на каждое
-  открытие умножало POST-нагрузку на `/events` и строки в `paywall_sdk_events`
-  при прод-масштабе (тысячи одновременных открытий). Воронка строится от
-  `viewed`. Сервер (`online`) больше не принимает `paywall_opened` в whitelist.
+  Motivation: `opened` and `viewed` duplicated each other in the dominant pattern
+  (warm bootstrap → both events in one batch), and the extra event on every
+  open multiplied the POST load on `/events` and the rows in `paywall_sdk_events`
+  at prod scale (thousands of simultaneous opens). The funnel is built from
+  `viewed`. The server (`online`) no longer accepts `paywall_opened` in the whitelist.
 
 - Updated dependencies [a6b7a3a]
   - @monetize.software/sdk@3.0.0-beta.3
@@ -806,12 +806,12 @@
 
 - Popup bug fixes + UI polish
 
-  - `PaywallRoot`: анон-сессия больше не блокирует кнопку «Restore Purchases» и preauth-checkout (трактуется как «нет логина» в обоих местах, консистентно с `CurrentSession`/`AuthPanel`)
-  - `PaywallRoot`: X-крестик возвращается на standalone `openAuth()` — без Back-стрелки модалку было нельзя закрыть кроме ESC
-  - `PaywallRoot`: `useLayoutEffect` вместо `useEffect` для синхронизации gate-state на `open/initialView` — фиксит flash layout'а тарифов при повторном `openAuth()` (заметно в extension-popup'е из-за RemoteAuth/RemoteBilling RTT)
-  - `RemoteAuthClient`: реализован `getLastLogin()` (был не зеркалирован, AuthPanel падал с `r.getLastLogin is not a function` в console попапа)
-  - `AuthPanel`: defensive guard на `getLastLogin` — старые билды sdk-extension'а / кастомные AuthClient'ы не валят signin-форму
-  - Compile-time tests: `RemoteAuthClient.test-d.ts` и `RemoteBillingClient.test-d.ts` ловят расхождения proxy-классов с базовыми ещё на `tsc --noEmit`
+  - `PaywallRoot`: an anon session no longer blocks the "Restore Purchases" button and preauth-checkout (treated as "not logged in" in both places, consistent with `CurrentSession`/`AuthPanel`)
+  - `PaywallRoot`: the X-close returns to standalone `openAuth()` — without the Back arrow the modal couldn't be closed except via ESC
+  - `PaywallRoot`: `useLayoutEffect` instead of `useEffect` for syncing gate-state on `open/initialView` — fixes a flash of the plans layout on a repeat `openAuth()` (noticeable in the extension popup because of RemoteAuth/RemoteBilling RTT)
+  - `RemoteAuthClient`: implemented `getLastLogin()` (was not mirrored, AuthPanel crashed with `r.getLastLogin is not a function` in the popup console)
+  - `AuthPanel`: defensive guard on `getLastLogin` — old sdk-extension builds / custom AuthClients don't break the signin form
+  - Compile-time tests: `RemoteAuthClient.test-d.ts` and `RemoteBillingClient.test-d.ts` catch divergences of the proxy classes from the base ones already at `tsc --noEmit`
 
 - Updated dependencies
   - @monetize.software/sdk@3.0.0-alpha.5

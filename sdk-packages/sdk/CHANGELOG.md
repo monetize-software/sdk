@@ -4,19 +4,19 @@
 
 ### Major Changes
 
-- 3b263a1: BREAKING: `apiOrigin` теперь **обязательное** поле у `BillingClient`, `AuthClient`, `ApiGatewayClient` — передавайте `custom_domain` пейвола, заданный в платформе. Прежний fallback `https://appbox.space` удалён (он использовался только legacy v2 SDK). SDK сверяет `apiOrigin` с `bootstrap.settings.custom_domain` и кидает `invalid_config` при расхождении — защита от опечатки интегратора.
+- 3b263a1: BREAKING: `apiOrigin` is now a **required** field on `BillingClient`, `AuthClient`, `ApiGatewayClient` — pass the paywall's `custom_domain` configured in the platform. The previous `https://appbox.space` fallback is removed (it was used only by the legacy v2 SDK). The SDK checks `apiOrigin` against `bootstrap.settings.custom_domain` and throws `invalid_config` on mismatch — a guard against integrator typos.
 
-  Также:
+  Also:
 
-  - Новый layout block `guarantee_badge` (money-back бейдж под CTA, иконка `dollar_shield` или `none`).
-  - `PaywallSettings.custom_domain` — новое поле в bootstrap, нормализуется через `URL().origin`.
-  - Default layout теперь включает `guarantee_badge` + `current_session` после CTA.
-  - PriceGrid: валюта отдельным элементом рядом с amount, plan label в ALL CAPS, чекмарк справа, селектор без radio.
-  - Modal: Test-mode badge — absolute поверх dialog'а (rounded pill, не баннер сверху), close-button перепозиционирован.
-  - CtaButton: shimmer-анимация (CSS), rounded-full, более насыщенный градиент с inset glow.
-  - CurrentSession: ссылки accent-цвета (вместо серых).
-  - Heading h1: 1.875rem (было 1.625), bold, text-balance.
-  - TokenizationGate: насыщенный checkmark на accent-фоне.
+  - New layout block `guarantee_badge` (money-back badge under the CTA, icon `dollar_shield` or `none`).
+  - `PaywallSettings.custom_domain` — new field in bootstrap, normalized via `URL().origin`.
+  - Default layout now includes `guarantee_badge` + `current_session` after the CTA.
+  - PriceGrid: currency as a separate element next to the amount, plan label in ALL CAPS, checkmark on the right, selector without radio.
+  - Modal: Test-mode badge — absolute over the dialog (rounded pill, not a banner on top), close-button repositioned.
+  - CtaButton: shimmer animation (CSS), rounded-full, richer gradient with inset glow.
+  - CurrentSession: accent-color links (instead of grey).
+  - Heading h1: 1.875rem (was 1.625), bold, text-balance.
+  - TokenizationGate: rich checkmark on an accent background.
 
 ### Minor Changes
 
@@ -329,118 +329,118 @@
 
 - 49a342e: i18n force-locale + structured auth errors + price grid polish
 
-  - **`PaywallUI.locale` option + `PaywallUI.setLocale()`**: explicit-override языка для I18nProvider, минующий navigator.language и owner-translations check. Нужен live-preview редактору админки («Preview as user from <country>») — там browser-locale всегда EN. `setLocale(null)` возвращает автоматическую резолв-логику; live-обновление через `handle.update`. Помечено `@internal` — конечным интеграторам форсить язык не нужно.
-  - **AuthPanel: structured error mapping**. Раньше `err.message` показывал сырой HTTP statusText ("Unauthorized", "Bad Request") — англоязычный и нелокализованный. Теперь `authErrorMessage()` маппит стабильные `err.code` (`invalid_credentials`, `email_not_confirmed`, `email_exists`, `weak_password`, `invalid_otp`, `rate_limited`, `network_error`, `service_unavailable`, …) на i18n-ключи `auth.*`. Для непонятных кодов — generic fallback `auth.signin_failed`/`auth.signup_failed`. 8 новых i18n-ключей, переводы на все 27 bundled locales.
-  - **PriceGrid: compact view as card**. Compact-режим теперь wrap'ит строки в `rounded-xl border bg-gray-50` — зеркало legacy `PaywallPricing` wrapper'а для non-default view. Отделяет блок цен от остального layout'а.
-  - **PriceGrid: smart strike-row reservation**. Горизонтальный view резервирует 22px высоту под "strike-through originalAmount + discount-pill" у ВСЕХ карточек только если хоть одна цена в гриде имеет скидку. Если оффера нет ни у одной — row не рендерится, не остаётся 22px пустоты под label'ом.
-  - **PriceGrid: убран `trial_days` хинт** под main amount (компактнее layout, trial-info остаётся в CtaButton).
-  - **TokenizationGate: lifetime copy**. Для `interval === 'lifetime'` (или отсутствующего) рендерится новый ключ `pricing.included_total` ("Included for lifetime:") вместо `pricing.included_per` ("Included per {interval}:").
-  - **Renderer.hasTopBanner**: prop для уменьшения top-padding scrollable-зоны когда над dialog'ом рендерится OfferTopBanner.
-  - **i18n cleanup**: `auth.check_email_title` теперь короткий нейтральный заголовок ("Check your email") — legacy-перевод длинной фразы про signup-link был некорректен для forgot-password flow.
+  - **`PaywallUI.locale` option + `PaywallUI.setLocale()`**: explicit language override for I18nProvider, bypassing navigator.language and the owner-translations check. Needed for the admin editor's live-preview ("Preview as user from <country>") — there the browser locale is always EN. `setLocale(null)` restores the automatic resolution logic; live updates via `handle.update`. Marked `@internal` — end integrators don't need to force the language.
+  - **AuthPanel: structured error mapping**. Previously `err.message` showed the raw HTTP statusText ("Unauthorized", "Bad Request") — English-only and unlocalized. Now `authErrorMessage()` maps stable `err.code` values (`invalid_credentials`, `email_not_confirmed`, `email_exists`, `weak_password`, `invalid_otp`, `rate_limited`, `network_error`, `service_unavailable`, …) to `auth.*` i18n keys. For unknown codes — generic fallback `auth.signin_failed`/`auth.signup_failed`. 8 new i18n keys, translated across all 27 bundled locales.
+  - **PriceGrid: compact view as card**. Compact mode now wraps the rows in `rounded-xl border bg-gray-50` — mirroring the legacy `PaywallPricing` wrapper for the non-default view. Separates the prices block from the rest of the layout.
+  - **PriceGrid: smart strike-row reservation**. The horizontal view reserves 22px of height for "strike-through originalAmount + discount-pill" on ALL cards only if at least one price in the grid has a discount. If no card has an offer — the row is not rendered, leaving no 22px of empty space under the label.
+  - **PriceGrid: removed the `trial_days` hint** under the main amount (more compact layout, trial-info stays in CtaButton).
+  - **TokenizationGate: lifetime copy**. For `interval === 'lifetime'` (or missing) the new key `pricing.included_total` ("Included for lifetime:") is rendered instead of `pricing.included_per` ("Included per {interval}:").
+  - **Renderer.hasTopBanner**: prop to reduce the top-padding of the scrollable zone when an OfferTopBanner is rendered above the dialog.
+  - **i18n cleanup**: `auth.check_email_title` is now a short neutral heading ("Check your email") — the legacy translation of the long signup-link phrase was incorrect for the forgot-password flow.
 
 ### Patch Changes
 
-- 5902c36: UI: бейдж последнего метода входа возле OAuth-кнопок — «Last» → «Last used» (понятнее, что это «последний использованный метод»).
+- 5902c36: UI: badge of the last sign-in method next to the OAuth buttons — "Last" → "Last used" (clearer that it's "the last used method").
 
-  Переименовано в canonical EN, inline-фоллбэках `AuthPanel` и во всех 27 локалях
+  Renamed in canonical EN, the inline fallbacks of `AuthPanel`, and across all 27 locales
   (`auth.last_used` / `auth.last_used_no_email`): EN `Last used · {email}`, RU
-  `Последний вход · …`, DE `Zuletzt genutzt`, ES `Última vez`, JA `前回使用` и т.д.
-  Заодно закрыт пробел в покрытии — раньше `auth.last_used` (с email) был переведён
-  лишь частично и часть локалей падала на английский inline-фоллбэк.
+  `Последний вход · …`, DE `Zuletzt genutzt`, ES `Última vez`, JA `前回使用`, etc.
+  This also closed a coverage gap — previously `auth.last_used` (with email) was only
+  partially translated and some locales fell back to the English inline fallback.
 
-- 2851b7f: i18n — переводы для нового `reset_sent` view.
+- 2851b7f: i18n — translations for the new `reset_sent` view.
 
-  Добавлены три ключа в `sdk-translations.mjs` и сгенерированы во все 27
-  локалей через `tools/gen-locales.mjs`:
+  Added three keys to `sdk-translations.mjs` and generated into all 27
+  locales via `tools/gen-locales.mjs`:
 
-  - `auth.reset_sent_subtitle` — пояснение под title'ом «Check your email».
-  - `auth.reset_link_valid` — подсказка «The link is valid for 1 hour.».
-  - `auth.back_to_login` — лейбл primary-кнопки.
+  - `auth.reset_sent_subtitle` — explanation under the "Check your email" title.
+  - `auth.reset_link_valid` — hint "The link is valid for 1 hour.".
+  - `auth.back_to_login` — label of the primary button.
 
-  До этого релиза эти строки рендерились через английский inline-fallback
-  из `t()`-вызова — title локализовался, остальное оставалось на английском.
+  Before this release these strings rendered through the English inline-fallback
+  in the `t()` call — the title was localized, the rest stayed in English.
 
-- f513233: `AuthPanel` — нативный «Check your email» экран после запроса password reset.
+- f513233: `AuthPanel` — native "Check your email" screen after a password reset request.
 
-  Раньше после отправки reset-письма в `auth_panel` показывался серый
-  info-баннер с текстом и стандартный заголовок формы — выглядело как
-  техническое уведомление, а не подтверждение действия. Теперь
-  `reset_sent` это отдельный success-view: зелёный круг с галочкой
-  (та же визуальная палитра, что у success-state в `PaywallRoot`),
-  крупный title «Check your email», поясняющий сабтайтл, email юзера
-  жирным и подсказка про срок действия ссылки. Снизу — large primary
-  кнопка «Back to Login» в брендовом accent-цвете.
+  Previously, after sending the reset email, `auth_panel` showed a grey
+  info-banner with text and the standard form header — it looked like a
+  technical notification rather than a confirmation of the action. Now
+  `reset_sent` is a separate success-view: a green circle with a checkmark
+  (the same visual palette as the success-state in `PaywallRoot`),
+  a large "Check your email" title, an explanatory subtitle, the user's email
+  in bold, and a hint about the link's validity. At the bottom — a large primary
+  "Back to Login" button in the brand accent color.
 
-  Новые i18n-ключи (с английским fallback'ом inline):
+  New i18n keys (with English fallback inline):
 
-  - `auth.reset_sent_subtitle` — «We sent a password reset link. Follow
-    the instructions in the email to reset your password.»
-  - `auth.reset_link_valid` — «The link is valid for 1 hour.»
-  - `auth.back_to_login` — «Back to Login»
+  - `auth.reset_sent_subtitle` — "We sent a password reset link. Follow
+    the instructions in the email to reset your password."
+  - `auth.reset_link_valid` — "The link is valid for 1 hour."
+  - `auth.back_to_login` — "Back to Login"
 
-  Старый `setInfo(...)` и серый info-баннер для `reset_sent` убраны —
-  текст теперь живёт в самом view.
+  The old `setInfo(...)` and the grey info-banner for `reset_sent` are removed —
+  the text now lives in the view itself.
 
-- 619730d: Signup email-confirm: переход на link-флоу (как recovery) вместо dead-end
-  экрана ввода кода.
+- 619730d: Signup email-confirm: moved to a link flow (like recovery) instead of a dead-end
+  code-entry screen.
 
-  Прод email-шаблон «Confirm signup» шлёт confirmation-**ссылку** (redirect_to →
-  `/paywall/v3/auth/confirm`), а не 6-значный код. Модалка же после signUp →
-  `confirmation_required` показывала экран `signup_verify` с инпутом кода —
-  юзер упирался в тупик: код вводить просят, но в письме его нет.
+  The prod email template "Confirm signup" sends a confirmation **link** (redirect_to →
+  `/paywall/v3/auth/confirm`), not a 6-digit code. But the modal, after signUp →
+  `confirmation_required`, showed the `signup_verify` screen with a code input —
+  the user hit a dead end: they were asked to enter a code, but there was none in the email.
 
-  Теперь после signUp показывается экран `signup_sent` («проверьте email →
-  кликните ссылку», зеркало `reset_sent`). Подтверждение завершается на
-  v3-странице, сессия синкается cross-tab → auth-гейт продвигается сам, как при
-  обычном signin. Симметрично recovery-флоу (forgot → reset_sent).
+  Now after signUp the `signup_sent` screen is shown ("check your email →
+  click the link", mirroring `reset_sent`). Confirmation completes on the
+  v3 page, the session syncs cross-tab → the auth gate advances on its own, as with a
+  regular signin. Symmetric to the recovery flow (forgot → reset_sent).
 
-  Удалён режим `signup_verify` и его OTP-ветка; добавлен ключ
-  `auth.signup_sent_subtitle` (canonical-en + 27 локалей).
+  Removed the `signup_verify` mode and its OTP branch; added the key
+  `auth.signup_sent_subtitle` (canonical-en + 27 locales).
 
-- c13ffc5: Auth: `AuthUser` теперь несёт профиль из OAuth-провайдера — `name` и `avatar`.
+- c13ffc5: Auth: `AuthUser` now carries the profile from the OAuth provider — `name` and `avatar`.
 
-  Раньше SDK отдавал только `{ id, email, country, is_anonymous }`, а аватар (Google
-  кладёт его в `user_metadata.avatar_url`) нигде наружу не пробрасывался. Добавлены
-  опциональные `name` / `avatar` в `AuthUser` — заполняются из OAuth-профиля при
-  `/oauth/exchange` и доступны из сессии (`auth.getCachedUser()?.avatar`,
-  `onAuthChange`) без доп. запроса. У email/anon-юзеров — `null` (аватара нет).
+  Previously the SDK returned only `{ id, email, country, is_anonymous }`, and the avatar (Google
+  puts it in `user_metadata.avatar_url`) was never exposed anywhere. Added
+  optional `name` / `avatar` to `AuthUser` — populated from the OAuth profile at
+  `/oauth/exchange` and available from the session (`auth.getCachedUser()?.avatar`,
+  `onAuthChange`) without an extra request. For email/anon users — `null` (no avatar).
 
-  Требует парного деплоя online (`/oauth/exchange` теперь кладёт `name`/`avatar` из
-  `user_metadata`). Без него поля будут `undefined` — не ломает существующее.
+  Requires a paired online deploy (`/oauth/exchange` now sets `name`/`avatar` from
+  `user_metadata`). Without it the fields will be `undefined` — does not break the existing behavior.
 
-- 8b859cb: Фикс зависания awaiting-экрана после оплаты в extension-странице.
+- 8b859cb: Fix for the awaiting screen hanging after payment in an extension page.
 
-  Переход awaiting→success был завязан **исключительно** на `UserWatcher.onActive`,
-  а сам watcher не запускался для всего `chrome-extension://` протокола
-  (`shouldRunUserWatcher` считал любой такой контекст эфемерным action-popup'ом).
-  В полноценной extension-странице (side panel / отдельная вкладка), которая
-  переживает checkout, поллер был выключен, и закрыть awaiting было некому — даже
-  ручная кнопка «я оплатил» лишь слала `window.postMessage` для пробуждения
-  несуществующего watcher'а. Покупка проходила, `/user-state` отдавал
-  `has_active_subscription: true`, а экран висел.
+  The awaiting→success transition was tied **exclusively** to `UserWatcher.onActive`,
+  and the watcher itself didn't run for the entire `chrome-extension://` protocol
+  (`shouldRunUserWatcher` treated any such context as an ephemeral action-popup).
+  In a full-fledged extension page (side panel / separate tab) that
+  survives the checkout, the poller was off, and there was no one to close the awaiting screen — even
+  the manual "I've paid" button just sent a `window.postMessage` to wake up a
+  nonexistent watcher. The purchase went through, `/user-state` returned
+  `has_active_subscription: true`, and the screen hung.
 
-  - Переход централизован в идемпотентный `handlePurchaseDetected`, который
-    вызывается из `billing.onUserChange` — любой источник свежего active
-    user-state (ручной `getUser`, cross-context broadcast, watcher) закрывает
-    awaiting. Гейт на checkout-вью (`awaiting_payment`/`popup_blocked`), чтобы
-    открытие пейвола уже-подписанному юзеру не давало ложного срабатывания.
-  - `shouldRunUserWatcher` больше не режет `chrome-extension://` — переживающая
-    страница и может, и должна поллить; эфемерный action-popup безвредно
-    тёрдаунится вместе с контекстом (детект там покрывает bootstrap при
-    следующем открытии).
+  - The transition is centralized in the idempotent `handlePurchaseDetected`, which
+    is called from `billing.onUserChange` — any source of fresh active
+    user-state (manual `getUser`, cross-context broadcast, watcher) closes
+    awaiting. Gated on the checkout views (`awaiting_payment`/`popup_blocked`), so
+    opening the paywall for an already-subscribed user doesn't trigger a false positive.
+  - `shouldRunUserWatcher` no longer cuts off `chrome-extension://` — the surviving
+    page both can and should poll; the ephemeral action-popup harmlessly
+    tears down with the context (detection there covers bootstrap on the
+    next open).
 
-- c6418f7: Server-SDK: ручное зачисление/списание токенов — `BillingClient.creditTokens()` / `debitTokens()`.
+- c6418f7: Server-SDK: manual token credit/debit — `BillingClient.creditTokens()` / `debitTokens()`.
 
-  apiKey-only методы правят токен-баланс юзера токенизированного пейвола от лица
-  бэкенда мерчанта (identity по email/userId). `creditTokens` добавляет, `debitTokens`
-  вычитает и бросает `PaywallError('insufficient')`, если ушло бы ниже нуля.
-  Из браузера недоступны (нет apiKey → `apikey_required`) — клиент не должен мочь
-  начислить себе токены. Возвращают `{ type, count }` с новым балансом.
+  apiKey-only methods that adjust the token balance of a tokenized-paywall user on behalf
+  of the merchant's backend (identity by email/userId). `creditTokens` adds, `debitTokens`
+  subtracts and throws `PaywallError('insufficient')` if it would go below zero.
+  Not accessible from the browser (no apiKey → `apikey_required`) — a client must not be able to
+  credit itself tokens. Returns `{ type, count }` with the new balance.
 
-  Требует парного деплоя: online-эндпоинт `POST /api/v1/paywall/[id]/balances` +
-  применение SQL-миграции `adjust_paywall_balance` (атомарная дельта в JSONB, без
-  lost-update от параллельных списаний api-gateway'я). Daily-триал балансы выше
-  лимита не перезатирает.
+  Requires a paired deploy: the online endpoint `POST /api/v1/paywall/[id]/balances` +
+  applying the SQL migration `adjust_paywall_balance` (atomic delta in JSONB, without
+  lost-update from concurrent debits by the api-gateway). Daily-trial balances above
+  the limit are not overwritten.
 
 - e9f3308: `BillingClient.createCheckout`: auto-send `localCurrency`.
 
@@ -455,16 +455,16 @@
   contract field (`localCurrency`) and the body comment already mentioned
   it — the SDK simply wasn't sending it.
 
-- a6b7a3a: Убрано аналитическое событие `paywall_opened`. Теперь показ пейвола фиксирует
-  единственный сигнал — `paywall_viewed` (эмитится на `'ready'`, после загрузки
-  bootstrap, с `prices_count`/`offers_count`/`is_test_mode`). `'open'` больше не
-  трекается отдельно ни в основном SDK, ни в extension-канале.
+- a6b7a3a: Removed the `paywall_opened` analytics event. Now a paywall display is recorded by
+  a single signal — `paywall_viewed` (emitted on `'ready'`, after the
+  bootstrap loads, with `prices_count`/`offers_count`/`is_test_mode`). `'open'` is no longer
+  tracked separately, neither in the main SDK nor in the extension channel.
 
-  Мотивация: `opened` и `viewed` дублировали друг друга в доминирующем паттерне
-  (тёплый bootstrap → оба события в одном батче), а лишнее событие на каждое
-  открытие умножало POST-нагрузку на `/events` и строки в `paywall_sdk_events`
-  при прод-масштабе (тысячи одновременных открытий). Воронка строится от
-  `viewed`. Сервер (`online`) больше не принимает `paywall_opened` в whitelist.
+  Motivation: `opened` and `viewed` duplicated each other in the dominant pattern
+  (warm bootstrap → both events in one batch), and an extra event on every
+  open multiplied the POST load on `/events` and the rows in `paywall_sdk_events`
+  at prod scale (thousands of simultaneous opens). The funnel is built from
+  `viewed`. The server (`online`) no longer accepts `paywall_opened` in the whitelist.
 
 - 4845938: `paywall.getAccess()`: read fresh user from `cachedUser` instead of stale
   `getCachedBootstrap().user`.
@@ -491,152 +491,152 @@
   Async path (cold bootstrap) was already correct: `BillingClient.bootstrap()`
   overlays cachedUser onto the returned bootstrap (`{ ...cachedBootstrap, user: cachedUser ?? undefined }`).
 
-- 63dc291: Фикс расходящихся фокуса и выбора при открытии пейвола.
+- 63dc291: Fix for diverging focus and selection when opening the paywall.
 
-  При авто-открытии модалки (без предшествующего user-gesture) браузерная
-  эвристика `:focus-visible` рисовала кольцо на первом фокусируемом контроле — а
-  первый `button` в DOM это первая карточка тарифа (напр. месячный), тогда как
-  _выбран_ популярный план (`popular_price_id`), у которого акцентная рамка.
-  Кольцо фокуса оказывалось на одной карточке, выделение выбора — на другой; два
-  конфликтующих «активных» состояния сбивали с толку.
+  On auto-open of the modal (without a preceding user gesture) the browser
+  `:focus-visible` heuristic drew a ring on the first focusable control — but
+  the first `button` in the DOM is the first plan card (e.g. monthly), whereas
+  the _selected_ plan is the popular one (`popular_price_id`), which has the accent border.
+  The focus ring ended up on one card and the selection highlight on another; two
+  conflicting "active" states were confusing.
 
-  `Modal` больше не наводит фокус на первый интерактивный элемент — фокус уходит
-  на сам контейнер диалога (`tabIndex=-1`, `outline-none` → кольца нет). Ловушка
-  фокуса сохраняет якорь внутри диалога, `Tab` обходит контролы как раньше, для
-  скринридеров фокус на `aria-modal`-диалоге корректен. Добавлен явный опт-ин
-  `[data-pw-autofocus]` для вью, которым нужен автофокус инпута.
+  `Modal` no longer focuses the first interactive element — focus goes
+  to the dialog container itself (`tabIndex=-1`, `outline-none` → no ring). The focus
+  trap keeps the anchor inside the dialog, `Tab` cycles the controls as before, and for
+  screen readers focus on the `aria-modal` dialog is correct. Added an explicit opt-in
+  `[data-pw-autofocus]` for views that need input autofocus.
 
-- da0c8c5: OAuth identity-already-linked: классификация по описанию ошибки — устойчивость к version skew callback↔SDK.
+- da0c8c5: OAuth identity-already-linked: classification by error description — resilience to version skew callback↔SDK.
 
-  В проде выяснилось, что hosted OAuth-callback может форвардить только
-  человекочитаемый `error_description` («Identity is already linked to another
-  user»), но НЕ машинный `error_code` (страница callback'а деплоится независимо от
-  npm-SDK; старый/закешированный билд не прокидывает `error_code`). beta.9
-  классифицировал switch-account только по `errorCode`, поэтому
-  `identity_already_exists` прилетал как generic `oauth_failed` → «Sign-in failed»
-  без кнопки.
+  In prod it turned out that the hosted OAuth callback can forward only
+  the human-readable `error_description` ("Identity is already linked to another
+  user"), but NOT the machine-readable `error_code` (the callback page deploys independently of
+  the npm SDK; an old/cached build doesn't pass `error_code`). beta.9
+  classified switch-account only by `errorCode`, so
+  `identity_already_exists` arrived as a generic `oauth_failed` → "Sign-in failed"
+  with no button.
 
-  - `isIdentityAlreadyLinked()` теперь матчит и `errorCode === 'identity_already_exists'`,
-    и текст ошибки (`already linked` / `identity_already_exists`) как fallback —
-    кнопка «sign in with that account» показывается независимо от того, форвардит
-    ли развёрнутый callback `error_code`.
+  - `isIdentityAlreadyLinked()` now matches both `errorCode === 'identity_already_exists'`
+    and the error text (`already linked` / `identity_already_exists`) as a fallback —
+    the "sign in with that account" button shows regardless of whether the deployed
+    callback forwards `error_code`.
 
-- f128fd3: OAuth: авто-переключение на существующий аккаунт при `identity_already_exists` + понятный UX коллизии email.
+- f128fd3: OAuth: auto-switch to an existing account on `identity_already_exists` + clear UX for the email collision.
 
-  Раньше вход через Google/Apple под анонимной сессией шёл через `linkIdentity`, и если
-  провайдер уже привязан к другому аккаунту, GoTrue возвращал `identity_already_exists`,
-  а SDK показывал глухое «Sign-in failed».
+  Previously, signing in via Google/Apple under an anonymous session went through `linkIdentity`, and if
+  the provider was already linked to another account, GoTrue returned `identity_already_exists`,
+  and the SDK showed a blank "Sign-in failed".
 
-  - `signInWithOAuth` ловит `identity_already_exists` и бесшовно переключается на обычный
-    signin, **переиспользуя тот же popup** (`popup.location.replace` на signin-флоу с тем же
-    state; SSO провайдера уже активна → почти мгновенно). Добавлены `switchAccount` в
-    `signInWithOAuth`/`startOAuthFlow` (не шлёт Bearer → без linkIdentity) и `waitForOAuthResult`
-    (структурный исход с `errorCode`, не закрывает popup сам). Если popup переиспользовать
-    нельзя (COOP оборвал handle) — фоллбэк-кнопка «войти в тот аккаунт» (свежий user-gesture).
-    Зеркально реализовано в `sdk-extension` split-flow (`auth.oauthStart` получил
+  - `signInWithOAuth` catches `identity_already_exists` and seamlessly switches to a regular
+    signin, **reusing the same popup** (`popup.location.replace` to the signin flow with the same
+    state; the provider's SSO is already active → near-instant). Added `switchAccount` to
+    `signInWithOAuth`/`startOAuthFlow` (doesn't send Bearer → no linkIdentity) and `waitForOAuthResult`
+    (a structured outcome with `errorCode`, doesn't close the popup itself). If the popup can't be reused
+    (COOP severed the handle) — a fallback button "sign in with that account" (a fresh user gesture).
+    Mirrored in the `sdk-extension` split-flow (`auth.oauthStart` got
     `switchAccount`/`reuseState`).
-  - Email-коллизия: GoTrue из-за анти-энумерации маскирует занятый email (в т.ч. OAuth-only)
-    под «подтвердите почту». `signUp` теперь возвращает `already_registered`, а `AuthPanel`
-    уводит юзера на форму входа с понятной подсказкой вместо тупика «проверьте почту».
-  - Новые i18n-ключи `auth.email_already_registered` / `auth.identity_already_linked`
-    (canonical EN + 27 локалей).
+  - Email collision: due to anti-enumeration, GoTrue masks an already-taken email (incl. OAuth-only)
+    as "confirm your email". `signUp` now returns `already_registered`, and `AuthPanel`
+    sends the user to the signin form with a clear hint instead of the dead-end "check your email".
+  - New i18n keys `auth.email_already_registered` / `auth.identity_already_linked`
+    (canonical EN + 27 locales).
 
-  Требует парного деплоя online-части (v3 OAuth callback теперь прокидывает `error_code` и
-  не закрывает popup на `identity_already_exists`; `/auth/email/signup` отдаёт
-  `already_registered`). Старый SDK с новым callback и новый SDK со старым callback
-  деградируют корректно — без бесконечных popup'ов.
+  Requires a paired deploy of the online part (the v3 OAuth callback now passes `error_code` and
+  doesn't close the popup on `identity_already_exists`; `/auth/email/signup` returns
+  `already_registered`). An old SDK with the new callback and a new SDK with the old callback
+  degrade gracefully — without infinite popups.
 
-- 4a8a00a: OAuth `identity_already_exists`: надёжный one-click «switch account» вместо бесшовного popup-reuse.
+- 4a8a00a: OAuth `identity_already_exists`: reliable one-click "switch account" instead of seamless popup-reuse.
 
-  beta.8 пытался бесшовно переключить аккаунт, переиспользуя тот же popup
-  (`popup.location.replace`). В реальном окружении это нестабильно: COOP (Google)
-  обрывает хэндл opener↔popup, а второй обмен в том же флоу добавлял точку отказа —
-  в итоге всплывал generic «Sign-in failed» вместо switch-ветки.
+  beta.8 tried to seamlessly switch accounts by reusing the same popup
+  (`popup.location.replace`). In a real environment this is unstable: COOP (Google)
+  severs the opener↔popup handle, and a second exchange in the same flow added a point of failure —
+  the end result being a generic "Sign-in failed" instead of the switch branch.
 
-  - Убрали popup-reuse. `identity_already_exists` сразу пробрасывается как
-    `oauth_identity_already_linked`, и `AuthPanel` показывает понятный текст +
-    кнопку «Continue with <provider>». Свежий клик → `signInWithOAuth({ switchAccount: true })`
-    → чистый signin (новый popup, новый PKCE-обмен) в аккаунт, которому принадлежит
-    identity. Паритет с legacy-веткой `switch_account`.
-  - `AuthPanel` логирует реальный код/описание OAuth-ошибки в `console.warn` —
-    раньше generic-фоллбэк прятал причину.
-  - Убран неиспользуемый `reuseState` из `startOAuthFlow` и `auth.oauthStart`.
+  - Removed popup-reuse. `identity_already_exists` is now surfaced directly as
+    `oauth_identity_already_linked`, and `AuthPanel` shows a clear message +
+    a "Continue with <provider>" button. A fresh click → `signInWithOAuth({ switchAccount: true })`
+    → a clean signin (new popup, new PKCE exchange) into the account that owns the
+    identity. Parity with the legacy `switch_account` branch.
+  - `AuthPanel` logs the real OAuth error code/description to `console.warn` —
+    previously the generic fallback hid the cause.
+  - Removed the unused `reuseState` from `startOAuthFlow` and `auth.oauthStart`.
 
-- 638fa26: `OfferBanner` — fix offer-farming через re-open пейвола.
+- 638fa26: `OfferBanner` — fix offer-farming via re-opening the paywall.
 
-  `useOfferCountdown` при `expired === true` удалял ключ
-  `pw-offer-<id>-start` из localStorage, считая это безопасным cleanup'ом.
-  Но именно этот ключ — единственный forever-marker «этот offer уже
-  стартовал для юзера». Без него `resolveEndMs` при следующем открытии
-  пейвола записывал свежий `start` (= `Date.now()`) и countdown начинался
-  заново — несмотря на то что offer уже давно истёк.
+  `useOfferCountdown`, on `expired === true`, deleted the key
+  `pw-offer-<id>-start` from localStorage, treating it as safe cleanup.
+  But that very key is the only forever-marker that "this offer has already
+  started for the user". Without it, `resolveEndMs` on the next paywall open
+  wrote a fresh `start` (= `Date.now()`) and the countdown started
+  over — even though the offer had long since expired.
 
-  Сценарий, который ловит юзер:
+  The scenario a user can exploit:
 
-  1. Видит offer → таймер запущен, ключ сохранён.
-  2. Логинится, открывает checkout, закрывает без оплаты.
-  3. Закрывает пейвол → таймер тикает в фоне → истекает → `removeItem`.
-  4. Открывает пейвол снова → offer показывает полную `duration_minutes`.
+  1. Sees the offer → timer started, key saved.
+  2. Logs in, opens checkout, closes it without paying.
+  3. Closes the paywall → timer ticks in the background → expires → `removeItem`.
+  4. Opens the paywall again → the offer shows the full `duration_minutes`.
 
-  Фикс: на expiry останавливаем `setInterval`, но ключ из storage НЕ
-  удаляем. При следующем resolve `start + duration < now` → банер
-  скрывается через стандартный `timeLeft.expired` guard. Юзер физически
-  не может «фармить» offer повторными открытиями.
+  Fix: on expiry we stop the `setInterval`, but do NOT delete the key from storage.
+  On the next resolve `start + duration < now` → the banner
+  is hidden via the standard `timeLeft.expired` guard. A user physically
+  cannot "farm" the offer by re-opening.
 
-  Side-effect: localStorage накапливает по одному ~50-байтовому ключу на
-  каждый когда-либо стартовавший offer. Допустимая цена за корректность.
+  Side-effect: localStorage accumulates one ~50-byte key per
+  every offer that ever started. An acceptable price for correctness.
 
-- 8250085: Fix: просроченный offer переставал давать скидку в countdown-баннере, но
-  оставался в ценах внутри модалки и улетал в checkout.
+- 8250085: Fix: an expired offer stopped giving the discount in the countdown banner, but
+  remained in the prices inside the modal and was passed to checkout.
 
-  `PriceGrid` (strike-through / `-X%` в карточках модалки) и checkout-путь в
-  `PaywallRoot` резолвили offer через сырой `findApplicableOffer`, который
-  фильтрует только по `price_id` + `discount_percent > 0` и **срок не
-  смотрит**. Хост-прайсинг (`usePaywallOffer` → `getOfferForPrice` →
-  `resolveOffer`) и countdown-баннер (`useOfferCountdown`) при этом expiry
-  учитывают. Итог — рассинхрон: оффер истёк, баннер скрыт и в хост-карточках
-  скидки нет, а в карточках модалки скидка со strike-through ещё висит.
+  `PriceGrid` (strike-through / `-X%` in the modal cards) and the checkout path in
+  `PaywallRoot` resolved the offer via the raw `findApplicableOffer`, which
+  filters only by `price_id` + `discount_percent > 0` and **doesn't check
+  the deadline**. Host pricing (`usePaywallOffer` → `getOfferForPrice` →
+  `resolveOffer`) and the countdown banner (`useOfferCountdown`) do account for
+  expiry. The result was a desync: the offer expired, the banner is hidden and there's no
+  discount in the host cards, but in the modal cards the discount with strike-through still hung on.
 
-  Второй, более неприятный side-эффект — checkout. Для `duration_minutes`
-  офферов нет server-side таймера, бэк доверяет переданному `offerId`. Сырой
-  `findApplicableOffer` слал id просроченного оффера в `createCheckout` → бэк
-  применял бы скидку, которой в UI уже не видно.
+  The second, more unpleasant side-effect was checkout. For `duration_minutes`
+  offers there's no server-side timer, the backend trusts the passed `offerId`. The raw
+  `findApplicableOffer` sent the id of the expired offer to `createCheckout` → the backend
+  would apply a discount no longer visible in the UI.
 
-  Фикс: новый `findLiveOffer(offers, priceId, opts)` в `core/offer.ts` —
-  expiry-aware обёртка (`findApplicableOffer` → `resolveOffer`, режет
-  истёкшее). `PriceGrid` (все 4 call-site) и checkout в `PaywallRoot`
-  переведены на неё с `readStart: readBrowserOfferStart`. Теперь скидка в
-  карточках модалки и `offerId` на чекауте исчезают синхронно с баннером.
+  Fix: a new `findLiveOffer(offers, priceId, opts)` in `core/offer.ts` —
+  an expiry-aware wrapper (`findApplicableOffer` → `resolveOffer`, cuts off
+  the expired). `PriceGrid` (all 4 call-sites) and checkout in `PaywallRoot`
+  were switched to it with `readStart: readBrowserOfferStart`. Now the discount in
+  the modal cards and the `offerId` at checkout disappear in sync with the banner.
 
-  Семантика «оффер ещё не стартовал» (нет marker'а) сохранена — `resolveOffer`
-  трактует такой `duration_minutes`-оффер как perpetual, скидка показывается.
+  The "offer hasn't started yet" semantics (no marker) is preserved — `resolveOffer`
+  treats such a `duration_minutes` offer as perpetual, the discount is shown.
 
-  Не покрыт мелкий кейс «модалка открыта в момент истечения»: `PriceGrid` не
-  тикает раз в секунду, скидка доживёт до следующего ре-рендера. Открытие
-  пейвола _после_ истечения (основной баг) закрыто полностью.
+  Not covered is the minor case "modal open at the moment of expiry": `PriceGrid` doesn't
+  tick once a second, so the discount survives until the next re-render. Opening
+  the paywall _after_ expiry (the main bug) is fully closed.
 
-- 67e0954: Правки модалки пейвола и формулировок success-экрана.
+- 67e0954: Fixes to the paywall modal and the wording of the success screen.
 
-  **1. Скролл для self-contained статус-вью.** Диалог модалки ограничен по высоте
-  (`max-h … overflow-hidden`), а скролл-зону (`flex-1 min-h-0 overflow-y-auto`)
-  настраивали только `Renderer`/`AuthGate`/`SupportGate`. Простые статус-вью
+  **1. Scroll for self-contained status views.** The modal dialog is height-constrained
+  (`max-h … overflow-hidden`), and the scroll zone (`flex-1 min-h-0 overflow-y-auto`)
+  was set up only by `Renderer`/`AuthGate`/`SupportGate`. Simple status views
   (`PurchaseSuccessView`, `LoadingView`, `ErrorView`, `AwaitingPaymentView`,
-  `PopupBlockedView`) рендерились без обёртки и при нехватке высоты (маленькие
-  экраны, extension-попап ~600px) обрезались без возможности проскроллить.
-  Добавлен общий `Scroll`-враппер для этих вью; `Renderer`/`AuthGate`/`SupportGate`
-  не оборачиваются — у них свой scroll + закреплённый футер.
+  `PopupBlockedView`) rendered without a wrapper and, when height was tight (small
+  screens, extension popup ~600px), got clipped with no way to scroll.
+  Added a shared `Scroll` wrapper for these views; `Renderer`/`AuthGate`/`SupportGate`
+  are not wrapped — they have their own scroll + a pinned footer.
 
-  **2. Горизонтальные отступы у `PurchaseSuccessView`.** У корня вью были только
-  вертикальные отступы, а кнопка `Continue` — `w-full`, из-за чего она
-  растягивалась до краёв диалога, а её glow/shimmer вылезали за край. Добавлен
-  `px-6 sm:px-8` — как у соседних вью.
+  **2. Horizontal padding on `PurchaseSuccessView`.** The view root had only
+  vertical padding, and the `Continue` button was `w-full`, so it
+  stretched to the dialog edges and its glow/shimmer spilled over the edge. Added
+  `px-6 sm:px-8` — like the neighboring views.
 
-  **3. Нейтральные формулировки success/restored.** «Your subscription is now
-  active.» / «Subscription restored» некорректны для lifetime-покупок (это не
-  подписка). Success-сабтайтл → «You're all set — enjoy!», restored-заголовок →
-  «Welcome back», restored-сабтайтл → тот же «You're all set — enjoy!». Обновлён
-  EN-эталон, inline-fallback'и и все 27 локалей (`tools/sdk-translations.mjs` +
-  регенерация `gen-locales.mjs`).
+  **3. Neutral success/restored wording.** "Your subscription is now
+  active." / "Subscription restored" are incorrect for lifetime purchases (it's not
+  a subscription). Success subtitle → "You're all set — enjoy!", restored title →
+  "Welcome back", restored subtitle → the same "You're all set — enjoy!". Updated the
+  EN reference, the inline fallbacks and all 27 locales (`tools/sdk-translations.mjs` +
+  regeneration via `gen-locales.mjs`).
 
 - 50d3378: Modal: typography hierarchy fix for `PopupBlockedView` and
   `AwaitingPaymentView`; better popup-blocked icon.
@@ -675,261 +675,261 @@
   missing from the public re-export barrel.
 - 3b263a1: Popup bug fixes + UI polish
 
-  - `PaywallRoot`: анон-сессия больше не блокирует кнопку «Restore Purchases» и preauth-checkout (трактуется как «нет логина» в обоих местах, консистентно с `CurrentSession`/`AuthPanel`)
-  - `PaywallRoot`: X-крестик возвращается на standalone `openAuth()` — без Back-стрелки модалку было нельзя закрыть кроме ESC
-  - `PaywallRoot`: `useLayoutEffect` вместо `useEffect` для синхронизации gate-state на `open/initialView` — фиксит flash layout'а тарифов при повторном `openAuth()` (заметно в extension-popup'е из-за RemoteAuth/RemoteBilling RTT)
-  - `RemoteAuthClient`: реализован `getLastLogin()` (был не зеркалирован, AuthPanel падал с `r.getLastLogin is not a function` в console попапа)
-  - `AuthPanel`: defensive guard на `getLastLogin` — старые билды sdk-extension'а / кастомные AuthClient'ы не валят signin-форму
-  - Compile-time tests: `RemoteAuthClient.test-d.ts` и `RemoteBillingClient.test-d.ts` ловят расхождения proxy-классов с базовыми ещё на `tsc --noEmit`
+  - `PaywallRoot`: an anon session no longer blocks the "Restore Purchases" button and preauth-checkout (treated as "not logged in" in both places, consistent with `CurrentSession`/`AuthPanel`)
+  - `PaywallRoot`: the X close button returns on standalone `openAuth()` — without a Back arrow the modal couldn't be closed except by ESC
+  - `PaywallRoot`: `useLayoutEffect` instead of `useEffect` for syncing gate-state on `open/initialView` — fixes the flash of the plan layout on a repeated `openAuth()` (noticeable in the extension popup due to RemoteAuth/RemoteBilling RTT)
+  - `RemoteAuthClient`: implemented `getLastLogin()` (was not mirrored, AuthPanel crashed with `r.getLastLogin is not a function` in the popup console)
+  - `AuthPanel`: defensive guard on `getLastLogin` — old sdk-extension builds / custom AuthClients don't break the signin form
+  - Compile-time tests: `RemoteAuthClient.test-d.ts` and `RemoteBillingClient.test-d.ts` catch divergences of the proxy classes from the base ones at `tsc --noEmit`
 
-- 0605621: Версия SDK инжектится из package.json при сборке, а не хардкодится.
+- 0605621: The SDK version is injected from package.json at build time instead of being hardcoded.
 
-  `SDK_VERSION` торчал захардкоженным литералом `'3.0.0-alpha.0'` через все
-  релизы (alpha.x → beta.x) — его ни разу не подняли. Он уходит в `X-SDK-Version`
-  на всех запросах, в `sdk_version` каждого события аналитики (ClickHouse) и в
-  ApiGateway, поэтому вся аналитика по версиям была слепой: события всех релизов
-  писались как одна версия.
+  `SDK_VERSION` stuck as a hardcoded literal `'3.0.0-alpha.0'` through every
+  release (alpha.x → beta.x) — it was never bumped. It goes out in `X-SDK-Version`
+  on all requests, in the `sdk_version` of every analytics event (ClickHouse) and in
+  ApiGateway, so all version-level analytics were blind: events of all releases
+  were written as a single version.
 
-  Теперь версия прокидывается из package.json через vite `define`
-  (`__SDK_VERSION__`) — в бандле строковый литерал, в `.d.ts` остаётся
-  `const SDK_VERSION: string`. `define` продублирован в vitest.config (он не
-  наследует vite.config), иначе токен не замещался бы в тестах.
+  Now the version is threaded from package.json via vite `define`
+  (`__SDK_VERSION__`) — a string literal in the bundle, and `.d.ts` keeps
+  `const SDK_VERSION: string`. `define` is duplicated in vitest.config (it doesn't
+  inherit vite.config), otherwise the token wouldn't be substituted in tests.
 
-- 3d325f9: Два фикса в модалке пейвола.
+- 3d325f9: Two fixes in the paywall modal.
 
-  **1. `PurchaseSuccessView` — типографика/CTA по канону.** Success-вью
-  («Payment received» / «Subscription restored») выбивался из остального
-  пейвола: мелкий `text-lg` заголовок, `text-sm`/`gray-500` подзаголовок и
-  компактная inline-кнопка со своим градиентом. Приведён к канону `reset_sent`
-  (AuthPanel): `text-3xl font-bold` заголовок, `text-base`/`gray-600`
-  подзаголовок, full-width `pw-cta-shimmer` кнопка. Тексты и i18n-ключи не
-  тронуты, `id="pw-title"` (aria-labelledby модалки) сохранён.
+  **1. `PurchaseSuccessView` — typography/CTA per the canon.** The success view
+  ("Payment received" / "Subscription restored") was out of step with the rest of the
+  paywall: a small `text-lg` title, a `text-sm`/`gray-500` subtitle and
+  a compact inline button with its own gradient. Brought to the `reset_sent` canon
+  (AuthPanel): `text-3xl font-bold` title, `text-base`/`gray-600`
+  subtitle, a full-width `pw-cta-shimmer` button. Texts and i18n keys were not
+  touched, `id="pw-title"` (the modal's aria-labelledby) is preserved.
 
-  **2. Аналитика `paywall_opened`/`paywall_viewed`/`paywall_closed` —
-  гейт на реальный пейвол.** Эти события висели на публичных `'open'`/`'ready'`/
-  `'close'`, которые эмитятся для **любого** view. Поэтому открытие support
-  (`openSupport`), standalone-auth и re-mount `awaiting_payment`/`popup_blocked`
-  после headless-checkout слали ложный `paywall_opened` (и `paywall_viewed`/
-  `paywall_closed`) на `/events`. Добавлен `lastMountedView` (ставится в
-  `mountAndShow`), аналитика этих трёх событий теперь шлётся только при
-  `view === 'layout'`. Публичные `'open'`/`'ready'`/`'close'` события не
-  изменены — хосты получают их для всех view как раньше; гейтится только
-  отправка аналитики на сервер.
+  **2. `paywall_opened`/`paywall_viewed`/`paywall_closed` analytics —
+  gated on a real paywall.** These events hung on the public `'open'`/`'ready'`/
+  `'close'`, which are emitted for **any** view. So opening support
+  (`openSupport`), standalone-auth and re-mounting `awaiting_payment`/`popup_blocked`
+  after a headless-checkout sent a false `paywall_opened` (and `paywall_viewed`/
+  `paywall_closed`) to `/events`. Added `lastMountedView` (set in
+  `mountAndShow`); the analytics for these three events is now sent only when
+  `view === 'layout'`. The public `'open'`/`'ready'`/`'close'` events are not
+  changed — hosts get them for all views as before; only the
+  sending of analytics to the server is gated.
 
 ## 3.0.0-beta.13
 
 ### Patch Changes
 
-- Server-SDK: ручное зачисление/списание токенов — `BillingClient.creditTokens()` / `debitTokens()`.
+- Server-SDK: manual token credit/debit — `BillingClient.creditTokens()` / `debitTokens()`.
 
-  apiKey-only методы правят токен-баланс юзера токенизированного пейвола от лица
-  бэкенда мерчанта (identity по email/userId). `creditTokens` добавляет, `debitTokens`
-  вычитает и бросает `PaywallError('insufficient')`, если ушло бы ниже нуля.
-  Из браузера недоступны (нет apiKey → `apikey_required`) — клиент не должен мочь
-  начислить себе токены. Возвращают `{ type, count }` с новым балансом.
+  apiKey-only methods that adjust the token balance of a tokenized-paywall user on behalf
+  of the merchant's backend (identity by email/userId). `creditTokens` adds, `debitTokens`
+  subtracts and throws `PaywallError('insufficient')` if it would go below zero.
+  Not accessible from the browser (no apiKey → `apikey_required`) — a client must not be able to
+  credit itself tokens. Returns `{ type, count }` with the new balance.
 
-  Требует парного деплоя: online-эндпоинт `POST /api/v1/paywall/[id]/balances` +
-  применение SQL-миграции `adjust_paywall_balance` (атомарная дельта в JSONB, без
-  lost-update от параллельных списаний api-gateway'я). Daily-триал балансы выше
-  лимита не перезатирает.
+  Requires a paired deploy: the online endpoint `POST /api/v1/paywall/[id]/balances` +
+  applying the SQL migration `adjust_paywall_balance` (atomic delta in JSONB, without
+  lost-update from concurrent debits by the api-gateway). Daily-trial balances above
+  the limit are not overwritten.
 
 ## 3.0.0-beta.12
 
 ### Patch Changes
 
-- Auth: `AuthUser` теперь несёт профиль из OAuth-провайдера — `name` и `avatar`.
+- Auth: `AuthUser` now carries the profile from the OAuth provider — `name` and `avatar`.
 
-  Раньше SDK отдавал только `{ id, email, country, is_anonymous }`, а аватар (Google
-  кладёт его в `user_metadata.avatar_url`) нигде наружу не пробрасывался. Добавлены
-  опциональные `name` / `avatar` в `AuthUser` — заполняются из OAuth-профиля при
-  `/oauth/exchange` и доступны из сессии (`auth.getCachedUser()?.avatar`,
-  `onAuthChange`) без доп. запроса. У email/anon-юзеров — `null` (аватара нет).
+  Previously the SDK returned only `{ id, email, country, is_anonymous }`, and the avatar (Google
+  puts it in `user_metadata.avatar_url`) was never exposed anywhere. Added
+  optional `name` / `avatar` to `AuthUser` — populated from the OAuth profile at
+  `/oauth/exchange` and available from the session (`auth.getCachedUser()?.avatar`,
+  `onAuthChange`) without an extra request. For email/anon users — `null` (no avatar).
 
-  Требует парного деплоя online (`/oauth/exchange` теперь кладёт `name`/`avatar` из
-  `user_metadata`). Без него поля будут `undefined` — не ломает существующее.
+  Requires a paired online deploy (`/oauth/exchange` now sets `name`/`avatar` from
+  `user_metadata`). Without it the fields will be `undefined` — does not break the existing behavior.
 
 ## 3.0.0-beta.11
 
 ### Patch Changes
 
-- UI: бейдж последнего метода входа возле OAuth-кнопок — «Last» → «Last used» (понятнее, что это «последний использованный метод»).
+- UI: badge of the last sign-in method next to the OAuth buttons — "Last" → "Last used" (clearer that it's "the last used method").
 
-  Переименовано в canonical EN, inline-фоллбэках `AuthPanel` и во всех 27 локалях
+  Renamed in canonical EN, the inline fallbacks of `AuthPanel`, and across all 27 locales
   (`auth.last_used` / `auth.last_used_no_email`): EN `Last used · {email}`, RU
-  `Последний вход · …`, DE `Zuletzt genutzt`, ES `Última vez`, JA `前回使用` и т.д.
-  Заодно закрыт пробел в покрытии — раньше `auth.last_used` (с email) был переведён
-  лишь частично и часть локалей падала на английский inline-фоллбэк.
+  `Последний вход · …`, DE `Zuletzt genutzt`, ES `Última vez`, JA `前回使用`, etc.
+  This also closed a coverage gap — previously `auth.last_used` (with email) was only
+  partially translated and some locales fell back to the English inline fallback.
 
 ## 3.0.0-beta.10
 
 ### Patch Changes
 
-- OAuth identity-already-linked: классификация по описанию ошибки — устойчивость к version skew callback↔SDK.
+- OAuth identity-already-linked: classification by error description — resilience to version skew callback↔SDK.
 
-  В проде выяснилось, что hosted OAuth-callback может форвардить только
-  человекочитаемый `error_description` («Identity is already linked to another
-  user»), но НЕ машинный `error_code` (страница callback'а деплоится независимо от
-  npm-SDK; старый/закешированный билд не прокидывает `error_code`). beta.9
-  классифицировал switch-account только по `errorCode`, поэтому
-  `identity_already_exists` прилетал как generic `oauth_failed` → «Sign-in failed»
-  без кнопки.
+  In prod it turned out that the hosted OAuth callback can forward only
+  the human-readable `error_description` ("Identity is already linked to another
+  user"), but NOT the machine-readable `error_code` (the callback page deploys independently of
+  the npm SDK; an old/cached build doesn't pass `error_code`). beta.9
+  classified switch-account only by `errorCode`, so
+  `identity_already_exists` arrived as a generic `oauth_failed` → "Sign-in failed"
+  with no button.
 
-  - `isIdentityAlreadyLinked()` теперь матчит и `errorCode === 'identity_already_exists'`,
-    и текст ошибки (`already linked` / `identity_already_exists`) как fallback —
-    кнопка «sign in with that account» показывается независимо от того, форвардит
-    ли развёрнутый callback `error_code`.
+  - `isIdentityAlreadyLinked()` now matches both `errorCode === 'identity_already_exists'`
+    and the error text (`already linked` / `identity_already_exists`) as a fallback —
+    the "sign in with that account" button shows regardless of whether the deployed
+    callback forwards `error_code`.
 
 ## 3.0.0-beta.9
 
 ### Patch Changes
 
-- OAuth `identity_already_exists`: надёжный one-click «switch account» вместо бесшовного popup-reuse.
+- OAuth `identity_already_exists`: reliable one-click "switch account" instead of seamless popup-reuse.
 
-  beta.8 пытался бесшовно переключить аккаунт, переиспользуя тот же popup
-  (`popup.location.replace`). В реальном окружении это нестабильно: COOP (Google)
-  обрывает хэндл opener↔popup, а второй обмен в том же флоу добавлял точку отказа —
-  в итоге всплывал generic «Sign-in failed» вместо switch-ветки.
+  beta.8 tried to seamlessly switch accounts by reusing the same popup
+  (`popup.location.replace`). In a real environment this is unstable: COOP (Google)
+  severs the opener↔popup handle, and a second exchange in the same flow added a point of failure —
+  the end result being a generic "Sign-in failed" instead of the switch branch.
 
-  - Убрали popup-reuse. `identity_already_exists` сразу пробрасывается как
-    `oauth_identity_already_linked`, и `AuthPanel` показывает понятный текст +
-    кнопку «Continue with <provider>». Свежий клик → `signInWithOAuth({ switchAccount: true })`
-    → чистый signin (новый popup, новый PKCE-обмен) в аккаунт, которому принадлежит
-    identity. Паритет с legacy-веткой `switch_account`.
-  - `AuthPanel` логирует реальный код/описание OAuth-ошибки в `console.warn` —
-    раньше generic-фоллбэк прятал причину.
-  - Убран неиспользуемый `reuseState` из `startOAuthFlow` и `auth.oauthStart`.
+  - Removed popup-reuse. `identity_already_exists` is now surfaced directly as
+    `oauth_identity_already_linked`, and `AuthPanel` shows a clear message +
+    a "Continue with <provider>" button. A fresh click → `signInWithOAuth({ switchAccount: true })`
+    → a clean signin (new popup, new PKCE exchange) into the account that owns the
+    identity. Parity with the legacy `switch_account` branch.
+  - `AuthPanel` logs the real OAuth error code/description to `console.warn` —
+    previously the generic fallback hid the cause.
+  - Removed the unused `reuseState` from `startOAuthFlow` and `auth.oauthStart`.
 
 ## 3.0.0-beta.8
 
 ### Patch Changes
 
-- OAuth: авто-переключение на существующий аккаунт при `identity_already_exists` + понятный UX коллизии email.
+- OAuth: auto-switch to an existing account on `identity_already_exists` + clear UX for the email collision.
 
-  Раньше вход через Google/Apple под анонимной сессией шёл через `linkIdentity`, и если
-  провайдер уже привязан к другому аккаунту, GoTrue возвращал `identity_already_exists`,
-  а SDK показывал глухое «Sign-in failed».
+  Previously, signing in via Google/Apple under an anonymous session went through `linkIdentity`, and if
+  the provider was already linked to another account, GoTrue returned `identity_already_exists`,
+  and the SDK showed a blank "Sign-in failed".
 
-  - `signInWithOAuth` ловит `identity_already_exists` и бесшовно переключается на обычный
-    signin, **переиспользуя тот же popup** (`popup.location.replace` на signin-флоу с тем же
-    state; SSO провайдера уже активна → почти мгновенно). Добавлены `switchAccount` в
-    `signInWithOAuth`/`startOAuthFlow` (не шлёт Bearer → без linkIdentity) и `waitForOAuthResult`
-    (структурный исход с `errorCode`, не закрывает popup сам). Если popup переиспользовать
-    нельзя (COOP оборвал handle) — фоллбэк-кнопка «войти в тот аккаунт» (свежий user-gesture).
-    Зеркально реализовано в `sdk-extension` split-flow (`auth.oauthStart` получил
+  - `signInWithOAuth` catches `identity_already_exists` and seamlessly switches to a regular
+    signin, **reusing the same popup** (`popup.location.replace` to the signin flow with the same
+    state; the provider's SSO is already active → near-instant). Added `switchAccount` to
+    `signInWithOAuth`/`startOAuthFlow` (doesn't send Bearer → no linkIdentity) and `waitForOAuthResult`
+    (a structured outcome with `errorCode`, doesn't close the popup itself). If the popup can't be reused
+    (COOP severed the handle) — a fallback button "sign in with that account" (a fresh user gesture).
+    Mirrored in the `sdk-extension` split-flow (`auth.oauthStart` got
     `switchAccount`/`reuseState`).
-  - Email-коллизия: GoTrue из-за анти-энумерации маскирует занятый email (в т.ч. OAuth-only)
-    под «подтвердите почту». `signUp` теперь возвращает `already_registered`, а `AuthPanel`
-    уводит юзера на форму входа с понятной подсказкой вместо тупика «проверьте почту».
-  - Новые i18n-ключи `auth.email_already_registered` / `auth.identity_already_linked`
-    (canonical EN + 27 локалей).
+  - Email collision: due to anti-enumeration, GoTrue masks an already-taken email (incl. OAuth-only)
+    as "confirm your email". `signUp` now returns `already_registered`, and `AuthPanel`
+    sends the user to the signin form with a clear hint instead of the dead-end "check your email".
+  - New i18n keys `auth.email_already_registered` / `auth.identity_already_linked`
+    (canonical EN + 27 locales).
 
-  Требует парного деплоя online-части (v3 OAuth callback теперь прокидывает `error_code` и
-  не закрывает popup на `identity_already_exists`; `/auth/email/signup` отдаёт
-  `already_registered`). Старый SDK с новым callback и новый SDK со старым callback
-  деградируют корректно — без бесконечных popup'ов.
+  Requires a paired deploy of the online part (the v3 OAuth callback now passes `error_code` and
+  doesn't close the popup on `identity_already_exists`; `/auth/email/signup` returns
+  `already_registered`). An old SDK with the new callback and a new SDK with the old callback
+  degrade gracefully — without infinite popups.
 
 ## 3.0.0-beta.7
 
 ### Patch Changes
 
-- Фикс зависания awaiting-экрана после оплаты в extension-странице.
+- Fix for the awaiting screen hanging after payment in an extension page.
 
-  Переход awaiting→success был завязан **исключительно** на `UserWatcher.onActive`,
-  а сам watcher не запускался для всего `chrome-extension://` протокола
-  (`shouldRunUserWatcher` считал любой такой контекст эфемерным action-popup'ом).
-  В полноценной extension-странице (side panel / отдельная вкладка), которая
-  переживает checkout, поллер был выключен, и закрыть awaiting было некому — даже
-  ручная кнопка «я оплатил» лишь слала `window.postMessage` для пробуждения
-  несуществующего watcher'а. Покупка проходила, `/user-state` отдавал
-  `has_active_subscription: true`, а экран висел.
+  The awaiting→success transition was tied **exclusively** to `UserWatcher.onActive`,
+  and the watcher itself didn't run for the entire `chrome-extension://` protocol
+  (`shouldRunUserWatcher` treated any such context as an ephemeral action-popup).
+  In a full-fledged extension page (side panel / separate tab) that
+  survives the checkout, the poller was off, and there was no one to close the awaiting screen — even
+  the manual "I've paid" button just sent a `window.postMessage` to wake up a
+  nonexistent watcher. The purchase went through, `/user-state` returned
+  `has_active_subscription: true`, and the screen hung.
 
-  - Переход централизован в идемпотентный `handlePurchaseDetected`, который
-    вызывается из `billing.onUserChange` — любой источник свежего active
-    user-state (ручной `getUser`, cross-context broadcast, watcher) закрывает
-    awaiting. Гейт на checkout-вью (`awaiting_payment`/`popup_blocked`), чтобы
-    открытие пейвола уже-подписанному юзеру не давало ложного срабатывания.
-  - `shouldRunUserWatcher` больше не режет `chrome-extension://` — переживающая
-    страница и может, и должна поллить; эфемерный action-popup безвредно
-    тёрдаунится вместе с контекстом (детект там покрывает bootstrap при
-    следующем открытии).
+  - The transition is centralized in the idempotent `handlePurchaseDetected`, which
+    is called from `billing.onUserChange` — any source of fresh active
+    user-state (manual `getUser`, cross-context broadcast, watcher) closes
+    awaiting. Gated on the checkout views (`awaiting_payment`/`popup_blocked`), so
+    opening the paywall for an already-subscribed user doesn't trigger a false positive.
+  - `shouldRunUserWatcher` no longer cuts off `chrome-extension://` — the surviving
+    page both can and should poll; the ephemeral action-popup harmlessly
+    tears down with the context (detection there covers bootstrap on the
+    next open).
 
 ## 3.0.0-beta.6
 
 ### Patch Changes
 
-- Версия SDK инжектится из package.json при сборке, а не хардкодится.
+- The SDK version is injected from package.json at build time instead of being hardcoded.
 
-  `SDK_VERSION` торчал захардкоженным литералом `'3.0.0-alpha.0'` через все
-  релизы (alpha.x → beta.x) — его ни разу не подняли. Он уходит в `X-SDK-Version`
-  на всех запросах, в `sdk_version` каждого события аналитики (ClickHouse) и в
-  ApiGateway, поэтому вся аналитика по версиям была слепой: события всех релизов
-  писались как одна версия.
+  `SDK_VERSION` stuck as a hardcoded literal `'3.0.0-alpha.0'` through every
+  release (alpha.x → beta.x) — it was never bumped. It goes out in `X-SDK-Version`
+  on all requests, in the `sdk_version` of every analytics event (ClickHouse) and in
+  ApiGateway, so all version-level analytics were blind: events of all releases
+  were written as a single version.
 
-  Теперь версия прокидывается из package.json через vite `define`
-  (`__SDK_VERSION__`) — в бандле строковый литерал, в `.d.ts` остаётся
-  `const SDK_VERSION: string`. `define` продублирован в vitest.config (он не
-  наследует vite.config), иначе токен не замещался бы в тестах.
+  Now the version is threaded from package.json via vite `define`
+  (`__SDK_VERSION__`) — a string literal in the bundle, and `.d.ts` keeps
+  `const SDK_VERSION: string`. `define` is duplicated in vitest.config (it doesn't
+  inherit vite.config), otherwise the token wouldn't be substituted in tests.
 
 ## 3.0.0-beta.5
 
 ### Patch Changes
 
-- Фикс расходящихся фокуса и выбора при открытии пейвола.
+- Fix for diverging focus and selection when opening the paywall.
 
-  При авто-открытии модалки (без предшествующего user-gesture) браузерная
-  эвристика `:focus-visible` рисовала кольцо на первом фокусируемом контроле — а
-  первый `button` в DOM это первая карточка тарифа (напр. месячный), тогда как
-  _выбран_ популярный план (`popular_price_id`), у которого акцентная рамка.
-  Кольцо фокуса оказывалось на одной карточке, выделение выбора — на другой; два
-  конфликтующих «активных» состояния сбивали с толку.
+  On auto-open of the modal (without a preceding user gesture) the browser
+  `:focus-visible` heuristic drew a ring on the first focusable control — but
+  the first `button` in the DOM is the first plan card (e.g. monthly), whereas
+  the _selected_ plan is the popular one (`popular_price_id`), which has the accent border.
+  The focus ring ended up on one card and the selection highlight on another; two
+  conflicting "active" states were confusing.
 
-  `Modal` больше не наводит фокус на первый интерактивный элемент — фокус уходит
-  на сам контейнер диалога (`tabIndex=-1`, `outline-none` → кольца нет). Ловушка
-  фокуса сохраняет якорь внутри диалога, `Tab` обходит контролы как раньше, для
-  скринридеров фокус на `aria-modal`-диалоге корректен. Добавлен явный опт-ин
-  `[data-pw-autofocus]` для вью, которым нужен автофокус инпута.
+  `Modal` no longer focuses the first interactive element — focus goes
+  to the dialog container itself (`tabIndex=-1`, `outline-none` → no ring). The focus
+  trap keeps the anchor inside the dialog, `Tab` cycles the controls as before, and for
+  screen readers focus on the `aria-modal` dialog is correct. Added an explicit opt-in
+  `[data-pw-autofocus]` for views that need input autofocus.
 
 ## 3.0.0-beta.4
 
 ### Patch Changes
 
-- Правки модалки пейвола и формулировок success-экрана.
+- Fixes to the paywall modal and the wording of the success screen.
 
-  **1. Скролл для self-contained статус-вью.** Диалог модалки ограничен по высоте
-  (`max-h … overflow-hidden`), а скролл-зону (`flex-1 min-h-0 overflow-y-auto`)
-  настраивали только `Renderer`/`AuthGate`/`SupportGate`. Простые статус-вью
+  **1. Scroll for self-contained status views.** The modal dialog is height-constrained
+  (`max-h … overflow-hidden`), and the scroll zone (`flex-1 min-h-0 overflow-y-auto`)
+  was set up only by `Renderer`/`AuthGate`/`SupportGate`. Simple status views
   (`PurchaseSuccessView`, `LoadingView`, `ErrorView`, `AwaitingPaymentView`,
-  `PopupBlockedView`) рендерились без обёртки и при нехватке высоты (маленькие
-  экраны, extension-попап ~600px) обрезались без возможности проскроллить.
-  Добавлен общий `Scroll`-враппер для этих вью; `Renderer`/`AuthGate`/`SupportGate`
-  не оборачиваются — у них свой scroll + закреплённый футер.
+  `PopupBlockedView`) rendered without a wrapper and, when height was tight (small
+  screens, extension popup ~600px), got clipped with no way to scroll.
+  Added a shared `Scroll` wrapper for these views; `Renderer`/`AuthGate`/`SupportGate`
+  are not wrapped — they have their own scroll + a pinned footer.
 
-  **2. Горизонтальные отступы у `PurchaseSuccessView`.** У корня вью были только
-  вертикальные отступы, а кнопка `Continue` — `w-full`, из-за чего она
-  растягивалась до краёв диалога, а её glow/shimmer вылезали за край. Добавлен
-  `px-6 sm:px-8` — как у соседних вью.
+  **2. Horizontal padding on `PurchaseSuccessView`.** The view root had only
+  vertical padding, and the `Continue` button was `w-full`, so it
+  stretched to the dialog edges and its glow/shimmer spilled over the edge. Added
+  `px-6 sm:px-8` — like the neighboring views.
 
-  **3. Нейтральные формулировки success/restored.** «Your subscription is now
-  active.» / «Subscription restored» некорректны для lifetime-покупок (это не
-  подписка). Success-сабтайтл → «You're all set — enjoy!», restored-заголовок →
-  «Welcome back», restored-сабтайтл → тот же «You're all set — enjoy!». Обновлён
-  EN-эталон, inline-fallback'и и все 27 локалей (`tools/sdk-translations.mjs` +
-  регенерация `gen-locales.mjs`).
+  **3. Neutral success/restored wording.** "Your subscription is now
+  active." / "Subscription restored" are incorrect for lifetime purchases (it's not
+  a subscription). Success subtitle → "You're all set — enjoy!", restored title →
+  "Welcome back", restored subtitle → the same "You're all set — enjoy!". Updated the
+  EN reference, the inline fallbacks and all 27 locales (`tools/sdk-translations.mjs` +
+  regeneration via `gen-locales.mjs`).
 
 ## 3.0.0-beta.3
 
 ### Patch Changes
 
-- a6b7a3a: Убрано аналитическое событие `paywall_opened`. Теперь показ пейвола фиксирует
-  единственный сигнал — `paywall_viewed` (эмитится на `'ready'`, после загрузки
-  bootstrap, с `prices_count`/`offers_count`/`is_test_mode`). `'open'` больше не
-  трекается отдельно ни в основном SDK, ни в extension-канале.
+- a6b7a3a: Removed the `paywall_opened` analytics event. Now a paywall display is recorded by
+  a single signal — `paywall_viewed` (emitted on `'ready'`, after the
+  bootstrap loads, with `prices_count`/`offers_count`/`is_test_mode`). `'open'` is no longer
+  tracked separately, neither in the main SDK nor in the extension channel.
 
-  Мотивация: `opened` и `viewed` дублировали друг друга в доминирующем паттерне
-  (тёплый bootstrap → оба события в одном батче), а лишнее событие на каждое
-  открытие умножало POST-нагрузку на `/events` и строки в `paywall_sdk_events`
-  при прод-масштабе (тысячи одновременных открытий). Воронка строится от
-  `viewed`. Сервер (`online`) больше не принимает `paywall_opened` в whitelist.
+  Motivation: `opened` and `viewed` duplicated each other in the dominant pattern
+  (warm bootstrap → both events in one batch), and an extra event on every
+  open multiplied the POST load on `/events` and the rows in `paywall_sdk_events`
+  at prod scale (thousands of simultaneous opens). The funnel is built from
+  `viewed`. The server (`online`) no longer accepts `paywall_opened` in the whitelist.
 
 ## 3.0.0-beta.2
 
@@ -986,148 +986,148 @@
 
 ### Patch Changes
 
-- Signup email-confirm: переход на link-флоу (как recovery) вместо dead-end
-  экрана ввода кода.
+- Signup email-confirm: moved to a link flow (like recovery) instead of a dead-end
+  code-entry screen.
 
-  Прод email-шаблон «Confirm signup» шлёт confirmation-**ссылку** (redirect_to →
-  `/paywall/v3/auth/confirm`), а не 6-значный код. Модалка же после signUp →
-  `confirmation_required` показывала экран `signup_verify` с инпутом кода —
-  юзер упирался в тупик: код вводить просят, но в письме его нет.
+  The prod email template "Confirm signup" sends a confirmation **link** (redirect_to →
+  `/paywall/v3/auth/confirm`), not a 6-digit code. But the modal, after signUp →
+  `confirmation_required`, showed the `signup_verify` screen with a code input —
+  the user hit a dead end: they were asked to enter a code, but there was none in the email.
 
-  Теперь после signUp показывается экран `signup_sent` («проверьте email →
-  кликните ссылку», зеркало `reset_sent`). Подтверждение завершается на
-  v3-странице, сессия синкается cross-tab → auth-гейт продвигается сам, как при
-  обычном signin. Симметрично recovery-флоу (forgot → reset_sent).
+  Now after signUp the `signup_sent` screen is shown ("check your email →
+  click the link", mirroring `reset_sent`). Confirmation completes on the
+  v3 page, the session syncs cross-tab → the auth gate advances on its own, as with a
+  regular signin. Symmetric to the recovery flow (forgot → reset_sent).
 
-  Удалён режим `signup_verify` и его OTP-ветка; добавлен ключ
-  `auth.signup_sent_subtitle` (canonical-en + 27 локалей).
+  Removed the `signup_verify` mode and its OTP branch; added the key
+  `auth.signup_sent_subtitle` (canonical-en + 27 locales).
 
 ## 3.0.0-alpha.22
 
 ### Patch Changes
 
-- Два фикса в модалке пейвола.
+- Two fixes in the paywall modal.
 
-  **1. `PurchaseSuccessView` — типографика/CTA по канону.** Success-вью
-  («Payment received» / «Subscription restored») выбивался из остального
-  пейвола: мелкий `text-lg` заголовок, `text-sm`/`gray-500` подзаголовок и
-  компактная inline-кнопка со своим градиентом. Приведён к канону `reset_sent`
-  (AuthPanel): `text-3xl font-bold` заголовок, `text-base`/`gray-600`
-  подзаголовок, full-width `pw-cta-shimmer` кнопка. Тексты и i18n-ключи не
-  тронуты, `id="pw-title"` (aria-labelledby модалки) сохранён.
+  **1. `PurchaseSuccessView` — typography/CTA per the canon.** The success view
+  ("Payment received" / "Subscription restored") was out of step with the rest of the
+  paywall: a small `text-lg` title, a `text-sm`/`gray-500` subtitle and
+  a compact inline button with its own gradient. Brought to the `reset_sent` canon
+  (AuthPanel): `text-3xl font-bold` title, `text-base`/`gray-600`
+  subtitle, a full-width `pw-cta-shimmer` button. Texts and i18n keys were not
+  touched, `id="pw-title"` (the modal's aria-labelledby) is preserved.
 
-  **2. Аналитика `paywall_opened`/`paywall_viewed`/`paywall_closed` —
-  гейт на реальный пейвол.** Эти события висели на публичных `'open'`/`'ready'`/
-  `'close'`, которые эмитятся для **любого** view. Поэтому открытие support
-  (`openSupport`), standalone-auth и re-mount `awaiting_payment`/`popup_blocked`
-  после headless-checkout слали ложный `paywall_opened` (и `paywall_viewed`/
-  `paywall_closed`) на `/events`. Добавлен `lastMountedView` (ставится в
-  `mountAndShow`), аналитика этих трёх событий теперь шлётся только при
-  `view === 'layout'`. Публичные `'open'`/`'ready'`/`'close'` события не
-  изменены — хосты получают их для всех view как раньше; гейтится только
-  отправка аналитики на сервер.
+  **2. `paywall_opened`/`paywall_viewed`/`paywall_closed` analytics —
+  gated on a real paywall.** These events hung on the public `'open'`/`'ready'`/
+  `'close'`, which are emitted for **any** view. So opening support
+  (`openSupport`), standalone-auth and re-mounting `awaiting_payment`/`popup_blocked`
+  after a headless-checkout sent a false `paywall_opened` (and `paywall_viewed`/
+  `paywall_closed`) to `/events`. Added `lastMountedView` (set in
+  `mountAndShow`); the analytics for these three events is now sent only when
+  `view === 'layout'`. The public `'open'`/`'ready'`/`'close'` events are not
+  changed — hosts get them for all views as before; only the
+  sending of analytics to the server is gated.
 
 ## 3.0.0-alpha.21
 
 ### Patch Changes
 
-- Fix: просроченный offer переставал давать скидку в countdown-баннере, но
-  оставался в ценах внутри модалки и улетал в checkout.
+- Fix: an expired offer stopped giving the discount in the countdown banner, but
+  remained in the prices inside the modal and was passed to checkout.
 
-  `PriceGrid` (strike-through / `-X%` в карточках модалки) и checkout-путь в
-  `PaywallRoot` резолвили offer через сырой `findApplicableOffer`, который
-  фильтрует только по `price_id` + `discount_percent > 0` и **срок не
-  смотрит**. Хост-прайсинг (`usePaywallOffer` → `getOfferForPrice` →
-  `resolveOffer`) и countdown-баннер (`useOfferCountdown`) при этом expiry
-  учитывают. Итог — рассинхрон: оффер истёк, баннер скрыт и в хост-карточках
-  скидки нет, а в карточках модалки скидка со strike-through ещё висит.
+  `PriceGrid` (strike-through / `-X%` in the modal cards) and the checkout path in
+  `PaywallRoot` resolved the offer via the raw `findApplicableOffer`, which
+  filters only by `price_id` + `discount_percent > 0` and **doesn't check
+  the deadline**. Host pricing (`usePaywallOffer` → `getOfferForPrice` →
+  `resolveOffer`) and the countdown banner (`useOfferCountdown`) do account for
+  expiry. The result was a desync: the offer expired, the banner is hidden and there's no
+  discount in the host cards, but in the modal cards the discount with strike-through still hung on.
 
-  Второй, более неприятный side-эффект — checkout. Для `duration_minutes`
-  офферов нет server-side таймера, бэк доверяет переданному `offerId`. Сырой
-  `findApplicableOffer` слал id просроченного оффера в `createCheckout` → бэк
-  применял бы скидку, которой в UI уже не видно.
+  The second, more unpleasant side-effect was checkout. For `duration_minutes`
+  offers there's no server-side timer, the backend trusts the passed `offerId`. The raw
+  `findApplicableOffer` sent the id of the expired offer to `createCheckout` → the backend
+  would apply a discount no longer visible in the UI.
 
-  Фикс: новый `findLiveOffer(offers, priceId, opts)` в `core/offer.ts` —
-  expiry-aware обёртка (`findApplicableOffer` → `resolveOffer`, режет
-  истёкшее). `PriceGrid` (все 4 call-site) и checkout в `PaywallRoot`
-  переведены на неё с `readStart: readBrowserOfferStart`. Теперь скидка в
-  карточках модалки и `offerId` на чекауте исчезают синхронно с баннером.
+  Fix: a new `findLiveOffer(offers, priceId, opts)` in `core/offer.ts` —
+  an expiry-aware wrapper (`findApplicableOffer` → `resolveOffer`, cuts off
+  the expired). `PriceGrid` (all 4 call-sites) and checkout in `PaywallRoot`
+  were switched to it with `readStart: readBrowserOfferStart`. Now the discount in
+  the modal cards and the `offerId` at checkout disappear in sync with the banner.
 
-  Семантика «оффер ещё не стартовал» (нет marker'а) сохранена — `resolveOffer`
-  трактует такой `duration_minutes`-оффер как perpetual, скидка показывается.
+  The "offer hasn't started yet" semantics (no marker) is preserved — `resolveOffer`
+  treats such a `duration_minutes` offer as perpetual, the discount is shown.
 
-  Не покрыт мелкий кейс «модалка открыта в момент истечения»: `PriceGrid` не
-  тикает раз в секунду, скидка доживёт до следующего ре-рендера. Открытие
-  пейвола _после_ истечения (основной баг) закрыто полностью.
+  Not covered is the minor case "modal open at the moment of expiry": `PriceGrid` doesn't
+  tick once a second, so the discount survives until the next re-render. Opening
+  the paywall _after_ expiry (the main bug) is fully closed.
 
 ## 3.0.0-alpha.20
 
 ### Patch Changes
 
-- `OfferBanner` — fix offer-farming через re-open пейвола.
+- `OfferBanner` — fix offer-farming via re-opening the paywall.
 
-  `useOfferCountdown` при `expired === true` удалял ключ
-  `pw-offer-<id>-start` из localStorage, считая это безопасным cleanup'ом.
-  Но именно этот ключ — единственный forever-marker «этот offer уже
-  стартовал для юзера». Без него `resolveEndMs` при следующем открытии
-  пейвола записывал свежий `start` (= `Date.now()`) и countdown начинался
-  заново — несмотря на то что offer уже давно истёк.
+  `useOfferCountdown`, on `expired === true`, deleted the key
+  `pw-offer-<id>-start` from localStorage, treating it as safe cleanup.
+  But that very key is the only forever-marker that "this offer has already
+  started for the user". Without it, `resolveEndMs` on the next paywall open
+  wrote a fresh `start` (= `Date.now()`) and the countdown started
+  over — even though the offer had long since expired.
 
-  Сценарий, который ловит юзер:
+  The scenario a user can exploit:
 
-  1. Видит offer → таймер запущен, ключ сохранён.
-  2. Логинится, открывает checkout, закрывает без оплаты.
-  3. Закрывает пейвол → таймер тикает в фоне → истекает → `removeItem`.
-  4. Открывает пейвол снова → offer показывает полную `duration_minutes`.
+  1. Sees the offer → timer started, key saved.
+  2. Logs in, opens checkout, closes it without paying.
+  3. Closes the paywall → timer ticks in the background → expires → `removeItem`.
+  4. Opens the paywall again → the offer shows the full `duration_minutes`.
 
-  Фикс: на expiry останавливаем `setInterval`, но ключ из storage НЕ
-  удаляем. При следующем resolve `start + duration < now` → банер
-  скрывается через стандартный `timeLeft.expired` guard. Юзер физически
-  не может «фармить» offer повторными открытиями.
+  Fix: on expiry we stop the `setInterval`, but do NOT delete the key from storage.
+  On the next resolve `start + duration < now` → the banner
+  is hidden via the standard `timeLeft.expired` guard. A user physically
+  cannot "farm" the offer by re-opening.
 
-  Side-effect: localStorage накапливает по одному ~50-байтовому ключу на
-  каждый когда-либо стартовавший offer. Допустимая цена за корректность.
+  Side-effect: localStorage accumulates one ~50-byte key per
+  every offer that ever started. An acceptable price for correctness.
 
 ## 3.0.0-alpha.19
 
 ### Patch Changes
 
-- i18n — переводы для нового `reset_sent` view.
+- i18n — translations for the new `reset_sent` view.
 
-  Добавлены три ключа в `sdk-translations.mjs` и сгенерированы во все 27
-  локалей через `tools/gen-locales.mjs`:
+  Added three keys to `sdk-translations.mjs` and generated into all 27
+  locales via `tools/gen-locales.mjs`:
 
-  - `auth.reset_sent_subtitle` — пояснение под title'ом «Check your email».
-  - `auth.reset_link_valid` — подсказка «The link is valid for 1 hour.».
-  - `auth.back_to_login` — лейбл primary-кнопки.
+  - `auth.reset_sent_subtitle` — explanation under the "Check your email" title.
+  - `auth.reset_link_valid` — hint "The link is valid for 1 hour.".
+  - `auth.back_to_login` — label of the primary button.
 
-  До этого релиза эти строки рендерились через английский inline-fallback
-  из `t()`-вызова — title локализовался, остальное оставалось на английском.
+  Before this release these strings rendered through the English inline-fallback
+  in the `t()` call — the title was localized, the rest stayed in English.
 
 ## 3.0.0-alpha.18
 
 ### Patch Changes
 
-- `AuthPanel` — нативный «Check your email» экран после запроса password reset.
+- `AuthPanel` — native "Check your email" screen after a password reset request.
 
-  Раньше после отправки reset-письма в `auth_panel` показывался серый
-  info-баннер с текстом и стандартный заголовок формы — выглядело как
-  техническое уведомление, а не подтверждение действия. Теперь
-  `reset_sent` это отдельный success-view: зелёный круг с галочкой
-  (та же визуальная палитра, что у success-state в `PaywallRoot`),
-  крупный title «Check your email», поясняющий сабтайтл, email юзера
-  жирным и подсказка про срок действия ссылки. Снизу — large primary
-  кнопка «Back to Login» в брендовом accent-цвете.
+  Previously, after sending the reset email, `auth_panel` showed a grey
+  info-banner with text and the standard form header — it looked like a
+  technical notification rather than a confirmation of the action. Now
+  `reset_sent` is a separate success-view: a green circle with a checkmark
+  (the same visual palette as the success-state in `PaywallRoot`),
+  a large "Check your email" title, an explanatory subtitle, the user's email
+  in bold, and a hint about the link's validity. At the bottom — a large primary
+  "Back to Login" button in the brand accent color.
 
-  Новые i18n-ключи (с английским fallback'ом inline):
+  New i18n keys (with English fallback inline):
 
-  - `auth.reset_sent_subtitle` — «We sent a password reset link. Follow
-    the instructions in the email to reset your password.»
-  - `auth.reset_link_valid` — «The link is valid for 1 hour.»
-  - `auth.back_to_login` — «Back to Login»
+  - `auth.reset_sent_subtitle` — "We sent a password reset link. Follow
+    the instructions in the email to reset your password."
+  - `auth.reset_link_valid` — "The link is valid for 1 hour."
+  - `auth.back_to_login` — "Back to Login"
 
-  Старый `setInfo(...)` и серый info-баннер для `reset_sent` убраны —
-  текст теперь живёт в самом view.
+  The old `setInfo(...)` and the grey info-banner for `reset_sent` are removed —
+  the text now lives in the view itself.
 
 ## 3.0.0-alpha.17
 
@@ -1517,14 +1517,14 @@
 
 - i18n force-locale + structured auth errors + price grid polish
 
-  - **`PaywallUI.locale` option + `PaywallUI.setLocale()`**: explicit-override языка для I18nProvider, минующий navigator.language и owner-translations check. Нужен live-preview редактору админки («Preview as user from <country>») — там browser-locale всегда EN. `setLocale(null)` возвращает автоматическую резолв-логику; live-обновление через `handle.update`. Помечено `@internal` — конечным интеграторам форсить язык не нужно.
-  - **AuthPanel: structured error mapping**. Раньше `err.message` показывал сырой HTTP statusText ("Unauthorized", "Bad Request") — англоязычный и нелокализованный. Теперь `authErrorMessage()` маппит стабильные `err.code` (`invalid_credentials`, `email_not_confirmed`, `email_exists`, `weak_password`, `invalid_otp`, `rate_limited`, `network_error`, `service_unavailable`, …) на i18n-ключи `auth.*`. Для непонятных кодов — generic fallback `auth.signin_failed`/`auth.signup_failed`. 8 новых i18n-ключей, переводы на все 27 bundled locales.
-  - **PriceGrid: compact view as card**. Compact-режим теперь wrap'ит строки в `rounded-xl border bg-gray-50` — зеркало legacy `PaywallPricing` wrapper'а для non-default view. Отделяет блок цен от остального layout'а.
-  - **PriceGrid: smart strike-row reservation**. Горизонтальный view резервирует 22px высоту под "strike-through originalAmount + discount-pill" у ВСЕХ карточек только если хоть одна цена в гриде имеет скидку. Если оффера нет ни у одной — row не рендерится, не остаётся 22px пустоты под label'ом.
-  - **PriceGrid: убран `trial_days` хинт** под main amount (компактнее layout, trial-info остаётся в CtaButton).
-  - **TokenizationGate: lifetime copy**. Для `interval === 'lifetime'` (или отсутствующего) рендерится новый ключ `pricing.included_total` ("Included for lifetime:") вместо `pricing.included_per` ("Included per {interval}:").
-  - **Renderer.hasTopBanner**: prop для уменьшения top-padding scrollable-зоны когда над dialog'ом рендерится OfferTopBanner.
-  - **i18n cleanup**: `auth.check_email_title` теперь короткий нейтральный заголовок ("Check your email") — legacy-перевод длинной фразы про signup-link был некорректен для forgot-password flow.
+  - **`PaywallUI.locale` option + `PaywallUI.setLocale()`**: explicit language override for I18nProvider, bypassing navigator.language and the owner-translations check. Needed for the admin editor's live-preview ("Preview as user from <country>") — there the browser locale is always EN. `setLocale(null)` restores the automatic resolution logic; live updates via `handle.update`. Marked `@internal` — end integrators don't need to force the language.
+  - **AuthPanel: structured error mapping**. Previously `err.message` showed the raw HTTP statusText ("Unauthorized", "Bad Request") — English-only and unlocalized. Now `authErrorMessage()` maps stable `err.code` values (`invalid_credentials`, `email_not_confirmed`, `email_exists`, `weak_password`, `invalid_otp`, `rate_limited`, `network_error`, `service_unavailable`, …) to `auth.*` i18n keys. For unknown codes — generic fallback `auth.signin_failed`/`auth.signup_failed`. 8 new i18n keys, translated across all 27 bundled locales.
+  - **PriceGrid: compact view as card**. Compact mode now wraps the rows in `rounded-xl border bg-gray-50` — mirroring the legacy `PaywallPricing` wrapper for the non-default view. Separates the prices block from the rest of the layout.
+  - **PriceGrid: smart strike-row reservation**. The horizontal view reserves 22px of height for "strike-through originalAmount + discount-pill" on ALL cards only if at least one price in the grid has a discount. If no card has an offer — the row is not rendered, leaving no 22px of empty space under the label.
+  - **PriceGrid: removed the `trial_days` hint** under the main amount (more compact layout, trial-info stays in CtaButton).
+  - **TokenizationGate: lifetime copy**. For `interval === 'lifetime'` (or missing) the new key `pricing.included_total` ("Included for lifetime:") is rendered instead of `pricing.included_per` ("Included per {interval}:").
+  - **Renderer.hasTopBanner**: prop to reduce the top-padding of the scrollable zone when an OfferTopBanner is rendered above the dialog.
+  - **i18n cleanup**: `auth.check_email_title` is now a short neutral heading ("Check your email") — the legacy translation of the long signup-link phrase was incorrect for the forgot-password flow.
 
 ## 3.0.0-alpha.5
 
@@ -1532,27 +1532,27 @@
 
 - Popup bug fixes + UI polish
 
-  - `PaywallRoot`: анон-сессия больше не блокирует кнопку «Restore Purchases» и preauth-checkout (трактуется как «нет логина» в обоих местах, консистентно с `CurrentSession`/`AuthPanel`)
-  - `PaywallRoot`: X-крестик возвращается на standalone `openAuth()` — без Back-стрелки модалку было нельзя закрыть кроме ESC
-  - `PaywallRoot`: `useLayoutEffect` вместо `useEffect` для синхронизации gate-state на `open/initialView` — фиксит flash layout'а тарифов при повторном `openAuth()` (заметно в extension-popup'е из-за RemoteAuth/RemoteBilling RTT)
-  - `RemoteAuthClient`: реализован `getLastLogin()` (был не зеркалирован, AuthPanel падал с `r.getLastLogin is not a function` в console попапа)
-  - `AuthPanel`: defensive guard на `getLastLogin` — старые билды sdk-extension'а / кастомные AuthClient'ы не валят signin-форму
-  - Compile-time tests: `RemoteAuthClient.test-d.ts` и `RemoteBillingClient.test-d.ts` ловят расхождения proxy-классов с базовыми ещё на `tsc --noEmit`
+  - `PaywallRoot`: an anon session no longer blocks the "Restore Purchases" button and preauth-checkout (treated as "not logged in" in both places, consistent with `CurrentSession`/`AuthPanel`)
+  - `PaywallRoot`: the X close button returns on standalone `openAuth()` — without a Back arrow the modal couldn't be closed except by ESC
+  - `PaywallRoot`: `useLayoutEffect` instead of `useEffect` for syncing gate-state on `open/initialView` — fixes the flash of the plan layout on a repeated `openAuth()` (noticeable in the extension popup due to RemoteAuth/RemoteBilling RTT)
+  - `RemoteAuthClient`: implemented `getLastLogin()` (was not mirrored, AuthPanel crashed with `r.getLastLogin is not a function` in the popup console)
+  - `AuthPanel`: defensive guard on `getLastLogin` — old sdk-extension builds / custom AuthClients don't break the signin form
+  - Compile-time tests: `RemoteAuthClient.test-d.ts` and `RemoteBillingClient.test-d.ts` catch divergences of the proxy classes from the base ones at `tsc --noEmit`
 
 ## 3.0.0-alpha.4
 
 ### Major Changes
 
-- BREAKING: `apiOrigin` теперь **обязательное** поле у `BillingClient`, `AuthClient`, `ApiGatewayClient` — передавайте `custom_domain` пейвола, заданный в платформе. Прежний fallback `https://appbox.space` удалён (он использовался только legacy v2 SDK). SDK сверяет `apiOrigin` с `bootstrap.settings.custom_domain` и кидает `invalid_config` при расхождении — защита от опечатки интегратора.
+- BREAKING: `apiOrigin` is now a **required** field on `BillingClient`, `AuthClient`, `ApiGatewayClient` — pass the paywall's `custom_domain` configured in the platform. The previous `https://appbox.space` fallback is removed (it was used only by the legacy v2 SDK). The SDK checks `apiOrigin` against `bootstrap.settings.custom_domain` and throws `invalid_config` on mismatch — a guard against integrator typos.
 
-  Также:
+  Also:
 
-  - Новый layout block `guarantee_badge` (money-back бейдж под CTA, иконка `dollar_shield` или `none`).
-  - `PaywallSettings.custom_domain` — новое поле в bootstrap, нормализуется через `URL().origin`.
-  - Default layout теперь включает `guarantee_badge` + `current_session` после CTA.
-  - PriceGrid: валюта отдельным элементом рядом с amount, plan label в ALL CAPS, чекмарк справа, селектор без radio.
-  - Modal: Test-mode badge — absolute поверх dialog'а (rounded pill, не баннер сверху), close-button перепозиционирован.
-  - CtaButton: shimmer-анимация (CSS), rounded-full, более насыщенный градиент с inset glow.
-  - CurrentSession: ссылки accent-цвета (вместо серых).
-  - Heading h1: 1.875rem (было 1.625), bold, text-balance.
-  - TokenizationGate: насыщенный checkmark на accent-фоне.
+  - New layout block `guarantee_badge` (money-back badge under the CTA, icon `dollar_shield` or `none`).
+  - `PaywallSettings.custom_domain` — new field in bootstrap, normalized via `URL().origin`.
+  - Default layout now includes `guarantee_badge` + `current_session` after the CTA.
+  - PriceGrid: currency as a separate element next to the amount, plan label in ALL CAPS, checkmark on the right, selector without radio.
+  - Modal: Test-mode badge — absolute over the dialog (rounded pill, not a banner on top), close-button repositioned.
+  - CtaButton: shimmer animation (CSS), rounded-full, richer gradient with inset glow.
+  - CurrentSession: accent-color links (instead of grey).
+  - Heading h1: 1.875rem (was 1.625), bold, text-balance.
+  - TokenizationGate: rich checkmark on an accent background.
