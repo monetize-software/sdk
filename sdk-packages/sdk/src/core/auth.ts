@@ -537,12 +537,16 @@ export class AuthClient {
    *   3. Otherwise → POST /auth/anonymous/signin → setSession + save the
    *      refresh_token in anonRefreshToken.
    *
-   * `captchaToken` isn't required right now — captcha protection in Supabase is
-   * disabled, protection against per-IP abuse rests on Supabase's rate limit
-   * (30/hour per real-IP, see the IP forwarding setup in supabaseAuthRest.ts) +
-   * CF Bot Fight Mode at the edge. The field is left optional for forward-compat:
-   * when the server starts returning challenge_required in risk scenarios, the
-   * SDK can pass proof-of-something back without a breaking change.
+   * `captchaToken` isn't required — NOT because captcha is disabled in the project
+   * (it may well be enabled for the legacy flow), but because v3 auth never hits
+   * GoTrue from the browser: the SDK calls the `online` server, which talks to
+   * GoTrue with the service_role key, and GoTrue skips captcha for admin
+   * credentials (verifyCaptcha → requireAdminCredentials). Per-IP abuse is covered
+   * by Supabase's rate limit (30/hour per real-IP, see the IP forwarding setup in
+   * supabaseAuthRest.ts) + CF Bot Fight Mode at the edge. The field is left
+   * optional for forward-compat: when the server starts returning
+   * challenge_required in risk scenarios, the SDK can pass proof-of-something back
+   * without a breaking change.
    *
    * `forceNewAnon: true` skips steps 1-2 and does /signin straight away (creates
    * a new anon user). Used in the switch-account flow.
