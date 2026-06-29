@@ -64,15 +64,38 @@ export function mountShadow<P extends object>(
 
   const host = options.host ?? document.createElement('div');
   host.setAttribute('data-paywall-host', '');
-  // Fixed-viewport (production) or absolute-within-host (inline preview).
-  // pointer-events:none — clicks pass through the host wrapper to the editor's
-  // form checkerboard; mountPoint below enables `auto` on itself.
+  // `all: initial` neutralises inheritance; the actual layout (position/inset/z-index)
+  // is asserted in the `:host` rule below with `!important`. We can NOT rely on these
+  // inline declarations: the shadow's `:host { all: initial !important }` is an
+  // important author rule and overrides even an `!important` inline style on the host
+  // (verified in Chromium) — so without the `:host` layout the host computes to
+  // `position: static`. Kept here only as a harmless fallback layer.
   host.style.cssText = options.inline
     ? 'all: initial; position: absolute; inset: 0; z-index: 1; pointer-events: none;'
     : 'all: initial; position: fixed; inset: 0; z-index: 2147483647; pointer-events: none;';
   // Without a host from options and without inline — attach to body. Inline expects
   // the host to already be in the right parent (the platform passes hostRef).
   if (!host.isConnected && !options.inline) document.body.appendChild(host);
+
+  // Top layer. `position: fixed` resolves against the viewport ONLY if no ancestor
+  // establishes a containing block for fixed descendants (transform / filter /
+  // perspective / will-change / contain / backdrop-filter). The host page is arbitrary
+  // (content scripts, extension side panels, SPA roots) and such ancestors are common —
+  // when present, the fixed overlay collapses into normal flow and the paywall becomes
+  // invisible. Promoting the host into the top layer via the Popover API detaches it
+  // from ancestor containing blocks entirely, so it always fills the viewport.
+  // `manual` — no light-dismiss / Esc-close; the SDK manages its own lifecycle.
+  // Feature-detected + try/catch: on older engines we silently fall back to the plain
+  // fixed overlay (works on pages without a containing-block trap, the prior behaviour).
+  if (!options.inline && host.isConnected && typeof (host as { showPopover?: unknown }).showPopover === 'function') {
+    try {
+      host.setAttribute('popover', 'manual');
+      (host as { showPopover: () => void }).showPopover();
+    } catch {
+      // Already open, disconnected, or unsupported value — keep the fixed-overlay fallback.
+      host.removeAttribute('popover');
+    }
+  }
 
   // Default `closed` — isolation from the host page. In e2e/demo tests
   // we enable `open` via the option, otherwise Playwright can't cross the
@@ -84,10 +107,17 @@ export function mountShadow<P extends object>(
   // in the shadow overrides an external `!important` on the host (CSS Scoping spec).
   // Render filters (filter, transform, opacity) on ancestors can't be guarded —
   // they apply at the compositing level.
+  // Layout asserted here (not via the inline style) because `:host { all: initial !important }`
+  // is what wins the cascade for the host element. Fixed-viewport in production, or
+  // absolute-within-parent in the inline editor preview.
+  const hostLayout = options.inline
+    ? 'position: absolute !important; inset: 0 !important; z-index: 1 !important; pointer-events: none !important;'
+    : 'position: fixed !important; inset: 0 !important; z-index: 2147483647 !important; pointer-events: none !important;';
   const hostReset = `
 :host {
   all: initial !important;
   display: block !important;
+  ${hostLayout}
   color: #111827 !important;
   font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif !important;
   font-size: 16px !important;

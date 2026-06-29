@@ -1,0 +1,12 @@
+{
+  "mode": "pre",
+  "tag": "rc",
+  "initialVersions": {
+    "@monetize.software/sdk": "3.0.0",
+    "@monetize.software/sdk-extension": "3.0.0",
+    "@monetize.software/sdk-react": "3.0.0"
+  },
+  "changesets": [
+    "paywall-top-layer-overlay"
+  ]
+}
