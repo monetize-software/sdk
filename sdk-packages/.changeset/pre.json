@@ -7,6 +7,7 @@
     "@monetize.software/sdk-react": "3.0.0"
   },
   "changesets": [
+    "extension-tailwind-build",
     "paywall-top-layer-overlay"
   ]
 }

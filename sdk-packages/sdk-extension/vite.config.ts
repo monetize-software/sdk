@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite';
 import { resolve } from 'node:path';
+import tailwindcss from '@tailwindcss/vite';
 import dts from 'vite-plugin-dts';
 
 // Three runtime targets bundled from one source tree:
@@ -12,6 +13,13 @@ import dts from 'vite-plugin-dts';
 // are kept out of content-script bundle, offscreen imports out of SW bundle).
 export default defineConfig(({ command }) => ({
   plugins: [
+    // Compiles the Tailwind CSS that the bundled sdk UI imports via `styles.css?inline`.
+    // Without it, `@import 'tailwindcss'` / `@tailwind` / `@source` ship to the bundle
+    // uncompiled and the paywall renders unstyled in the shadow root. The sdk package's
+    // own build runs this; sdk-extension re-bundles the UI from `../sdk/src` (alias @sdk),
+    // so it must run Tailwind too. styles.css carries an explicit `@source "../**"` so the
+    // utility scan still covers sdk/src/ when the build root is this package.
+    tailwindcss(),
     command === 'build' &&
       dts({
         entryRoot: 'src',
