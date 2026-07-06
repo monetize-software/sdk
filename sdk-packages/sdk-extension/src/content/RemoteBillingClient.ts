@@ -311,6 +311,22 @@ export class RemoteBillingClient {
     return this.transport.request('billing.cancelSubscription', payload, { signal });
   }
 
+  /** URL of the Stripe/Paddle/Chargebee customer portal. Proxies to the
+   *  offscreen BillingClient, which owns the Bearer session — so this works
+   *  from popup/options/content without access to the token. Same contract as
+   *  `BillingClient.getCustomerPortalUrl`: a backend 403 (no active
+   *  subscription / acquiring without a portal) surfaces as
+   *  PaywallError('forbidden') with `status: 403`. */
+  async getCustomerPortalUrl(
+    opts: { returnUrl?: string; signal?: AbortSignal } = {}
+  ): Promise<{ url: string }> {
+    return this.transport.request(
+      'billing.getCustomerPortalUrl',
+      { returnUrl: opts.returnUrl },
+      { signal: opts.signal }
+    );
+  }
+
   // === Storage ===
 
   /** PaywallUI asks the billing client for storage for TrialStore and other

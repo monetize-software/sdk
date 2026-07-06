@@ -41,6 +41,7 @@ export type RequestKind =
   | 'billing.createCheckout'
   | 'billing.listPurchases'
   | 'billing.cancelSubscription'
+  | 'billing.getCustomerPortalUrl'
   | 'billing.getIdentity'
   | 'billing.setIdentity'
   | 'billing.getVisitorId'

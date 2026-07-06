@@ -48,6 +48,7 @@ declare module './protocol' {
     };
     'billing.listPurchases': void;
     'billing.cancelSubscription': { subscriptionId: string; reason: string };
+    'billing.getCustomerPortalUrl': { returnUrl?: string };
     'billing.getIdentity': void;
     'billing.setIdentity': { identity: Identity | null };
     'billing.getVisitorId': void;
@@ -151,6 +152,7 @@ declare module './protocol' {
         cancel_at_period_end: boolean | null;
       };
     };
+    'billing.getCustomerPortalUrl': { url: string };
     'billing.getIdentity': Identity | null;
     'billing.setIdentity': void;
     'billing.getVisitorId': string;

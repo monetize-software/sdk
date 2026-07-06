@@ -94,6 +94,9 @@ export class OffscreenServer {
     this.transport.on('billing.cancelSubscription', async (params, ctx) =>
       this.billing.cancelSubscription({ ...params, signal: ctx.signal })
     );
+    this.transport.on('billing.getCustomerPortalUrl', async (params, ctx) =>
+      this.billing.getCustomerPortalUrl({ returnUrl: params.returnUrl, signal: ctx.signal })
+    );
 
     this.transport.on('billing.createSupportTicket', async (params) =>
       this.billing.createSupportTicket(params)

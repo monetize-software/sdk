@@ -68,6 +68,9 @@ function setupServer(billing: BillingClient): TransportServer {
   server.on('billing.getBalances', async (p) => billing.getBalances({ force: p.force }));
   server.on('billing.getCachedBalances', () => billing.getCachedBalances());
   server.on('billing.createCheckout', async (p) => billing.createCheckout(p));
+  server.on('billing.getCustomerPortalUrl', async (p) =>
+    billing.getCustomerPortalUrl({ returnUrl: p.returnUrl })
+  );
   server.on('billing.getIdentity', () => billing.getIdentity() ?? null);
   server.on('billing.setIdentity', (p) => {
     billing.setIdentity(p.identity ?? undefined);
@@ -164,6 +167,45 @@ describe('createCheckout — dedupe across tabs', () => {
 
     expect(checkoutCalls).toBe(1);
     expect(r1.url).toBe(r2.url);
+  });
+});
+
+describe('getCustomerPortalUrl — proxied through transport', () => {
+  it('returns the portal URL and forwards returnUrl to the backend', async () => {
+    let portalBody: { email?: string; returnUrl?: string } | null = null;
+    const fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      const u = typeof url === 'string' ? url : url.toString();
+      if (u.includes('/get-customer-portal')) {
+        portalBody = JSON.parse(init?.body as string);
+        return new Response(JSON.stringify({ url: 'https://billing.stripe.com/session/abc' }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' }
+        }) as unknown as Response;
+      }
+      return new Response('not found', { status: 404 }) as unknown as Response;
+    }) as unknown as typeof globalThis.fetch;
+
+    const billing = new BillingClient({
+      paywallId: 'demo',
+      apiOrigin: 'https://test.local',
+      identity: { email: 'u@x.io' },
+      fetch
+    });
+    const server = setupServer(billing);
+
+    const [c1, s1] = pairChannels();
+    server.accept(s1);
+    const tab = new RemoteBillingClient(new TransportClient(() => c1), { paywallId: 'demo' });
+
+    const result = await tab.getCustomerPortalUrl({ returnUrl: 'https://host.app/account' });
+
+    expect(result.url).toBe('https://billing.stripe.com/session/abc');
+    // Without Bearer the legacy body path is used: email + returnUrl must
+    // survive the content → offscreen → fetch round-trip.
+    expect(portalBody).toMatchObject({
+      email: 'u@x.io',
+      returnUrl: 'https://host.app/account'
+    });
   });
 });
 

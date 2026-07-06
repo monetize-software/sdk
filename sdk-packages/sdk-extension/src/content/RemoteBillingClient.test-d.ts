@@ -34,7 +34,6 @@ import type { RemoteBillingClient } from './RemoteBillingClient';
 //   offscreen, and dec/refresh go through transport.
 // - createApiGatewayClient: a factory; the popup host does new ApiGatewayClient
 //   directly with RemoteAuth (see popup.ts) — the proxy factory isn't needed.
-// - getCustomerPortalUrl: not exposed through transport (TODO when needed).
 // - getIdentity / setIdentity: the signatures diverge —
 //   BillingClient: setIdentity(Identity | undefined): void;
 //                 getIdentity(): Identity | undefined;
@@ -60,7 +59,6 @@ type ExcludedFromProxy =
   | 'decrementBalanceLocal'
   | 'refreshBalances'
   | 'createApiGatewayClient'
-  | 'getCustomerPortalUrl'
   | 'getIdentity'
   | 'setIdentity'
   // Server-SDK only (apiKey): manual token credit/debit. apiKey can't exist in a
