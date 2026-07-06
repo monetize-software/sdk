@@ -1,6 +1,6 @@
 {
   "name": "@monetize.software/sdk-extension",
-  "version": "3.2.0-rc.0",
+  "version": "3.2.0",
   "description": "Monetize SDK for Chrome extensions — single source of truth via offscreen document, drop-in compatible with @monetize.software/sdk public API",
   "keywords": [
     "paywall",
@@ -71,7 +71,7 @@
     "preact": "^10.24.0"
   },
   "peerDependencies": {
-    "@monetize.software/sdk": "workspace:*"
+    "@monetize.software/sdk": "workspace:^"
   },
   "peerDependenciesMeta": {
     "@monetize.software/sdk": {

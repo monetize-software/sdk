@@ -1,6 +1,6 @@
 {
   "name": "@monetize.software/sdk-react",
-  "version": "3.1.0-rc.0",
+  "version": "3.1.0",
   "description": "React bindings for @monetize.software/sdk — Provider, hooks and declarative components. Works with the web SDK and the extension SDK (any drop-in compatible PaywallUI).",
   "keywords": [
     "paywall",
@@ -53,7 +53,7 @@
   },
   "peerDependencies": {
     "react": ">=18",
-    "@monetize.software/sdk": "workspace:*"
+    "@monetize.software/sdk": "workspace:^"
   },
   "peerDependenciesMeta": {
     "@monetize.software/sdk": {
