@@ -105,6 +105,11 @@ export interface PaywallRootProps {
    *  to show it as for a user from the chosen country. See
    *  I18nProviderProps.forceLocale. */
   locale?: string | null;
+  /** Per-open custom title (OpenOptions.title). Applied by the Renderer over
+   *  the resolved layout (after locale overrides): replaces the text of the
+   *  first h1 heading block, or prepends one if the layout has none. null —
+   *  the layout's own heading is shown. */
+  titleOverride?: string | null;
 }
 
 type LoadState =
@@ -223,7 +228,8 @@ export function PaywallRoot({
   renew,
   onState,
   inline,
-  locale
+  locale,
+  titleOverride
 }: PaywallRootProps) {
   const [state, setState] = useState<LoadState>({ status: 'idle' });
   // We keep session in state so blocks (auth_panel) re-render on login/logout.
@@ -788,6 +794,7 @@ export function PaywallRoot({
           onAction={handleAction}
           auth={client.auth}
           authSession={authSession}
+          titleOverride={titleOverride}
         />
       )}
     </Modal>

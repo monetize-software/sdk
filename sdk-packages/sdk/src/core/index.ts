@@ -34,6 +34,13 @@ export {
   type ResolvedOffer
 } from './offer';
 export {
+  applyExperimentAssignment,
+  fnv1a,
+  pickVariant,
+  resolveExperimentAssignment,
+  type ExperimentAssignment
+} from './experiment';
+export {
   PaywallError,
   QuotaExceededError,
   type Balance,
@@ -43,6 +50,8 @@ export {
   type LayoutBlock,
   type LocaleOverrides,
   type PaywallBootstrap,
+  type PaywallExperiment,
+  type PaywallExperimentVariant,
   type PaywallOffer,
   type PaywallPrice,
   type PaywallSettings,

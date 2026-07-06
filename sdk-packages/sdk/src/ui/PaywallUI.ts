@@ -261,6 +261,14 @@ type InternalOpenOptions = OpenOptions & {
 
 export interface OpenOptions {
   identity?: Identity;
+  /** Custom paywall title for this particular open() — replaces the text of
+   *  the h1 `heading` block from the layout (locale overrides included); if the
+   *  layout has no h1, the title is rendered as a new heading at the top.
+   *  Scoped to the call: the next open() without `title` shows the configured
+   *  heading again. Useful for context-specific paywalls ("Unlock export",
+   *  "Projects limit reached"). Ignored by openSupport/openAuth/checkout —
+   *  those flows don't render the layout. */
+  title?: string;
   /** Force-open, bypassing the pre-paywall trial check. By default the SDK
    *  reads `bootstrap.settings.trial` and blocks open() while the trial is
    *  active. An escape hatch for cases like "the host decided to show it
@@ -314,6 +322,10 @@ export class PaywallUI {
    *  and `'close'`, but that's not "paywall viewed/closed" — otherwise a
    *  support click sends a false `paywall_viewed`. */
   private lastMountedView: PaywallView | null = null;
+  /** Per-open custom title (OpenOptions.title) of the current mount. null —
+   *  the layout's own heading is shown. Kept for the `paywall_viewed`
+   *  analytics flag. */
+  private titleOverride: string | null = null;
   /** Lazy TrialStore instance. Resolved on the first open(), when we already
    *  know `bootstrap.settings.trial`. null — the trial is disabled in the
    *  paywall config. */
@@ -411,6 +423,16 @@ export class PaywallUI {
       getVisitorId: () => this.billing.getVisitorId(),
       getCachedVisitorId: () => this.billing.getCachedVisitorId(),
       getUserId: () => this.billing.getIdentity()?.userId ?? null,
+      // A/B: enrich every event with the assigned variant. Read from the
+      // materialized bootstrap (not a dedicated method) so it also works
+      // through proxying clients (sdk-extension RemoteBillingClient mirrors
+      // getCachedBootstrap).
+      getExperimentContext: () => {
+        const experiment = this.billing.getCachedBootstrap()?.experiment;
+        return experiment?.assigned_variant
+          ? { experiment_id: experiment.id, variant: experiment.assigned_variant }
+          : null;
+      },
       flushIntervalMs: cfg.flushIntervalMs,
       maxBufferSize: cfg.maxBufferSize,
       fetch: cfg.fetch,
@@ -430,7 +452,10 @@ export class PaywallUI {
       this.tracker?.track('paywall_viewed', {
         is_test_mode: b.settings.is_test_mode,
         prices_count: b.prices.length,
-        offers_count: b.offers.length
+        offers_count: b.offers.length,
+        // The host passed open({title}) — the configured heading is replaced.
+        // Lets host-side title experiments be told apart in analytics.
+        ...(this.titleOverride ? { custom_title: true } : {})
       });
     });
     this.on('price_selected', (p) =>
@@ -991,9 +1016,10 @@ export class PaywallUI {
       view === 'support' ||
       view === 'auth';
     const renew = opts.renew === true;
+    const title = opts.title ?? null;
 
     if (skipTrial && skipVisibility) {
-      this.mountAndShow(view, { renew, authMode: opts.authMode });
+      this.mountAndShow(view, { renew, authMode: opts.authMode, title });
       return;
     }
 
@@ -1002,7 +1028,7 @@ export class PaywallUI {
     // open or not, without a flash.
     const cached = this.billing.getCachedBootstrap();
     if (cached) {
-      this.runOpenGates(view, cached, { skipTrial, skipVisibility, renew });
+      this.runOpenGates(view, cached, { skipTrial, skipVisibility, renew, title });
       return;
     }
 
@@ -1020,7 +1046,7 @@ export class PaywallUI {
     //   Guaranteed no flash on a block, but the button feels "dead" for
     //   200-500ms on a cold cache.
     if (this.mountThenLoad) {
-      this.mountAndShow(view, { renew });
+      this.mountAndShow(view, { renew, title });
       this.billing
         .bootstrap()
         .then((b) => this.runDelayedGates(b, { skipTrial, skipVisibility }))
@@ -1034,11 +1060,11 @@ export class PaywallUI {
     this.billing
       .bootstrap()
       .then((b) =>
-        this.runOpenGates(view, b, { skipTrial, skipVisibility, renew })
+        this.runOpenGates(view, b, { skipTrial, skipVisibility, renew, title })
       )
       .catch(() => {
         // Bootstrap failed — we open without gates; PaywallRoot shows the error.
-        this.mountAndShow(view, { renew });
+        this.mountAndShow(view, { renew, title });
       });
   }
 
@@ -1103,6 +1129,7 @@ export class PaywallUI {
       skipTrial: boolean;
       skipVisibility: boolean;
       renew: boolean;
+      title: string | null;
     }
   ): void {
     if (!flags.skipVisibility) {
@@ -1117,20 +1144,21 @@ export class PaywallUI {
     }
 
     if (flags.skipTrial) {
-      this.mountAndShow(view, { renew: flags.renew });
+      this.mountAndShow(view, { renew: flags.renew, title: flags.title });
       return;
     }
-    this.gateThroughTrial(view, bootstrap, flags.renew);
+    this.gateThroughTrial(view, bootstrap, flags.renew, flags.title);
   }
 
   private gateThroughTrial(
     view: PaywallView,
     bootstrap: PaywallBootstrap,
-    renew: boolean
+    renew: boolean,
+    title: string | null
   ): void {
     const trialCfg = bootstrap.settings.trial;
     if (!trialCfg) {
-      this.mountAndShow(view, { renew });
+      this.mountAndShow(view, { renew, title });
       return;
     }
     const store = this.ensureTrialStore(trialCfg);
@@ -1139,7 +1167,7 @@ export class PaywallUI {
       .then(async (status) => {
         this.lastTrialStatus = status;
         if (status.mode === 'none') {
-          this.mountAndShow(view, { renew });
+          this.mountAndShow(view, { renew, title });
           return;
         }
         if (status.blocked) {
@@ -1157,13 +1185,13 @@ export class PaywallUI {
           this.trialExpiredFired = true;
           this.emit('trial_expired');
         }
-        this.mountAndShow(view, { renew });
+        this.mountAndShow(view, { renew, title });
       })
       .catch((e) => {
         // Storage is unavailable (privacy mode, quota) — we don't block the
         // user, we open the modal and don't lose the sale.
         if (typeof console !== 'undefined') console.warn('[paywall] trial check failed', e);
-        this.mountAndShow(view, { renew });
+        this.mountAndShow(view, { renew, title });
       });
   }
 
@@ -1190,6 +1218,9 @@ export class PaywallUI {
     mountOpts: {
       renew?: boolean;
       authMode?: 'signin' | 'signup';
+      /** Per-open custom title (OpenOptions.title). Only meaningful for
+       *  view='layout' — the other views don't render the layout heading. */
+      title?: string | null;
       /** Direct-checkout context. Passed into PaywallRoot for two modes:
        *   - `view='auth'` + priceId → preauth-flow: the gate starts in
        *     auth_gate with pendingCheckout.direct=true;
@@ -1205,6 +1236,11 @@ export class PaywallUI {
     this.lastMountedView = view;
     const renew = mountOpts.renew === true;
     const initialAuthMode = mountOpts.authMode;
+    // The title override only applies to the layout view; on the other views we
+    // normalize it to null so handle.update doesn't carry a stale title from a
+    // previous open({title}) session.
+    const titleOverride = view === 'layout' ? mountOpts.title ?? null : null;
+    this.titleOverride = titleOverride;
     // priceId only makes sense for auth (preauth direct-checkout) and
     // awaiting_payment/popup_blocked (post-headless mount). On the other views
     // we normalize it to null so handle.update doesn't carry a stale priceId
@@ -1227,7 +1263,8 @@ export class PaywallUI {
         initialCheckoutPriceId,
         initialCheckoutUrl,
         purchased: false,
-        renew
+        renew,
+        titleOverride
       });
       this.emit('open');
       return;
@@ -1245,6 +1282,7 @@ export class PaywallUI {
         initialCheckoutUrl,
         purchased: false,
         renew,
+        titleOverride,
         onClose: () => this.close(),
         onEvent: (event, payload) => {
           this.emit(event as PaywallEvent, payload as never);

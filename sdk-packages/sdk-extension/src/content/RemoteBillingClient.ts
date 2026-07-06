@@ -105,6 +105,17 @@ export class RemoteBillingClient {
     return this.cachedBootstrap;
   }
 
+  /** Sticky A/B assignment of this device. Mirrors
+   *  `BillingClient.getExperimentAssignment`: the offscreen BillingClient
+   *  resolves the assignment and materializes `experiment.assigned_variant`
+   *  into the bootstrap, which arrives here through the proxied bootstrap() —
+   *  so the mirror only needs to read the cached copy. */
+  getExperimentAssignment(): { experimentId: string; variant: string } | null {
+    const experiment = this.cachedBootstrap?.experiment;
+    if (!experiment?.assigned_variant) return null;
+    return { experimentId: experiment.id, variant: experiment.assigned_variant };
+  }
+
   /** Subscribe to bootstrap state. Structurally compatible with
    *  `BillingClient.onBootstrapChange` — same microtask semantics for the
    *  initial snapshot. In extension mode offscreen does not yet broadcast

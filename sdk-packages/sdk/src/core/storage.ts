@@ -179,7 +179,13 @@ export const STORAGE_KEYS = {
   // other users' balances aren't visible. They change after payment (backend)
   // and API calls (optimistically via `decrementBalanceLocal`).
   balances: (paywallId: string, identityKey: string) =>
-    `pw-${paywallId}-${identityKey}-balances-v1`
+    `pw-${paywallId}-${identityKey}-balances-v1`,
+  // Sticky A/B experiment assignment for this device: {experimentId, variant,
+  // at}. First-touch persisted so a later change of experiment weights doesn't
+  // rebucket users who were already exposed. One key per paywall — the backend
+  // runs at most one experiment per paywall at a time; a new experiment id
+  // overwrites the record.
+  experiment: (paywallId: string) => `pw-${paywallId}-exp-v1`
 };
 
 // UUID v4 — a stable visitor identifier for analytics. Not PII, not tied to

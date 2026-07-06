@@ -12,6 +12,11 @@ import {
   STORAGE_KEYS
 } from './storage';
 import {
+  applyExperimentAssignment,
+  resolveExperimentAssignment,
+  type ExperimentAssignment
+} from './experiment';
+import {
   type Acquiring,
   type Balance,
   type CheckoutResult,
@@ -608,11 +613,40 @@ export class BillingClient {
       bootstrap.layout = buildDefaultLayout(bootstrap.settings, bootstrap.prices);
     }
     applyLocaleOverrides(bootstrap);
+    await this.materializeExperiment(bootstrap);
 
     this.applyBootstrap(bootstrap, { persist: true });
     if (bootstrap.user) this.applyUser(bootstrap.user);
 
     return bootstrap;
+  }
+
+  // Client-side A/B: resolve the sticky assignment and materialize the variant
+  // into the bootstrap (price/layout/offer substitution, see core/experiment.ts).
+  // Runs AFTER applyLocaleOverrides at every bootstrap ingress point (network,
+  // storage hydrate, cross-context watch) — locale overrides may swap the layout
+  // back to one referencing control price ids. Idempotent; any failure leaves
+  // the control experience intact — experiments must never break the paywall.
+  private async materializeExperiment(bootstrap: PaywallBootstrap): Promise<void> {
+    const experiment = bootstrap.experiment;
+    if (
+      !experiment ||
+      !Array.isArray(experiment.variants) ||
+      experiment.variants.length === 0
+    ) {
+      return;
+    }
+    try {
+      const assignment = await resolveExperimentAssignment(
+        this.storage,
+        this.paywallId,
+        experiment,
+        () => this.getVisitorId()
+      );
+      if (assignment) applyExperimentAssignment(bootstrap, assignment);
+    } catch {
+      /* control experience on any failure */
+    }
   }
 
   // Background revalidate from the stale-while-revalidate branch. Deduplicated
@@ -671,8 +705,12 @@ export class BillingClient {
       // bootstrap (a concurrent background fetch) — don't overwrite.
       if (this.cachedBootstrap) return;
       // Locales may not be applied in the persisted shape — we guarantee
-      // consistency by reapplying them. applyLocaleOverrides is idempotent.
+      // consistency by reapplying them. applyLocaleOverrides is idempotent, and
+      // materializeExperiment re-fixes any control price-ids the locale layout
+      // brought back (also idempotent).
       applyLocaleOverrides(parsed.bootstrap);
+      await this.materializeExperiment(parsed.bootstrap);
+      if (this.cachedBootstrap) return;
       this.cachedBootstrap = parsed.bootstrap;
       this.cachedBootstrapAt = parsed.at;
       // emit to listeners — hosts may subscribe synchronously in the constructor
@@ -733,7 +771,11 @@ export class BillingClient {
             return;
           }
           applyLocaleOverrides(parsed.bootstrap);
-          this.applyBootstrap(parsed.bootstrap, { persist: false });
+          // materializeExperiment is async (assignment lives in storage) but
+          // never rejects — apply the bootstrap once the variant is in place.
+          void this.materializeExperiment(parsed.bootstrap).then(() => {
+            this.applyBootstrap(parsed.bootstrap, { persist: false });
+          });
         } catch {
           /* corrupted entry — ignore */
         }
@@ -746,6 +788,16 @@ export class BillingClient {
    *  (PaywallUI reads success_redirect_url without doing a second round-trip). */
   getCachedBootstrap(): PaywallBootstrap | null {
     return this.cachedBootstrap;
+  }
+
+  /** Sticky A/B assignment of this device, read from the materialized
+   *  bootstrap. null — no running experiment or the bootstrap isn't loaded yet.
+   *  The host can use it to keep its own UI consistent with the paywall variant
+   *  (e.g. a pricing page mirroring the tested amounts). */
+  getExperimentAssignment(): ExperimentAssignment | null {
+    const experiment = this.cachedBootstrap?.experiment;
+    if (!experiment?.assigned_variant) return null;
+    return { experimentId: experiment.id, variant: experiment.assigned_variant };
   }
 
   /**
@@ -1276,6 +1328,15 @@ export class BillingClient {
     );
     const localCurrency = cachedPrice?.local?.currency ?? undefined;
 
+    // A/B + funnel attribution. visitor_id and the assigned experiment variant
+    // travel into /start-checkout → processor metadata → webhook →
+    // paywall_internal_purchases.meta — this is what makes a server-confirmed
+    // purchase joinable to the paywall view/variant in analytics. Sync cached
+    // visitor read (no await): the dedupe window between the inflight check and
+    // set below must stay synchronous, and by checkout time the id is resolved.
+    const experiment = this.cachedBootstrap?.experiment;
+    const visitorId = this.getCachedVisitorId() ?? undefined;
+
     const promise = this.api
       .request<{
         checkoutUrl: string;
@@ -1301,7 +1362,10 @@ export class BillingClient {
           trial_days: params.trialDays,
           ignoreActivePurchase: params.ignoreActivePurchase ? true : undefined,
           userMeta: this.identity.userId ? { userId: this.identity.userId } : undefined,
-          localCurrency
+          localCurrency,
+          visitorId,
+          experimentId: experiment?.assigned_variant ? experiment.id : undefined,
+          variantKey: experiment?.assigned_variant ?? undefined
         })
       })
       .then((resp): CheckoutResult => ({ url: resp.checkoutUrl, acquiring: resp.acquiring }))

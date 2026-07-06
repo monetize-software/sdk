@@ -14,9 +14,45 @@ export interface RendererProps {
    *  visual top-bleed under the X close button). Without the banner we reduce the
    *  top padding of the scrollable area — otherwise there's 32px of empty space under the X. */
   hasTopBanner?: boolean;
+  /** Per-open custom title (OpenOptions.title): replaces the text of the first
+   *  h1 heading block, or prepends one if the layout has none. Applied here —
+   *  over the already locale-resolved layout — so it wins over both the
+   *  configured heading and its translations. */
+  titleOverride?: string | null;
 }
 
-export function Renderer({ layout, bootstrap, onAction, auth, authSession, hasTopBanner }: RendererProps) {
+/** Applies the per-open title override to the layout. The layout is treated as
+ *  immutable (it's the cached bootstrap) — we return a copy with the first h1
+ *  heading replaced, or with a new h1 prepended when the layout has none. */
+function applyTitleOverride(layout: Layout, title: string | null | undefined): Layout {
+  if (!title) return layout;
+  const idx = layout.blocks.findIndex(
+    (b) => b.type === 'heading' && (b.level ?? 1) === 1
+  );
+  if (idx === -1) {
+    return {
+      ...layout,
+      blocks: [{ type: 'heading', text: title, level: 1 }, ...layout.blocks]
+    };
+  }
+  const blocks = layout.blocks.slice();
+  blocks[idx] = { ...(blocks[idx] as Extract<Layout['blocks'][number], { type: 'heading' }>), text: title };
+  return { ...layout, blocks };
+}
+
+export function Renderer({
+  layout: rawLayout,
+  bootstrap,
+  onAction,
+  auth,
+  authSession,
+  hasTopBanner,
+  titleOverride
+}: RendererProps) {
+  const layout = useMemo(
+    () => applyTitleOverride(rawLayout, titleOverride),
+    [rawLayout, titleOverride]
+  );
   // By default selected = popular_price_id (if it's set in some
   // price_grid block and actually exists in bootstrap.prices). This
   // mirrors the legacy paywall UX: the highlighted card is highlighted right away and

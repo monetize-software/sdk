@@ -25,6 +25,11 @@ export interface EventTrackerOptions {
   getVisitorId: () => Promise<string>;
   getCachedVisitorId?: () => string | null;
   getUserId?: () => string | null | undefined;
+  /** A/B context provider. When it returns a non-null value, every tracked
+   *  event gets `experiment_id` + `variant` merged into its props (explicit
+   *  props win on key collision). Read at track-time so events carry the
+   *  assignment that was active when they happened. */
+  getExperimentContext?: () => { experiment_id: string; variant: string } | null;
   enabled?: boolean;
   flushIntervalMs?: number;
   maxBufferSize?: number;
@@ -60,7 +65,15 @@ export class EventTracker {
     if (this.destroyed || !this.isEnabled()) return;
     if (typeof type !== 'string' || type.length === 0) return;
 
-    this.buffer.push({ type, ts: Date.now(), props });
+    let experiment: { experiment_id: string; variant: string } | null = null;
+    try {
+      experiment = this.opts.getExperimentContext?.() ?? null;
+    } catch {
+      /* analytics enrichment must never break tracking */
+    }
+    const merged = experiment ? { ...experiment, ...props } : props;
+
+    this.buffer.push({ type, ts: Date.now(), props: merged });
 
     const max = this.opts.maxBufferSize ?? DEFAULT_MAX_BUFFER_SIZE;
     if (this.buffer.length >= max) {

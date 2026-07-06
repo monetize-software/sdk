@@ -10,12 +10,19 @@ import { usePaywallState } from '../hooks/usePaywallState';
 
 /**
  * Paywall-open options, proxied into `paywall.open(opts)`.
- * Any {@link OpenOptions} fields apply: `identity`, `renew`, `skipTrial`,
- * `skipVisibility`.
+ * {@link OpenOptions} fields apply: `identity`, `renew`, `skipTrial`,
+ * `skipVisibility`. `title` is excluded — on a `<button>` the `title` prop must
+ * stay the native HTML tooltip attribute; the paywall heading override is the
+ * dedicated `paywallTitle` prop instead.
  */
-type OpenProps = OpenOptions;
+type OpenProps = Omit<OpenOptions, 'title'>;
 
 interface CommonProps extends OpenProps {
+  /** Custom paywall title, proxied into `paywall.open({ title })` — replaces
+   *  the h1 heading from the configured layout for this open. Named
+   *  `paywallTitle` (not `title`) so the native tooltip attribute keeps
+   *  working. Only meaningful for `mode='paywall'` (the default). */
+  paywallTitle?: string;
   /** What to open: layout (default), support, auth-gate (signin),
    *  signup form. 'auth' is equivalent to 'signin' (historically — openAuth
    *  defaults to signin-mode). For anonymous signin use
@@ -104,6 +111,7 @@ export const PaywallButton = forwardRef<HTMLButtonElement, PaywallButtonProps>(
       renew,
       skipTrial,
       skipVisibility,
+      paywallTitle,
       render,
       onClick,
       disabled,
@@ -120,7 +128,13 @@ export const PaywallButton = forwardRef<HTMLButtonElement, PaywallButtonProps>(
     // itself, no busy on the button needed.
     const processing = !!priceId && state.processing;
 
-    const openOpts: OpenOptions = { identity, renew, skipTrial, skipVisibility };
+    const openOpts: OpenOptions = {
+      identity,
+      renew,
+      skipTrial,
+      skipVisibility,
+      title: paywallTitle
+    };
 
     const open = (): void => {
       if (!paywall) return;

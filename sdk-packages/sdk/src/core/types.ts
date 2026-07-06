@@ -367,11 +367,48 @@ export interface PaywallUser {
   had_previous_trial: boolean;
 }
 
+/** One arm of an A/B experiment. `control` is a regular variant with no
+ *  payload — the paywall's own config applies. */
+export interface PaywallExperimentVariant {
+  /** Stable variant key: 'control', 'b', 'c', ... Recorded in analytics events
+   *  and purchase metadata. */
+  key: string;
+  /** Relative traffic weight (integer; weights are normalized over their sum,
+   *  typically they add up to 100). */
+  weight: number;
+  /** Variant price rows for kind='prices'. Each entry is a full PaywallPrice
+   *  plus `replaces` — the id of the control price it substitutes. Prices whose
+   *  `replaces` doesn't match any control price are ignored. Absent for
+   *  control. */
+  prices?: Array<PaywallPrice & { replaces: string | null }>;
+}
+
+/** A/B experiment attached to the paywall. The backend sends at most one
+ *  running experiment; assignment happens client-side: a deterministic bucket
+ *  of the stable visitor_id (see core/experiment.ts), sticky via storage. The
+ *  SDK materializes the assigned variant into the bootstrap (price/layout/offer
+ *  substitution) right after locale overrides.
+ *
+ *  `kind` is an open string for forward-compat: today only 'prices' is
+ *  understood; unknown kinds are assigned (for analytics) but nothing is
+ *  substituted. */
+export interface PaywallExperiment {
+  id: string;
+  kind: 'prices' | (string & {});
+  variants: PaywallExperimentVariant[];
+  /** Set CLIENT-side after assignment (not part of the server payload): the
+   *  variant key this device is bucketed into. Consumers (EventTracker props,
+   *  createCheckout attribution) read it from the cached bootstrap. */
+  assigned_variant?: string;
+}
+
 export interface PaywallBootstrap {
   settings: PaywallSettings;
   prices: PaywallPrice[];
   offers: PaywallOffer[];
   layout?: Layout;
+  /** Running A/B experiment, if any. See {@link PaywallExperiment}. */
+  experiment?: PaywallExperiment | null;
   /** User-state snapshot at the moment of bootstrap. Without identity (guest)
    *  — everything is empty. Then updated via BillingClient.getUser() /
    *  PaywallUI.onUserChange. */
