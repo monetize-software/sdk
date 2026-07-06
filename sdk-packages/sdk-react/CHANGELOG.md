@@ -1,5 +1,31 @@
 # @monetize.software/sdk-react
 
+## 3.1.0-rc.0
+
+### Minor Changes
+
+- Per-open custom paywall title: `paywall.open({ title: 'Unlock export' })`
+
+  `OpenOptions.title` replaces the text of the layout's h1 heading block for that particular open — independent of the title configured in the dashboard and of its locale translations. If the layout has no h1 heading block, the title is rendered as a new heading at the top. The override is scoped to the call: the next `open()` without `title` shows the configured heading again. `openSupport()` / `openSignin()` / `openSignup()` / `checkout()` ignore it — those flows don't render the layout heading.
+
+  In sdk-react, `<PaywallButton paywallTitle="...">` forwards the value as `OpenOptions.title` (named `paywallTitle` so the plain `title` prop keeps being the native HTML tooltip attribute). sdk-extension inherits the option as-is.
+
+  When a custom title is shown, the `paywall_viewed` analytics event carries `custom_title: true`.
+
+- A/B price experiments (SDK side)
+
+  The bootstrap payload may now carry an `experiment` block (`{ id, kind, variants[] }`). The SDK deterministically buckets the device by its stable visitor id (fnv1a hash over `visitorId:experimentId`, weights-proportional), persists the assignment in storage (first-touch stickiness), and for `kind='prices'` materializes the assigned variant into the bootstrap: variant prices replace the control ones and every price-id reference (price_grid, cta_button, offers) is remapped. Control and unknown experiment kinds render unchanged.
+
+  Attribution: every analytics event now carries `experiment_id` + `variant` in its props while an experiment is assigned, and `createCheckout` sends `visitorId`, `experimentId` and `variantKey` to `/start-checkout` so server-confirmed purchases can be joined back to the variant.
+
+  New public API: `billing.getExperimentAssignment()` (also mirrored on the extension's RemoteBillingClient). Experiments never break the paywall: any assignment/storage failure falls back to the control experience.
+
+### Patch Changes
+
+- Updated dependencies
+- Updated dependencies
+  - @monetize.software/sdk@3.1.0-rc.0
+
 ## 3.0.1
 
 ### Patch Changes
