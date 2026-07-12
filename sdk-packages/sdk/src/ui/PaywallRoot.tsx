@@ -426,7 +426,13 @@ export function PaywallRoot({
     }
   }, [open, initialView, initialCheckoutPriceId, initialCheckoutUrl]);
 
-  const runCheckout = async (priceId: string) => {
+  const runCheckout = async (
+    priceId: string,
+    // allowAuthGate=false — the auth-resume call site: a 401 right after a
+    // fresh signin can't be fixed by signing in again, re-opening the gate
+    // would loop signin → 401 → gate → signin forever.
+    { allowAuthGate = true }: { allowAuthGate?: boolean } = {}
+  ) => {
     try {
       // Resolve the active offer from cached offers. Without this, duration
       // offers (whose countdown ticks in clientStorage) won't apply at checkout
@@ -487,6 +493,35 @@ export function PaywallRoot({
         } else {
           setGate({ kind: 'purchase_success', restored: true });
         }
+        return;
+      }
+      // 401 = the server rejected our Bearer and ApiClient's forced-refresh
+      // retry didn't save it: the session is dead (revoked in another context /
+      // GoTrue family revocation) and AuthClient has already cleared it. For
+      // preauth paywalls this is recoverable — reopen the auth gate with the
+      // checkout pending: after signin the auto-resume effect re-runs it, and
+      // for a user who already paid getUser / the 409 turn it into the restored
+      // success-view instead of a second charge. Without this branch a paying
+      // user whose session died hits a dead-end "Request failed". Guest mode
+      // falls through to the generic path: an auth form mid-guest-checkout is
+      // alien there, and a signin can't restore an anon-owned purchase anyway.
+      if (
+        allowAuthGate &&
+        error instanceof PaywallError &&
+        error.status === 401 &&
+        client.auth &&
+        (state.status === 'ready'
+          ? state.data.settings.checkout_mode ?? 'guest'
+          : 'guest') === 'preauth'
+      ) {
+        // Still reported as 'error' — hosts and the events analytics must see
+        // the auth failure (code `invalid_token`) even though the UI recovers.
+        onEvent('error', error);
+        setGate({
+          kind: 'auth_gate',
+          pendingCheckout: { priceId, direct: isDirectCheckout },
+          intent: 'preauth'
+        });
         return;
       }
       const err =
@@ -590,7 +625,7 @@ export function PaywallRoot({
         }
         return;
       }
-      await runCheckout(pending.priceId);
+      await runCheckout(pending.priceId, { allowAuthGate: false });
     })().finally(() => {
       resumingRef.current = false;
     });

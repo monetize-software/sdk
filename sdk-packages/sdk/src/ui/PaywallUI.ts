@@ -877,6 +877,29 @@ export class PaywallUI {
         exitHeadless();
         return;
       }
+      // 401 = the Bearer was rejected and ApiClient's forced-refresh retry
+      // didn't save it — the session is dead and AuthClient has cleared it.
+      // Same recovery as the preauth branch in PaywallRoot.runCheckout: for
+      // preauth paywalls mount the auth gate with the checkout pending (after
+      // signin the auth-resume effect re-runs createCheckout; an already-paid
+      // user lands on the restored success-view via getUser/409) instead of a
+      // dead-end error. The 'error' event is still emitted — hosts and the
+      // events analytics must see the auth failure.
+      if (
+        error instanceof PaywallError &&
+        error.status === 401 &&
+        this.auth &&
+        mode === 'preauth'
+      ) {
+        this.emit('error', error);
+        this.purchased = false;
+        this.mountAndShow('auth', {
+          renew,
+          authMode: 'signin',
+          checkoutPriceId: priceId
+        });
+        return;
+      }
       const wrapped =
         error instanceof PaywallError
           ? error

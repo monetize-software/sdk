@@ -180,6 +180,86 @@ describe('ApiGatewayClient.call', () => {
     expect(onQuota).toHaveBeenCalledOnce();
     expect(onQuota.mock.calls[0][0]).toBeInstanceOf(QuotaExceededError);
   });
+
+  // Dead-session recovery (mirrors ApiClient): the cached Bearer looked fresh
+  // but the server revoked the session — one forced refresh + replay.
+  function fakeGatewayAuth(refreshResult: string | null) {
+    const refresh = vi.fn(async () =>
+      refreshResult ? { access_token: refreshResult } : null
+    );
+    const auth = {
+      getAccessToken: async (): Promise<string> => 'tok_old',
+      refresh
+    } as unknown as NonNullable<ConstructorParameters<typeof ApiGatewayClient>[0]['auth']>;
+    return { auth, refresh };
+  }
+
+  it('401 with Bearer: forces auth.refresh and replays the request once', async () => {
+    const fetchMock = vi.fn<typeof fetch>();
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ error: 'invalid_token' }, 401))
+      .mockResolvedValueOnce(jsonResponse({ ok: true }));
+    const { auth, refresh } = fakeGatewayAuth('tok_new');
+    const gw = new ApiGatewayClient({
+      paywallId: 'pw_1',
+      apiOrigin: TEST_API_ORIGIN,
+      auth,
+      fetch: fetchMock
+    });
+
+    const res = await gw.call({ providerId: 'prov_a', body: { x: 1 } });
+
+    expect(res.status).toBe(200);
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const retryHeaders = new Headers(fetchMock.mock.calls[1][1]!.headers);
+    expect(retryHeaders.get('Authorization')).toBe('Bearer tok_new');
+  });
+
+  it('401 when refresh returns null (session cleared): original 401 surfaces, no replay', async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () =>
+      jsonResponse({ error: 'invalid_token' }, 401)
+    );
+    const { auth, refresh } = fakeGatewayAuth(null);
+    const gw = new ApiGatewayClient({
+      paywallId: 'pw_1',
+      apiOrigin: TEST_API_ORIGIN,
+      auth,
+      fetch: fetchMock
+    });
+
+    await expect(gw.call({ providerId: 'p', body: {} })).rejects.toMatchObject({
+      code: 'invalid_token',
+      status: 401
+    });
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('401 with a stream body: no replay — the stream is already consumed', async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () =>
+      jsonResponse({ error: 'invalid_token' }, 401)
+    );
+    const { auth, refresh } = fakeGatewayAuth('tok_new');
+    const gw = new ApiGatewayClient({
+      paywallId: 'pw_1',
+      apiOrigin: TEST_API_ORIGIN,
+      auth,
+      fetch: fetchMock
+    });
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('chunk'));
+        controller.close();
+      }
+    });
+
+    await expect(gw.call({ providerId: 'p', body })).rejects.toMatchObject({
+      status: 401
+    });
+    expect(refresh).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('BillingClient.balances', () => {

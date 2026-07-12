@@ -6,6 +6,7 @@ import { PaywallRoot } from '../src/ui/PaywallRoot';
 import type { BillingClient } from '../src/core/BillingClient';
 import type { AuthClient, AuthSession } from '../src/core/auth';
 import type { LayoutBlock, PaywallBootstrap, PaywallSettings, CheckoutResult } from '../src/core/types';
+import { PaywallError } from '../src/core/types';
 
 // Render tests for the preauth-gate flow in PaywallRoot:
 // 1. checkout_mode=guest — checkout proceeds without a gate.
@@ -458,6 +459,101 @@ describe('PaywallRoot preauth gate', () => {
     await flush();
     // Safe fallback — without an AuthClient the gate makes no sense.
     expect(createCheckout).toHaveBeenCalledTimes(1);
+    unmount();
+  });
+
+  // Dead-session recovery: the session looked fresh locally, but the server
+  // rejected the Bearer (revoked in another context / GoTrue family
+  // revocation). ApiClient's forced-refresh retry failed too, AuthClient
+  // cleared the session, and createCheckout surfaced a 401. Instead of a
+  // dead-end "Request failed" the gate must reopen so the user (who often has
+  // ALREADY paid) can sign back in and land on the restored success-view.
+  it('preauth: createCheckout 401 with a dead session reopens the auth gate, signin resumes the checkout', async () => {
+    const harness = makeAuthHarness(makeSession());
+    const { client, createCheckout } = makeClientHarness({ checkout_mode: 'preauth' }, harness.auth);
+    createCheckout.mockImplementationOnce(async () => {
+      // The real AuthClient clears the session when its forced refresh gets a
+      // 401 (ApiClient.onUnauthorized) BEFORE the error reaches runCheckout.
+      await harness.signOut();
+      throw new PaywallError('invalid_token', 'Session is no longer valid. Please sign in again.', {
+        status: 401
+      });
+    });
+    const { container, events, unmount } = mount(client);
+    await flush();
+    clickContinue(container);
+    await flush();
+
+    // The gate is shown instead of falling back to the layout.
+    expect(container.textContent).toContain('Log in to continue your purchase');
+    // The auth failure is still reported to the host/events analytics.
+    expect(
+      events.some(
+        (e) => e.type === 'error' && (e.payload as PaywallError).code === 'invalid_token'
+      )
+    ).toBe(true);
+
+    // Sign back in → auto-resume re-runs the pending checkout with the same price.
+    act(() => {
+      harness.emit(makeSession());
+    });
+    await flush();
+    expect(createCheckout).toHaveBeenCalledTimes(2);
+    expect(createCheckout).toHaveBeenLastCalledWith({
+      priceId: 'price_1',
+      ignoreActivePurchase: false
+    });
+    unmount();
+  });
+
+  it('preauth: a 401 again right after the signin resume falls to the generic error path (no gate loop)', async () => {
+    const harness = makeAuthHarness(null);
+    const { client, createCheckout } = makeClientHarness({ checkout_mode: 'preauth' }, harness.auth);
+    createCheckout.mockRejectedValue(
+      new PaywallError('invalid_token', 'still dead', { status: 401 })
+    );
+    const { container, events, unmount } = mount(client);
+    await flush();
+    clickContinue(container);
+    await flush();
+    // No session → the ordinary preauth gate.
+    expect(container.textContent).toContain('Log in to continue your purchase');
+
+    // Signin succeeds, but the resumed checkout 401s (pathological backend).
+    // allowAuthGate=false on the resume path: we must NOT loop back into the
+    // gate — the generic error path returns the user to the layout.
+    act(() => {
+      harness.emit(makeSession());
+    });
+    await flush();
+
+    expect(createCheckout).toHaveBeenCalledTimes(1);
+    expect(events.some((e) => e.type === 'error')).toBe(true);
+    expect(
+      Array.from(container.querySelectorAll('button')).some((b) => b.textContent === 'Continue')
+    ).toBe(true);
+    expect(container.textContent).not.toContain('Log in to continue your purchase');
+    unmount();
+  });
+
+  it('guest: createCheckout 401 keeps the generic error path (no auth gate)', async () => {
+    const harness = makeAuthHarness(makeSession());
+    const { client, createCheckout } = makeClientHarness({ checkout_mode: 'guest' }, harness.auth);
+    createCheckout.mockRejectedValue(
+      new PaywallError('invalid_token', 'nope', { status: 401 })
+    );
+    const { container, events, unmount } = mount(client);
+    await flush();
+    clickContinue(container);
+    await flush();
+
+    // An auth form mid-guest-checkout would be alien — the generic error path
+    // returns the user to the layout, the host sees the error event.
+    expect(container.textContent).not.toContain('Log in to continue your purchase');
+    expect(
+      Array.from(container.querySelectorAll('button')).some((b) => b.textContent === 'Continue')
+    ).toBe(true);
+    expect(events.some((e) => e.type === 'error')).toBe(true);
     unmount();
   });
 });

@@ -26,7 +26,10 @@ export interface ApiGatewayClientOptions {
    *  BillingClient/AuthClient. See {@link BillingClientOptions.apiOrigin}. */
   apiOrigin: string;
   /** AuthClient — Bearer is added automatically. On a 401 from the gateway the
-   *  client does not refresh: AuthClient already did a lazy refresh in getAccessToken. */
+   *  client forces one token rotation via auth.refresh() and replays the
+   *  request once (the lazy refresh in getAccessToken can't see a session
+   *  revoked server-side). Stream bodies can't be replayed — they skip the
+   *  retry and the 401 surfaces to the caller. */
   auth?: AuthClient;
   /** Headless scenario or legacy flow: explicit userId instead of Bearer.
    *  Sent as `X-User-ID`. If both this and `auth` are set, Bearer wins. */
@@ -152,18 +155,38 @@ export class ApiGatewayClient {
     // this=globalThis, and calling through an object field binds this to
     // ApiGatewayClient, making Chrome throw 'Illegal invocation'.
     const fetchImpl = this.customFetch ?? fetch;
-    let response: Response;
-    try {
-      response = await fetchImpl(url.toString(), {
-        method: params.method ?? 'POST',
-        headers,
-        body,
-        signal: params.signal,
-        credentials: 'omit'
-      });
-    } catch (cause) {
-      const detail = cause instanceof Error ? cause.message : String(cause);
-      throw new PaywallError('network_error', `Network request failed: ${detail}`, { cause });
+    const doFetch = async (): Promise<Response> => {
+      try {
+        return await fetchImpl(url.toString(), {
+          method: params.method ?? 'POST',
+          headers,
+          body,
+          signal: params.signal,
+          credentials: 'omit'
+        });
+      } catch (cause) {
+        const detail = cause instanceof Error ? cause.message : String(cause);
+        throw new PaywallError('network_error', `Network request failed: ${detail}`, { cause });
+      }
+    };
+    let response = await doFetch();
+
+    // Dead-session recovery, mirrors ApiClient: a 401 with a Bearer attached
+    // means the server rejected a token the client still considered fresh
+    // (revoked in another context / GoTrue family revocation). Force one
+    // rotation and replay the request. refresh() dedupes in-flight calls, on
+    // its own 401 clears the session and returns null (no retry), on
+    // network/5xx throws — swallowed, the original 401 surfaces. Stream bodies
+    // are consumed by the first send and can't be replayed — no retry for them.
+    if (response.status === 401 && token && this.auth && !isStream) {
+      const fresh = await this.auth
+        .refresh()
+        .then((s) => s?.access_token ?? null)
+        .catch((): null => null);
+      if (fresh && fresh !== token) {
+        headers.set('Authorization', `Bearer ${fresh}`);
+        response = await doFetch();
+      }
     }
 
     if (response.status === 402) {

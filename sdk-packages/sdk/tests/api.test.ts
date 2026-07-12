@@ -169,4 +169,144 @@ describe('ApiClient', () => {
 
     await expect(api.request('/x')).rejects.toBeInstanceOf(PaywallError);
   });
+
+  // Several backend routes reply {error: 'invalid_token'} instead of the
+  // {code, message} contract — before this fallback the SDK reported an opaque
+  // http_401/"Request failed" to the events analytics.
+  it('maps a slug-shaped `error` field to the code when `code` is absent', async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () =>
+      jsonResponse({ error: 'invalid_token' }, { status: 401 })
+    );
+    const api = makeClient(fetchMock);
+
+    await expect(api.request('/x')).rejects.toMatchObject({
+      code: 'invalid_token',
+      status: 401
+    });
+  });
+
+  it('uses a sentence-shaped `error` field as the message, keeps http_<status> code', async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () =>
+      jsonResponse(
+        { error: 'Invalid successUrl format. Must be a valid HTTP/HTTPS URL' },
+        { status: 400 }
+      )
+    );
+    const api = makeClient(fetchMock);
+
+    await expect(api.request('/x')).rejects.toMatchObject({
+      code: 'http_400',
+      message: 'Invalid successUrl format. Must be a valid HTTP/HTTPS URL'
+    });
+  });
+
+  it('prefers explicit `code` over the `error` field', async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () =>
+      jsonResponse({ error: 'unauthorized', code: 'invalid_refresh_token' }, { status: 401 })
+    );
+    const api = makeClient(fetchMock);
+
+    await expect(api.request('/x')).rejects.toMatchObject({
+      code: 'invalid_refresh_token'
+    });
+  });
+
+  describe('401 retry via onUnauthorized', () => {
+    it('forces one refresh and replays the request with the fresh token', async () => {
+      const fetchMock = vi.fn<typeof fetch>();
+      fetchMock
+        .mockResolvedValueOnce(jsonResponse({ error: 'invalid_token' }, { status: 401 }))
+        .mockResolvedValueOnce(jsonResponse({ ok: true }));
+      const onUnauthorized = vi.fn(async () => 'tok_new');
+      const api = makeClient(fetchMock, {
+        getAuthToken: async () => 'tok_old',
+        onUnauthorized
+      });
+
+      const result = await api.request('/x');
+
+      expect(result).toEqual({ ok: true });
+      expect(onUnauthorized).toHaveBeenCalledTimes(1);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      const retryHeaders = new Headers(fetchMock.mock.calls[1][1]?.headers);
+      expect(retryHeaders.get('Authorization')).toBe('Bearer tok_new');
+    });
+
+    it('throws the original 401 when onUnauthorized returns null (session cleared)', async () => {
+      const fetchMock = vi.fn<typeof fetch>(async () =>
+        jsonResponse({ error: 'invalid_token' }, { status: 401 })
+      );
+      const api = makeClient(fetchMock, {
+        getAuthToken: async () => 'tok_old',
+        onUnauthorized: async () => null
+      });
+
+      await expect(api.request('/x')).rejects.toMatchObject({
+        code: 'invalid_token',
+        status: 401
+      });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('throws the original 401 when onUnauthorized itself rejects (network)', async () => {
+      const fetchMock = vi.fn<typeof fetch>(async () =>
+        jsonResponse({ error: 'invalid_token' }, { status: 401 })
+      );
+      const api = makeClient(fetchMock, {
+        getAuthToken: async () => 'tok_old',
+        onUnauthorized: async () => {
+          throw new Error('offline');
+        }
+      });
+
+      await expect(api.request('/x')).rejects.toMatchObject({ status: 401 });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not call onUnauthorized when no Bearer was attached', async () => {
+      const fetchMock = vi.fn<typeof fetch>(async () =>
+        jsonResponse({ error: 'authorization_required' }, { status: 401 })
+      );
+      const onUnauthorized = vi.fn(async () => 'tok_new');
+      const api = makeClient(fetchMock, {
+        getAuthToken: () => null,
+        onUnauthorized
+      });
+
+      await expect(api.request('/x')).rejects.toMatchObject({ status: 401 });
+      expect(onUnauthorized).not.toHaveBeenCalled();
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('retries exactly once: a second 401 surfaces to the caller', async () => {
+      const fetchMock = vi.fn<typeof fetch>(async () =>
+        jsonResponse({ error: 'invalid_token' }, { status: 401 })
+      );
+      const onUnauthorized = vi.fn(async () => 'tok_new');
+      const api = makeClient(fetchMock, {
+        getAuthToken: async () => 'tok_old',
+        onUnauthorized
+      });
+
+      await expect(api.request('/x')).rejects.toMatchObject({
+        code: 'invalid_token',
+        status: 401
+      });
+      expect(onUnauthorized).toHaveBeenCalledTimes(1);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    it('skips the retry when the "fresh" token equals the rejected one', async () => {
+      const fetchMock = vi.fn<typeof fetch>(async () =>
+        jsonResponse({ error: 'invalid_token' }, { status: 401 })
+      );
+      const api = makeClient(fetchMock, {
+        getAuthToken: async () => 'tok_same',
+        onUnauthorized: async () => 'tok_same'
+      });
+
+      await expect(api.request('/x')).rejects.toMatchObject({ status: 401 });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+  });
 });

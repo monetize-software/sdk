@@ -292,7 +292,23 @@ export class BillingClient {
       // Bearer is passed on every request. AuthClient.getAccessToken does a lazy
       // refresh, dedupes, and on 401 returns null — then the Authorization
       // header simply isn't set.
-      getAuthToken: opts.auth ? () => opts.auth!.getAccessToken() : undefined
+      getAuthToken: opts.auth ? () => opts.auth!.getAccessToken() : undefined,
+      // Data endpoint got a 401 with a Bearer the client considered fresh —
+      // the session was revoked server-side (refresh-rotation race in another
+      // context / GoTrue family revocation / clock skew). Force one rotation:
+      // refresh() dedupes in-flight calls, on its own 401 clears the session
+      // and returns null (→ no retry, the UI sees the 401 and can offer a
+      // re-signin), on network/5xx throws — swallowed here, the retry wouldn't
+      // get through anyway.
+      onUnauthorized: opts.auth
+        ? async () => {
+            try {
+              return (await opts.auth!.refresh())?.access_token ?? null;
+            } catch {
+              return null;
+            }
+          }
+        : undefined
     });
 
     if (opts.auth) {
