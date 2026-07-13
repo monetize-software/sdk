@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import type { PaywallAccessResult } from '@monetize.software/sdk';
 import { usePaywall } from '../hooks/usePaywall';
 import { usePaywallAccess } from '../hooks/usePaywallAccess';
@@ -28,6 +28,14 @@ export interface PaywallGateProps {
    * open the modal on click. Enable deliberately.
    */
   openOnBlocked?: boolean;
+  /**
+   * Custom paywall title for opens triggered by the gate — proxied into
+   * `paywall.open({ title })`, both for `openOnBlocked` and for the fallback's
+   * `open()` callback. A gate wraps a concrete feature, so the modal can say
+   * why it appeared ("Unlock export"). Named `paywallTitle` for consistency
+   * with `<PaywallButton>`.
+   */
+  paywallTitle?: string;
   /** Premium content. Rendered only when access=granted. */
   children: ReactNode;
 }
@@ -72,8 +80,14 @@ export function PaywallGate(props: PaywallGateProps): JSX.Element | null {
     access.status === 'ready' && access.result.access === 'blocked';
   const shouldAutoOpen = props.openOnBlocked === true && isBlocked;
 
+  // The title lives in a ref for the same reason: a `paywallTitle` change while
+  // the gate is already blocked must not re-run the effect and re-open the
+  // modal — the fresh value is picked up on the next genuine open.
+  const titleRef = useRef(props.paywallTitle);
+  titleRef.current = props.paywallTitle;
+
   useEffect(() => {
-    if (shouldAutoOpen && paywall) paywall.open();
+    if (shouldAutoOpen && paywall) paywall.open({ title: titleRef.current });
   }, [shouldAutoOpen, paywall]);
 
   if (access.status === 'loading') {
@@ -91,7 +105,7 @@ export function PaywallGate(props: PaywallGateProps): JSX.Element | null {
       <>
         {fallback({
           result: access.result,
-          open: () => paywall?.open()
+          open: () => paywall?.open({ title: props.paywallTitle })
         })}
       </>
     );

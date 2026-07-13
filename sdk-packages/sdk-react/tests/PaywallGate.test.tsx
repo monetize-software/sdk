@@ -89,4 +89,38 @@ describe('<PaywallGate>', () => {
     btn.click();
     expect(fake.openCalls).toBe(1);
   });
+
+  it('paywallTitle пробрасывается в open() при openOnBlocked', async () => {
+    const fake = new FakePaywall({ initialAccess: BLOCKED });
+    render(
+      <PaywallProvider instance={asPaywallUI(fake)}>
+        <PaywallGate openOnBlocked paywallTitle="Unlock export">
+          <span>granted</span>
+        </PaywallGate>
+      </PaywallProvider>
+    );
+
+    await waitFor(() => expect(fake.openCalls).toBe(1));
+    expect(fake.lastOpenOpts).toEqual({ title: 'Unlock export' });
+  });
+
+  it('paywallTitle пробрасывается через open() из render-prop fallback', async () => {
+    const fake = new FakePaywall({ initialAccess: BLOCKED });
+    render(
+      <PaywallProvider instance={asPaywallUI(fake)}>
+        <PaywallGate
+          paywallTitle="Projects limit reached"
+          fallback={({ open }) => (
+            <button onClick={open}>open from fallback</button>
+          )}
+        >
+          <span>granted</span>
+        </PaywallGate>
+      </PaywallProvider>
+    );
+
+    const btn = await screen.findByText('open from fallback');
+    btn.click();
+    expect(fake.lastOpenOpts).toEqual({ title: 'Projects limit reached' });
+  });
 });

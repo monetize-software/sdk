@@ -1,5 +1,6 @@
 import type {
   AuthSession,
+  OpenOptions,
   PaywallAccessResult,
   PaywallEvent,
   PaywallEventHandler,
@@ -54,6 +55,7 @@ export class FakePaywall {
 
   // Spy counters for assertions in tests.
   openCalls = 0;
+  lastOpenOpts: OpenOptions | undefined;
   openSupportCalls = 0;
   openAuthCalls = 0;
   openSigninCalls = 0;
@@ -101,8 +103,9 @@ export class FakePaywall {
    *  to distinguish guest vs signed-in. */
   auth?: { getCachedSession: () => AuthSession | null };
 
-  open = (): void => {
+  open = (opts?: OpenOptions): void => {
     this.openCalls++;
+    this.lastOpenOpts = opts;
   };
   openSupport = (): void => {
     this.openSupportCalls++;

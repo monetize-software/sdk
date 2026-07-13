@@ -104,6 +104,7 @@ Declarative gate: loading → fallback → children.
   loading={<Skeleton />}
   fallback={({ open }) => <button onClick={open}>Upgrade</button>}
   openOnBlocked={false}  // if true — calls paywall.open() automatically
+  paywallTitle="Unlock export"  // forwarded as OpenOptions.title on every open
 >
   <PremiumFeature />
 </PaywallGate>
