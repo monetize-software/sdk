@@ -96,13 +96,17 @@ export class PaywallUI extends BasePaywallUI {
     if (!t) return;
 
     this.trackerUnsubs.push(
-      this.on('ready', (b) =>
+      // paywall_viewed/paywall_closed only for the real paywall ('layout') —
+      // same gate as the base initTracker: 'ready'/'close' fire for
+      // support/auth/awaiting_payment mounts too, but that's not a paywall view.
+      this.on('ready', (b) => {
+        if (this.lastMountedView !== 'layout') return;
         t.track('paywall_viewed', {
           is_test_mode: b.settings.is_test_mode,
           prices_count: b.prices.length,
           offers_count: b.offers.length
-        })
-      ),
+        });
+      }),
       this.on('price_selected', (p) =>
         t.track('price_selected', { price_id: p.priceId })
       ),
@@ -113,7 +117,9 @@ export class PaywallUI extends BasePaywallUI {
         t.track('purchase_completed', { price_id: p.priceId, session_id: p.sessionId })
       ),
       this.on('purchase_failed', (p) => t.track('purchase_failed', { reason: p.reason })),
-      this.on('close', () => t.track('paywall_closed')),
+      this.on('close', () => {
+        if (this.lastMountedView === 'layout') t.track('paywall_closed');
+      }),
       this.on('trial_blocked', (s) =>
         t.track('trial_blocked', {
           mode: s.mode,

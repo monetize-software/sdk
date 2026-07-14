@@ -320,8 +320,10 @@ export class PaywallUI {
    *  `paywall_closed` analytics to the real paywall (`'layout'`): opening
    *  support / standalone-auth / awaiting_payment emits the public `'ready'`
    *  and `'close'`, but that's not "paywall viewed/closed" — otherwise a
-   *  support click sends a false `paywall_viewed`. */
-  private lastMountedView: PaywallView | null = null;
+   *  support click sends a false `paywall_viewed`. Protected: sdk-extension's
+   *  PaywallUI mirrors these tracker bindings (bindAnalytics) and needs the
+   *  same gate. */
+  protected lastMountedView: PaywallView | null = null;
   /** Per-open custom title (OpenOptions.title) of the current mount. null —
    *  the layout's own heading is shown. Kept for the `paywall_viewed`
    *  analytics flag. */

@@ -244,6 +244,20 @@ describe('PaywallUI integration (extension)', () => {
     expect(types).not.toContain('paywall_opened');
   });
 
+  it('auto-tracking: support view does not emit "paywall_viewed"/"paywall_closed"', async () => {
+    // Regression: bindAnalytics mirrored initTracker without the
+    // lastMountedView gate — openSupport()/openAuth()/awaiting_payment also
+    // emit 'ready'/'close', and the extension counted them as paywall views.
+    const { paywall, stub } = bootstrapPaywall();
+    paywall.openSupport();
+    await new Promise((r) => setTimeout(r, 60));
+    paywall.close();
+    await new Promise((r) => setTimeout(r, 60));
+    const types = stub.flushedEvents.map((e) => e.type);
+    expect(types).not.toContain('paywall_viewed');
+    expect(types).not.toContain('paywall_closed');
+  });
+
   it('analytics:false → track() and auto-events do not reach offscreen tracker', async () => {
     const { paywall, stub } = bootstrapPaywall({ analytics: false });
     paywall.track('should_not_arrive');
