@@ -18,7 +18,9 @@ const SUBJECT_MIN = 3;
 const SUBJECT_MAX = 200;
 const CONTENT_MAX = 5000;
 const MAX_FILES = 5;
-const MAX_FILE_SIZE = 10 * 1024 * 1024;
+// Keep in sync with the backend route and sdk-extension/shared/support-limits.
+const MAX_FILE_SIZE_MB = 5;
+const MAX_FILE_SIZE = MAX_FILE_SIZE_MB * 1024 * 1024;
 const ACCEPTED_MIME = ['image/jpeg', 'image/png', 'image/webp'];
 const EMAIL_RE = /.+@.+\..+/;
 
@@ -381,7 +383,11 @@ function Dropzone({ files, onChange, disabled }: DropzoneProps) {
       (f) => ACCEPTED_MIME.includes(f.type) && f.size <= MAX_FILE_SIZE
     );
     if (valid.length !== arr.length) {
-      setError(t('support.invalid_file', 'Only JPEG/PNG/WebP, ≤ 10MB each'));
+      setError(
+        t('support.invalid_file', 'Only JPEG/PNG/WebP, ≤ {size}MB each', {
+          size: MAX_FILE_SIZE_MB
+        })
+      );
       return;
     }
     onChange([...files, ...valid]);
@@ -417,8 +423,9 @@ function Dropzone({ files, onChange, disabled }: DropzoneProps) {
           {t('support.dropzone_text', 'Drop images here or click to select')}
         </div>
         <div class="mt-0.5 text-[11px] text-gray-400">
-          {t('support.file_requirements', 'JPEG/PNG/WebP, up to {max} files, ≤ 10MB each', {
-            max: MAX_FILES
+          {t('support.file_requirements', 'JPEG/PNG/WebP, up to {max} files, ≤ {size}MB each', {
+            max: MAX_FILES,
+            size: MAX_FILE_SIZE_MB
           })}
         </div>
       </div>

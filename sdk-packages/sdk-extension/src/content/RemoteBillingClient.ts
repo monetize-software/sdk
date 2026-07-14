@@ -5,20 +5,23 @@
 // local mirror that is updated by (a) responses to async methods and (b) the
 // userChange/balancesChange broadcast events.
 
-import type {
-  Balance,
-  CheckoutResult,
-  Identity,
-  PaywallBootstrap,
-  PaywallOffer,
-  PaywallPrice,
-  PaywallPurchaseDetailed,
-  PaywallUser,
-  TrialConfig
+import {
+  PaywallError,
+  type Balance,
+  type CheckoutResult,
+  type Identity,
+  type PaywallBootstrap,
+  type PaywallOffer,
+  type PaywallPrice,
+  type PaywallPurchaseDetailed,
+  type PaywallUser,
+  type TrialConfig
 } from '@sdk/core/types';
 import type { StorageAdapter } from '@sdk/core/storage';
 import type { TrialStore } from '@sdk/core/trial';
 import { TransportClient } from '../shared/transport-client';
+import { bytesToBase64 } from '../shared/base64';
+import { MAX_SUPPORT_FILES, MAX_SUPPORT_FILE_SIZE } from '../shared/support-limits';
 import { RemoteTrialStore } from './RemoteTrialStore';
 
 export type UserListener = (user: PaywallUser) => void;
@@ -289,17 +292,56 @@ export class RemoteBillingClient {
     return [...result];
   }
 
-  /** Support ticket through the offscreen BillingClient. File objects survive
-   *  chrome.runtime structured-clone (the port forwards them as-is) — the
-   *  Bearer token / email substitution is done by offscreen, as in the regular
-   *  BillingClient. */
+  /** Support ticket through the offscreen BillingClient. File objects do NOT
+   *  survive chrome.runtime ports (messages are JSON-serialized, a File
+   *  degrades to `{}` — crbug.com/248548), so attachments are shipped as
+   *  base64: each file is staged in offscreen with its own request, then the
+   *  ticket references the staged ids. Bearer token / email substitution is
+   *  done by offscreen, as in the regular BillingClient. */
   async createSupportTicket(payload: {
     subject: string;
     content: string;
     email?: string;
     files?: File[];
   }): Promise<{ ticket: { id: number; status: string } }> {
-    return this.transport.request('billing.createSupportTicket', payload);
+    const files = payload.files ?? [];
+    // Mirror of the backend limits (route: too_many_files / invalid_file).
+    // Failing early keeps an oversized payload away from the port — a message
+    // above the runtime cap would kill the shared channel for the whole page.
+    if (files.length > MAX_SUPPORT_FILES) {
+      throw new PaywallError('too_many_files', `Up to ${MAX_SUPPORT_FILES} files`, {
+        status: 400
+      });
+    }
+    for (const f of files) {
+      if (!(f instanceof File) || f.size > MAX_SUPPORT_FILE_SIZE) {
+        throw new PaywallError(
+          'invalid_file',
+          `Each attachment must be a File ≤ ${MAX_SUPPORT_FILE_SIZE} bytes`,
+          { status: 400 }
+        );
+      }
+    }
+
+    // Sequential staging: peak memory in offscreen stays one file, and the
+    // envelopes (~1.33 × size each) never stack up in the port queue.
+    const fileIds: string[] = [];
+    for (const f of files) {
+      const bytes = new Uint8Array(await f.arrayBuffer());
+      const { fileId } = await this.transport.request('billing.stageSupportFile', {
+        name: f.name,
+        type: f.type,
+        dataBase64: bytesToBase64(bytes)
+      });
+      fileIds.push(fileId);
+    }
+
+    return this.transport.request('billing.createSupportTicket', {
+      subject: payload.subject,
+      content: payload.content,
+      email: payload.email,
+      fileIds: fileIds.length > 0 ? fileIds : undefined
+    });
   }
 
   /** Cancel a subscription through the backend. By default cancels at the end

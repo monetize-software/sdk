@@ -1284,17 +1284,17 @@ export const SDK_TRANSLATIONS = {
     uk: 'Перетягніть зображення сюди або клацніть для вибору'
   },
   'support.file_requirements': {
-    de: 'JPEG/PNG/WebP, bis zu {max} Dateien, ≤ 10 MB pro Datei',
-    es: 'JPEG/PNG/WebP, hasta {max} archivos, ≤ 10 MB cada uno',
-    fr: 'JPEG/PNG/WebP, jusqu\'à {max} fichiers, ≤ 10 Mo chacun',
-    it: 'JPEG/PNG/WebP, fino a {max} file, ≤ 10 MB ciascuno',
-    pt: 'JPEG/PNG/WebP, até {max} arquivos, ≤ 10 MB cada',
-    nl: 'JPEG/PNG/WebP, tot {max} bestanden, ≤ 10 MB elk',
-    ja: 'JPEG/PNG/WebP、最大 {max} 個、各 10MB 以下',
-    ko: 'JPEG/PNG/WebP, 최대 {max}개, 각 10MB 이하',
-    zh: 'JPEG/PNG/WebP，最多 {max} 个文件，每个 ≤ 10MB',
-    ru: 'JPEG/PNG/WebP, до {max} файлов, ≤ 10 МБ каждый',
-    uk: 'JPEG/PNG/WebP, до {max} файлів, ≤ 10 МБ кожен'
+    de: 'JPEG/PNG/WebP, bis zu {max} Dateien, ≤ {size} MB pro Datei',
+    es: 'JPEG/PNG/WebP, hasta {max} archivos, ≤ {size} MB cada uno',
+    fr: 'JPEG/PNG/WebP, jusqu\'à {max} fichiers, ≤ {size} Mo chacun',
+    it: 'JPEG/PNG/WebP, fino a {max} file, ≤ {size} MB ciascuno',
+    pt: 'JPEG/PNG/WebP, até {max} arquivos, ≤ {size} MB cada',
+    nl: 'JPEG/PNG/WebP, tot {max} bestanden, ≤ {size} MB elk',
+    ja: 'JPEG/PNG/WebP、最大 {max} 個、各 {size}MB 以下',
+    ko: 'JPEG/PNG/WebP, 최대 {max}개, 각 {size}MB 이하',
+    zh: 'JPEG/PNG/WebP，最多 {max} 个文件，每个 ≤ {size}MB',
+    ru: 'JPEG/PNG/WebP, до {max} файлов, ≤ {size} МБ каждый',
+    uk: 'JPEG/PNG/WebP, до {max} файлів, ≤ {size} МБ кожен'
   },
   'support.too_many_files': {
     de: 'Bis zu {max} Dateien', es: 'Hasta {max} archivos', fr: 'Jusqu\'à {max} fichiers',
@@ -1303,17 +1303,17 @@ export const SDK_TRANSLATIONS = {
     ru: 'До {max} файлов', uk: 'До {max} файлів'
   },
   'support.invalid_file': {
-    de: 'Nur JPEG/PNG/WebP, ≤ 10 MB pro Datei',
-    es: 'Solo JPEG/PNG/WebP, ≤ 10 MB cada uno',
-    fr: 'JPEG/PNG/WebP uniquement, ≤ 10 Mo chacun',
-    it: 'Solo JPEG/PNG/WebP, ≤ 10 MB ciascuno',
-    pt: 'Apenas JPEG/PNG/WebP, ≤ 10 MB cada',
-    nl: 'Alleen JPEG/PNG/WebP, ≤ 10 MB elk',
-    ja: 'JPEG/PNG/WebPのみ、各10MB以下',
-    ko: 'JPEG/PNG/WebP만, 각 10MB 이하',
-    zh: '仅限 JPEG/PNG/WebP，每个 ≤ 10MB',
-    ru: 'Только JPEG/PNG/WebP, ≤ 10 МБ каждый',
-    uk: 'Лише JPEG/PNG/WebP, ≤ 10 МБ кожен'
+    de: 'Nur JPEG/PNG/WebP, ≤ {size} MB pro Datei',
+    es: 'Solo JPEG/PNG/WebP, ≤ {size} MB cada uno',
+    fr: 'JPEG/PNG/WebP uniquement, ≤ {size} Mo chacun',
+    it: 'Solo JPEG/PNG/WebP, ≤ {size} MB ciascuno',
+    pt: 'Apenas JPEG/PNG/WebP, ≤ {size} MB cada',
+    nl: 'Alleen JPEG/PNG/WebP, ≤ {size} MB elk',
+    ja: 'JPEG/PNG/WebPのみ、各{size}MB以下',
+    ko: 'JPEG/PNG/WebP만, 각 {size}MB 이하',
+    zh: '仅限 JPEG/PNG/WebP，每个 ≤ {size}MB',
+    ru: 'Только JPEG/PNG/WebP, ≤ {size} МБ каждый',
+    uk: 'Лише JPEG/PNG/WebP, ≤ {size} МБ кожен'
   },
   'support.remove_file_aria': {
     de: '{filename} entfernen', es: 'Eliminar {filename}', fr: 'Supprimer {filename}',

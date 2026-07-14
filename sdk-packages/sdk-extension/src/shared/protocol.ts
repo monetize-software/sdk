@@ -45,6 +45,7 @@ export type RequestKind =
   | 'billing.getIdentity'
   | 'billing.setIdentity'
   | 'billing.getVisitorId'
+  | 'billing.stageSupportFile'
   | 'billing.createSupportTicket'
   // AuthClient
   | 'auth.signInWithEmail'

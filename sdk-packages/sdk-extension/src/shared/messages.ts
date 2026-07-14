@@ -52,15 +52,25 @@ declare module './protocol' {
     'billing.getIdentity': void;
     'billing.setIdentity': { identity: Identity | null };
     'billing.getVisitorId': void;
-    /** File objects survive chrome.runtime structured-clone through the ports
-     *  (the SW forwards them as-is). Size limits (10MB/file, 5 files) are
-     *  validated by the SDK before sending and by the backend again — both to
-     *  avoid blowing up the SW heap under abuse. */
+    /** File objects do NOT survive chrome.runtime ports — messages are
+     *  JSON-serialized (crbug.com/248548), a File degrades to `{}` silently.
+     *  Attachments therefore travel as base64: content stages each file with
+     *  `billing.stageSupportFile` (one request per file, so a 5-file ticket
+     *  never approaches the ~64MB port message cap), then references the
+     *  returned ids here. Size limits (5MB/file, 5 files) are validated by the
+     *  RemoteBillingClient before staging and by the backend again. */
+    'billing.stageSupportFile': {
+      name: string;
+      type: string;
+      /** base64 of the file bytes (see shared/base64.ts). */
+      dataBase64: string;
+    };
     'billing.createSupportTicket': {
       subject: string;
       content: string;
       email?: string;
-      files?: File[];
+      /** Ids returned by `billing.stageSupportFile`, in attachment order. */
+      fileIds?: string[];
     };
 
     'auth.signInWithEmail': { email: string; password: string };
@@ -156,6 +166,7 @@ declare module './protocol' {
     'billing.getIdentity': Identity | null;
     'billing.setIdentity': void;
     'billing.getVisitorId': string;
+    'billing.stageSupportFile': { fileId: string };
     'billing.createSupportTicket': { ticket: { id: number; status: string } };
 
     'auth.signInWithEmail': AuthSession;

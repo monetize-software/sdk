@@ -13,6 +13,7 @@
 // (natively, in its own frame) — the verifier never crosses the runtime boundary.
 
 import { BillingClient } from '@sdk/core/BillingClient';
+import { PaywallError } from '@sdk/core/types';
 import { AuthClient } from '@sdk/core/auth';
 import { EventTracker } from '@sdk/core/EventTracker';
 import { createTrialStore } from '@sdk/core/trial';
@@ -21,12 +22,25 @@ import type { OffscreenServerOptions } from './index';
 import { TransportServer } from '../shared/transport-server';
 import { portToChannel } from '../shared/chrome-port';
 import { RELAY_PORT_NAME } from '../shared/port-name';
+import { base64ToBytes } from '../shared/base64';
+import { MAX_SUPPORT_FILES, MAX_SUPPORT_FILE_SIZE } from '../shared/support-limits';
+
+// Staged support attachments awaiting their createSupportTicket. Sweep window:
+// generous enough for a slow sequential upload of 5 files, short enough that
+// an abandoned form (staged files, tab closed before submit) doesn't pin
+// megabytes in the offscreen heap for long.
+const STAGED_FILE_TTL_MS = 10 * 60 * 1000;
+// Heap cap across ALL tabs (one offscreen per extension): 2 full tickets' worth.
+const STAGED_FILES_MAX_COUNT = MAX_SUPPORT_FILES * 2;
+
+type StagedFile = { name: string; type: string; bytes: Uint8Array; stagedAt: number };
 
 export class OffscreenServer {
   readonly billing: BillingClient;
   readonly auth: AuthClient | undefined;
   readonly tracker: EventTracker | undefined;
   private readonly transport = new TransportServer();
+  private readonly stagedFiles = new Map<string, StagedFile>();
   private connectListener: ((port: chrome.runtime.Port) => void) | null = null;
   private userUnsub: (() => void) | null = null;
   private balanceUnsub: (() => void) | null = null;
@@ -58,6 +72,16 @@ export class OffscreenServer {
     this.transport.on('tracker.track', (params) => {
       tracker.track(params.name, params.props);
     });
+  }
+
+  /** Drop staged support attachments older than the TTL. Called on every
+   *  stage request — no timer needed, the map is only ever populated by the
+   *  same request path. */
+  private sweepStagedFiles(): void {
+    const cutoff = Date.now() - STAGED_FILE_TTL_MS;
+    for (const [id, f] of this.stagedFiles) {
+      if (f.stagedAt < cutoff) this.stagedFiles.delete(id);
+    }
   }
 
   private registerBillingHandlers(): void {
@@ -98,9 +122,53 @@ export class OffscreenServer {
       this.billing.getCustomerPortalUrl({ returnUrl: params.returnUrl, signal: ctx.signal })
     );
 
-    this.transport.on('billing.createSupportTicket', async (params) =>
-      this.billing.createSupportTicket(params)
-    );
+    // Attachments arrive as base64 (Files don't survive the JSON-serialized
+    // runtime ports — see shared/messages.ts). Stage each file, then the
+    // ticket request references the staged ids and we rebuild real Files here.
+    this.transport.on('billing.stageSupportFile', (params) => {
+      this.sweepStagedFiles();
+      const bytes = base64ToBytes(params.dataBase64);
+      if (bytes.length > MAX_SUPPORT_FILE_SIZE) {
+        throw new PaywallError('invalid_file', 'Attachment too large', { status: 400 });
+      }
+      if (this.stagedFiles.size >= STAGED_FILES_MAX_COUNT) {
+        throw new PaywallError('too_many_files', 'Too many staged attachments', {
+          status: 429
+        });
+      }
+      const fileId = crypto.randomUUID();
+      this.stagedFiles.set(fileId, {
+        name: params.name,
+        type: params.type,
+        bytes,
+        stagedAt: Date.now()
+      });
+      return { fileId };
+    });
+
+    this.transport.on('billing.createSupportTicket', async (params) => {
+      const { fileIds, ...ticket } = params;
+      // Consume the staged entries up front: whether the backend call succeeds
+      // or fails, a retry re-stages from the content side — nothing may linger.
+      const files: File[] = [];
+      for (const id of fileIds ?? []) {
+        const staged = this.stagedFiles.get(id);
+        this.stagedFiles.delete(id);
+        // A missing id means the stage was swept (TTL) or never happened —
+        // failing loudly beats silently recreating the "ticket without the
+        // screenshot" bug this flow exists to fix.
+        if (!staged) {
+          throw new PaywallError('invalid_file', 'Attachment expired, re-send the ticket', {
+            status: 400
+          });
+        }
+        files.push(new File([staged.bytes as BlobPart], staged.name, { type: staged.type }));
+      }
+      return this.billing.createSupportTicket({
+        ...ticket,
+        files: files.length > 0 ? files : undefined
+      });
+    });
 
     this.transport.on('billing.getIdentity', () => this.billing.getIdentity() ?? null);
     this.transport.on('billing.setIdentity', (params) => {
@@ -214,6 +282,13 @@ export class OffscreenServer {
         this.transport.broadcast('authChange', { event, session });
       });
     }
+  }
+
+  /** Accept a raw MessageChannel, bypassing chrome.runtime. Unit tests wire an
+   *  in-memory channel here to exercise the real handler graph; prod traffic
+   *  always arrives through start() → onConnect. */
+  acceptChannel(channel: Parameters<TransportServer['accept']>[0]): void {
+    this.transport.accept(channel);
   }
 
   /** Start the listener on chrome.runtime.onConnect. */
