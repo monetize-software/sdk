@@ -326,6 +326,13 @@ export class PaywallUI {
    *  PaywallUI mirrors these tracker bindings (bindAnalytics) and needs the
    *  same gate. */
   protected lastMountedView: PaywallView | null = null;
+  /** Whether the CURRENT mount session tracked `paywall_viewed`. Gates
+   *  `paywall_closed`: a delayed gate (visibility/trial/subscription) closing a
+   *  mount-then-load spinner emits the public 'close', but no paywall was ever
+   *  seen — tracking closed without viewed breaks the funnel (closed > viewed).
+   *  Reset on every mountAndShow. Protected: sdk-extension's bindAnalytics
+   *  mirrors the tracker bindings and needs the same gate. */
+  protected viewedTracked = false;
   /** Per-open custom title (OpenOptions.title) of the current mount. null —
    *  the layout's own heading is shown. Kept for the `paywall_viewed`
    *  analytics flag. */
@@ -457,6 +464,7 @@ export class PaywallUI {
     // single signal of a paywall view.
     this.on('ready', (b) => {
       if (this.lastMountedView !== 'layout') return;
+      this.viewedTracked = true;
       this.tracker?.track('paywall_viewed', {
         is_test_mode: b.settings.is_test_mode,
         prices_count: b.prices.length,
@@ -475,17 +483,26 @@ export class PaywallUI {
         acquiring: p.acquiring
       })
     );
-    this.on('purchase_completed', (p) =>
+    this.on('purchase_completed', (p) => {
+      // restored=true is "an active subscription was discovered" (suppressed
+      // open, signin auth-resume, 409 in checkout) — not a purchase. Tracking
+      // it inflates the events dashboard with purchases that have no
+      // transaction behind them; the public event still reaches the host.
+      if (p.restored) return;
       this.tracker?.track('purchase_completed', {
         price_id: p.priceId,
         session_id: p.sessionId
-      })
-    );
+      });
+    });
     this.on('purchase_failed', (p) =>
       this.tracker?.track('purchase_failed', { reason: p.reason })
     );
     this.on('close', () => {
-      if (this.lastMountedView === 'layout') this.tracker?.track('paywall_closed');
+      // paywall_closed only when THIS mount session tracked paywall_viewed —
+      // a delayed gate closing the mount-then-load spinner is not "the user
+      // closed the paywall" (viewedTracked implies lastMountedView==='layout').
+      if (this.viewedTracked) this.tracker?.track('paywall_closed');
+      this.viewedTracked = false;
     });
     this.on('trial_blocked', (s) =>
       this.tracker?.track('trial_blocked', {
@@ -1311,6 +1328,10 @@ export class PaywallUI {
     // We remember the view for the analytics gate (paywall_viewed/paywall_closed)
     // — we emit them only when we actually show the paywall ('layout').
     this.lastMountedView = view;
+    // Every mount starts un-viewed: paywall_viewed is tracked by the 'ready'
+    // binding once the layout actually renders, and paywall_closed only pairs
+    // with a tracked viewed (see initTracker / extension bindAnalytics).
+    this.viewedTracked = false;
     const renew = mountOpts.renew === true;
     const initialAuthMode = mountOpts.authMode;
     // The title override only applies to the layout view; on the other views we

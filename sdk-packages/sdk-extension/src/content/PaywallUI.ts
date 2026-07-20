@@ -101,6 +101,7 @@ export class PaywallUI extends BasePaywallUI {
       // support/auth/awaiting_payment mounts too, but that's not a paywall view.
       this.on('ready', (b) => {
         if (this.lastMountedView !== 'layout') return;
+        this.viewedTracked = true;
         t.track('paywall_viewed', {
           is_test_mode: b.settings.is_test_mode,
           prices_count: b.prices.length,
@@ -113,12 +114,18 @@ export class PaywallUI extends BasePaywallUI {
       this.on('checkout_started', (p) =>
         t.track('checkout_started', { price_id: p.priceId, acquiring: p.acquiring })
       ),
-      this.on('purchase_completed', (p) =>
-        t.track('purchase_completed', { price_id: p.priceId, session_id: p.sessionId })
-      ),
+      this.on('purchase_completed', (p) => {
+        // restored=true = "active subscription discovered", not a purchase —
+        // same skip as the base initTracker.
+        if (p.restored) return;
+        t.track('purchase_completed', { price_id: p.priceId, session_id: p.sessionId });
+      }),
       this.on('purchase_failed', (p) => t.track('purchase_failed', { reason: p.reason })),
       this.on('close', () => {
-        if (this.lastMountedView === 'layout') t.track('paywall_closed');
+        // Closed pairs only with a tracked viewed — a delayed gate closing the
+        // mount-then-load spinner is not "the user closed the paywall".
+        if (this.viewedTracked) t.track('paywall_closed');
+        this.viewedTracked = false;
       }),
       this.on('trial_blocked', (s) =>
         t.track('trial_blocked', {

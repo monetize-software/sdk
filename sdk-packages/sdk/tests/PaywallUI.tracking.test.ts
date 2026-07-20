@@ -176,4 +176,120 @@ describe('PaywallUI tracking integration', () => {
     await vi.advanceTimersByTimeAsync(100);
     expect(calls.length).toBe(beforeCount);
   });
+
+  it('purchase_completed with restored:true is NOT tracked (not a purchase)', async () => {
+    const { ui, calls } = makeUI();
+    setMountedView(ui, 'layout');
+
+    emit(ui, 'purchase_completed', { priceId: null, sessionId: null, restored: true });
+    emit(ui, 'purchase_completed', { priceId: '1', sessionId: 's1' });
+    await vi.advanceTimersByTimeAsync(50);
+
+    const types = JSON.parse(calls[0].init.body as string).events.map(
+      (e: { type: string }) => e.type
+    );
+    expect(types).toEqual(['purchase_completed']);
+    expect(JSON.parse(calls[0].init.body as string).events[0].props).toMatchObject({
+      price_id: '1',
+      session_id: 's1'
+    });
+  });
+});
+
+// Delayed-gate flash opens: mount-then-load mounts the spinner, the gate
+// (visibility / trial / subscription) closes it before any paywall is seen.
+// Only the gate's own event may reach analytics — no paywall_viewed and no
+// paywall_closed (closed pairs strictly with a tracked viewed), and no
+// purchase_completed for the suppressed-subscriber open (restored ≠ purchase).
+// Real timers: the flow crosses network microtasks and preact effects.
+describe('PaywallUI tracking on delayed-gate flash opens', () => {
+  function flowHarness(bootstrapBody: unknown) {
+    const tracked: string[] = [];
+    const fetchImpl: typeof fetch = async (input, init) => {
+      const url = typeof input === 'string' ? input : (input as URL | Request).toString();
+      if (url.includes('/events')) {
+        const body = JSON.parse((init?.body as string) ?? '{}');
+        for (const e of body.events ?? []) tracked.push(e.type);
+        return new Response(null, { status: 204 });
+      }
+      return new Response(JSON.stringify(bootstrapBody), {
+        status: 200,
+        headers: { 'content-type': 'application/json' }
+      });
+    };
+    const ui = new PaywallUI({
+      apiOrigin: TEST_API_ORIGIN,
+      paywallId: 'pw_1',
+      fetch: fetchImpl,
+      autoDetectReturn: false,
+      analytics: { flushIntervalMs: 20, fetch: fetchImpl }
+    });
+    return { ui, tracked };
+  }
+
+  const base = {
+    prices: [{ id: '1' }] as unknown[],
+    offers: [] as unknown[],
+    layout: { type: 'modal', blocks: [] as unknown[] }
+  };
+  const settle = () => new Promise((r) => setTimeout(r, 300));
+
+  beforeEach(() => {
+    window.history.replaceState(null, '', '/');
+    window.localStorage.clear();
+  });
+
+  it('trial-blocked flash: only trial_blocked is tracked', async () => {
+    const { ui, tracked } = flowHarness({
+      ...base,
+      settings: {
+        name: 'T',
+        is_test_mode: false,
+        trial: { mode: 'opens', payload: 3, storage: 'client' }
+      },
+      user: null
+    });
+    ui.open();
+    await settle();
+    expect(tracked).toEqual(['trial_blocked']);
+  });
+
+  it('visibility-blocked flash: only visibility_blocked is tracked', async () => {
+    const { ui, tracked } = flowHarness({
+      ...base,
+      settings: {
+        name: 'T',
+        is_test_mode: false,
+        visibility: { visible: false, reason: 'country_not_match', country: 'RU', tier: 3 }
+      },
+      user: null
+    });
+    ui.open();
+    await settle();
+    expect(tracked).toEqual(['visibility_blocked']);
+  });
+
+  it('subscription-suppressed flash: nothing is tracked', async () => {
+    const { ui, tracked } = flowHarness({
+      ...base,
+      settings: { name: 'T', is_test_mode: false },
+      user: { has_active_subscription: true, purchases: [] as unknown[], trial: null as unknown }
+    });
+    ui.open();
+    await settle();
+    expect(tracked).toEqual([]);
+  });
+
+  it('real layout show still tracks the viewed/closed pair', async () => {
+    const { ui, tracked } = flowHarness({
+      ...base,
+      settings: { name: 'T', is_test_mode: false },
+      user: null
+    });
+    ui.open();
+    await settle();
+    ui.close();
+    await settle();
+    expect(tracked).toEqual(['paywall_viewed', 'paywall_closed']);
+  });
 });
