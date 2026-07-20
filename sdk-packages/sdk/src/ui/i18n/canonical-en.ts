@@ -105,6 +105,7 @@ const en = {
   'auth.rate_limited': 'Too many requests. Please try again later.',
   'auth.network_error': 'Network error. Please check your connection and try again.',
   'auth.service_unavailable': 'Service is temporarily unavailable. Please try again.',
+  'auth.custom_domain_required': 'Sign-in is not available: the paywall has no custom domain configured (platform settings → Custom domains).',
 
   // === auth gate (intent-specific) ===
   'auth.restore_purchases_heading': 'Restore Purchases',

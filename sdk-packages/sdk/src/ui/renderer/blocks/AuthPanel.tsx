@@ -64,6 +64,15 @@ function authErrorMessage(
     case 'http_503':
     case 'http_504':
       return t('auth.service_unavailable', 'Service is temporarily unavailable. Please try again.');
+    // Merchant misconfiguration, not a user error: OAuth redirects and
+    // confirmation/recovery email links are built from the paywall's custom
+    // domain (backend hard-fails without it). Shown as-is so the integrating
+    // developer sees the actionable cause right in the UI during setup.
+    case 'custom_domain_required':
+      return t(
+        'auth.custom_domain_required',
+        'Sign-in is not available: the paywall has no custom domain configured (platform settings → Custom domains).'
+      );
     default:
       return fallback;
   }

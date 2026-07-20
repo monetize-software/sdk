@@ -309,6 +309,49 @@ describe('AuthPanel render', () => {
     expect(container.textContent).toContain('confirmation link');
   });
 
+  it('signup rejected with custom_domain_required shows the actionable misconfig message', async () => {
+    const signUp = vi.fn(async () => {
+      throw new PaywallError(
+        'custom_domain_required',
+        'Email sign-up requires custom_domain configured on the paywall (platform settings): the confirmation-email link is built from it.',
+        { status: 400 }
+      );
+    });
+    const auth = makeAuthMock({ signUp });
+    const { container } = renderPanel(BLOCK_DEFAULT, { auth });
+
+    const toSignup = Array.from(container.querySelectorAll('button')).find(
+      (b) => (b.textContent ?? '').trim() === 'Sign Up'
+    );
+    act(() => toSignup!.click());
+
+    const email = container.querySelector<HTMLInputElement>('input[type="email"]')!;
+    const form = container.querySelector('form')!;
+    await act(async () => {
+      email.value = 'new@b.c';
+      email.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await act(async () => {
+      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    });
+
+    const passwords = container.querySelectorAll<HTMLInputElement>('input[type="password"]');
+    await act(async () => {
+      passwords[0].value = 'pw_new';
+      passwords[0].dispatchEvent(new Event('input', { bubbles: true }));
+      passwords[1].value = 'pw_new';
+      passwords[1].dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await act(async () => {
+      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    });
+
+    // A merchant misconfig, not a user error: the specific cause must surface
+    // instead of the generic "Sign-up failed" fallback.
+    expect(container.textContent).toContain('no custom domain configured');
+    expect(container.textContent).not.toContain('Sign-up failed');
+  });
+
   it('forgot password flow calls requestPasswordReset and shows confirmation', async () => {
     const reset = vi.fn(async () => undefined);
     const auth = makeAuthMock({ requestPasswordReset: reset });
