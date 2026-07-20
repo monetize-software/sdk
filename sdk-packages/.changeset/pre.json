@@ -1,0 +1,12 @@
+{
+  "mode": "exit",
+  "tag": "rc",
+  "initialVersions": {
+    "@monetize.software/sdk": "3.3.1",
+    "@monetize.software/sdk-extension": "3.3.3",
+    "@monetize.software/sdk-react": "3.3.0"
+  },
+  "changesets": [
+    "email-confirm-auto-resume"
+  ]
+}

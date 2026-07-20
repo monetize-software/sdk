@@ -1,5 +1,12 @@
 # @monetize.software/sdk-extension
 
+## 4.0.0-rc.0
+
+### Patch Changes
+
+- Updated dependencies [958afbd]
+  - @monetize.software/sdk@3.4.0-rc.0
+
 ## 3.3.3
 
 ### Patch Changes
