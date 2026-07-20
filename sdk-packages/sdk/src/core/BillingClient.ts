@@ -614,7 +614,11 @@ export class BillingClient {
       // Refresh the TTL — an unchanged response also went over the network, the cache is still valid.
       this.cachedBootstrapAt = Date.now();
       if (resp.user) this.applyUser(resp.user);
-      return this.cachedBootstrap;
+      // Same user-overlay contract as the cache-fresh path in bootstrap():
+      // cachedBootstrap may carry no user at all (persisted bootstraps are
+      // stored without it) or a stale snapshot — the fresh one just went
+      // through applyUser above.
+      return { ...this.cachedBootstrap, user: this.cachedUser ?? undefined };
     }
 
     const bootstrap = resp as PaywallBootstrap;

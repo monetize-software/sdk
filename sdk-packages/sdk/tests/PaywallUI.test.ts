@@ -473,3 +473,258 @@ describe('PaywallUI mount-then-load (Phase 7)', () => {
     expect(events).toEqual(['open']);
   });
 });
+
+// Subscription gate: a blind open() for a user with an active subscription is
+// suppressed — no modal, purchase_completed{restored:true} once per instance.
+// Regression guard for the "plan picker for a subscriber" bug (extension popup:
+// a click on a gated feature used to open the picker). The restored
+// success-view stays reserved for signin auth-resume / Restore purchases / the
+// 409 already_purchased catch in checkout.
+describe('PaywallUI open for an already-subscribed user', () => {
+  const ACTIVE_USER = {
+    has_active_subscription: true,
+    purchases: [] as unknown[],
+    trial: null as unknown
+  };
+
+  function makeBootstrap(user: unknown = ACTIVE_USER) {
+    return {
+      settings: { name: 'Test', is_test_mode: false },
+      prices: [] as unknown[],
+      offers: [] as unknown[],
+      layout: { type: 'modal', blocks: [] as unknown[] },
+      user
+    };
+  }
+
+  const fetchReturning = (body: unknown): typeof fetch =>
+    (async () =>
+      new Response(JSON.stringify(body), {
+        status: 200,
+        headers: { 'content-type': 'application/json' }
+      })) as typeof fetch;
+
+  function makeUI(user: unknown = ACTIVE_USER) {
+    return new PaywallUI({
+      apiOrigin: TEST_API_ORIGIN,
+      paywallId: 'pw_1',
+      fetch: fetchReturning(makeBootstrap(user)),
+      autoDetectReturn: false,
+      analytics: false
+    });
+  }
+
+  async function waitForView(ui: PaywallUI, view: string): Promise<void> {
+    await vi.waitFor(
+      () => {
+        if (ui.getState().view !== view) {
+          throw new Error(`view is ${ui.getState().view}, want ${view}`);
+        }
+      },
+      { timeout: 3000 }
+    );
+  }
+
+  beforeEach(() => {
+    window.history.replaceState(null, '', '/');
+    window.localStorage.clear();
+  });
+
+  it('warm cache: open() is suppressed — no mount, restored signal emitted', async () => {
+    const ui = makeUI();
+    await ui.billing.bootstrap();
+
+    const events: unknown[] = [];
+    ui.on('open', () => events.push('open'));
+    ui.on('purchase_completed', (p) => events.push(p));
+
+    ui.open();
+
+    expect(events).toEqual([{ priceId: null, sessionId: null, restored: true }]);
+    expect(ui.getState().open).toBe(false);
+  });
+
+  it('repeat open() stays suppressed and does not re-emit', async () => {
+    const ui = makeUI();
+    await ui.billing.bootstrap();
+    const completed: unknown[] = [];
+    ui.on('purchase_completed', (p) => completed.push(p));
+
+    ui.open();
+    ui.open();
+
+    expect(completed).toHaveLength(1);
+    expect(ui.getState().open).toBe(false);
+  });
+
+  it('cold bootstrap (mount-then-load): the modal closes once the user arrives', async () => {
+    const ui = makeUI();
+    const events: unknown[] = [];
+    ui.on('open', () => events.push('open'));
+    ui.on('close', () => events.push('close'));
+    ui.on('purchase_completed', (p) => events.push(p));
+
+    ui.open();
+    // Cold cache — mount-then-load mounts the spinner synchronously.
+    expect(events).toEqual(['open']);
+
+    await vi.waitFor(
+      () => {
+        if (events.length < 3) throw new Error('gate has not run yet');
+      },
+      { timeout: 3000 }
+    );
+    expect(events).toEqual([
+      'open',
+      'close',
+      { priceId: null, sessionId: null, restored: true }
+    ]);
+    expect(ui.getState().open).toBe(false);
+  });
+
+  it('cold bootstrap + mountThenLoad:false — suppressed without an open/close flash', async () => {
+    const ui = new PaywallUI({
+      apiOrigin: TEST_API_ORIGIN,
+      paywallId: 'pw_1',
+      fetch: fetchReturning(makeBootstrap()),
+      autoDetectReturn: false,
+      analytics: false,
+      mountThenLoad: false
+    });
+    const events: unknown[] = [];
+    ui.on('open', () => events.push('open'));
+    ui.on('close', () => events.push('close'));
+    ui.on('purchase_completed', (p) => events.push(p));
+
+    ui.open();
+    expect(events).toEqual([]);
+
+    await vi.waitFor(
+      () => {
+        if (events.length === 0) throw new Error('no emit yet');
+      },
+      { timeout: 3000 }
+    );
+    expect(events).toEqual([{ priceId: null, sessionId: null, restored: true }]);
+    expect(ui.getState().open).toBe(false);
+  });
+
+  it('renew: true keeps the plan picker on first open and on reopen', async () => {
+    const ui = makeUI();
+    ui.open({ renew: true });
+    await waitForView(ui, 'layout');
+
+    ui.close();
+    ui.open({ renew: true });
+    await new Promise((r) => setTimeout(r, 20));
+    expect(ui.getState().view).toBe('layout');
+  });
+
+  it('non-subscribed user still gets the plan picker on reopen', async () => {
+    const ui = makeUI(null);
+    ui.open();
+    await waitForView(ui, 'layout');
+
+    ui.close();
+    ui.open();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(ui.getState().view).toBe('layout');
+  });
+
+  it('expired trial + no subscription: the modal opens with the plan picker', async () => {
+    // Gate ordering: the subscription gate must not swallow the expired-trial
+    // path — a trial user who ran out of quota still gets the paywall.
+    const ui = new PaywallUI({
+      apiOrigin: TEST_API_ORIGIN,
+      paywallId: 'pw_1',
+      fetch: fetchReturning({
+        ...makeBootstrap(null),
+        settings: {
+          name: 'Test',
+          is_test_mode: false,
+          trial: { mode: 'opens', payload: 1, storage: 'client' }
+        }
+      }),
+      autoDetectReturn: false,
+      analytics: false
+    });
+    const events: string[] = [];
+    ui.on('trial_blocked', () => events.push('trial_blocked'));
+    ui.on('trial_expired', () => events.push('trial_expired'));
+
+    // First open consumes the single trial action — blocked, no modal.
+    ui.open();
+    await vi.waitFor(
+      () => {
+        if (!events.includes('trial_blocked')) throw new Error('trial gate has not run yet');
+      },
+      { timeout: 3000 }
+    );
+    expect(ui.getState().open).toBe(false);
+
+    // Second open — the trial is exhausted → the paywall opens with plans.
+    ui.open();
+    await waitForView(ui, 'layout');
+    expect(events).toEqual(['trial_blocked', 'trial_expired']);
+  });
+
+  it('expired trial + active subscription: still suppressed (subscription wins)', async () => {
+    const ui = new PaywallUI({
+      apiOrigin: TEST_API_ORIGIN,
+      paywallId: 'pw_1',
+      fetch: fetchReturning({
+        ...makeBootstrap(),
+        settings: {
+          name: 'Test',
+          is_test_mode: false,
+          trial: { mode: 'opens', payload: 1, storage: 'client' }
+        }
+      }),
+      autoDetectReturn: false,
+      analytics: false
+    });
+    await ui.billing.bootstrap();
+    const completed: unknown[] = [];
+    ui.on('purchase_completed', (p) => completed.push(p));
+
+    ui.open();
+
+    expect(completed).toHaveLength(1);
+    expect(ui.getState().open).toBe(false);
+  });
+
+  it('cachedUser overlay: bootstrap without user + active user-state → suppressed', async () => {
+    // The support-ticket scenario: getAccess() sees the subscription through
+    // cachedUser while bootstrap.user is missing — open() must be suppressed,
+    // not fall back to the plan picker.
+    const fetchImpl: typeof fetch = (async (input: RequestInfo | URL) => {
+      const url =
+        typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+      const body = url.includes('/user-state') ? ACTIVE_USER : makeBootstrap(null);
+      return new Response(JSON.stringify(body), {
+        status: 200,
+        headers: { 'content-type': 'application/json' }
+      });
+    }) as typeof fetch;
+    const ui = new PaywallUI({
+      apiOrigin: TEST_API_ORIGIN,
+      paywallId: 'pw_1',
+      identity: { email: 'kv@example.com' },
+      fetch: fetchImpl,
+      autoDetectReturn: false,
+      analytics: false
+    });
+
+    await ui.billing.getUser();
+    expect(ui.billing.getCachedUser()?.has_active_subscription).toBe(true);
+
+    const events: unknown[] = [];
+    ui.on('open', () => events.push('open'));
+    ui.on('purchase_completed', (p) => events.push(p));
+
+    ui.open();
+
+    expect(events).toEqual([{ priceId: null, sessionId: null, restored: true }]);
+    expect(ui.getState().open).toBe(false);
+  });
+});

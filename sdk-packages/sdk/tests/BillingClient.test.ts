@@ -558,3 +558,43 @@ describe('BillingClient', () => {
     });
   });
 });
+
+// Regression: the `unchanged` revalidate branch used to return the raw
+// cachedBootstrap, whose user is missing (persisted bootstraps are stored
+// without it) or stale — while the fresh user from the unchanged response went
+// only into cachedUser. Callers reading bootstrap().user (PaywallRoot's
+// restored-success check) missed an active subscription.
+describe('BillingClient bootstrap unchanged revalidate', () => {
+  it('returns the fresh user from the unchanged response, not the stale cached one', async () => {
+    const ACTIVE_USER = {
+      has_active_subscription: true,
+      purchases: [] as unknown[],
+      trial: null as unknown
+    };
+    const fetchImpl = vi.fn<typeof fetch>(async (input) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+      if (!url.includes('/bootstrap')) throw new Error(`Unexpected fetch for ${url}`);
+      if (url.includes('if_version=v1')) {
+        return json({ unchanged: true, version: 'v1', user: ACTIVE_USER });
+      }
+      return json({ ...BOOTSTRAP, version: 'v1', user: null });
+    });
+    const client = new BillingClient({
+      apiOrigin: TEST_API_ORIGIN,
+      paywallId: 'pw_unchanged',
+      fetch: fetchImpl
+    });
+
+    const first = await client.bootstrap();
+    expect(first.user ?? null).toBeNull();
+
+    // Age the in-memory cache past the freshness TTL so the next bootstrap()
+    // goes to the network with ?if_version instead of the cached fast-path.
+    (client as unknown as { cachedBootstrapAt: number }).cachedBootstrapAt =
+      Date.now() - 61 * 60_000;
+
+    const second = await client.bootstrap();
+    expect(second.user).toEqual(ACTIVE_USER);
+    expect(client.getCachedUser()).toEqual(ACTIVE_USER);
+  });
+});

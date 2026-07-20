@@ -330,33 +330,13 @@ export function PaywallRoot({
         if (cancelled) return;
         setState({ status: 'ready', data });
         onEvent('ready', data);
-        // The user is already subscribed — the host called open() blindly
-        // (without a getAccess pre-check), or simply from an "Open paywall"
-        // popup. We don't show the plans — we switch to the restored
-        // success-view. We emit purchase_completed so the host gets a consistent
-        // signal, as from any other path (UserWatcher, 409 in checkout,
-        // auth-resume). renew=true skips this check — the host explicitly shows
-        // "Renew"/"Upgrade" and the plans should be visible.
-        //
-        // standalone flows (openSupport/openAuth/openSignup) skip this block:
-        // the host explicitly opened the support/auth form, and overwriting the
-        // gate with restored success would violate the intent. Direct-checkout
-        // (paywall.checkout) is also skipped: PaywallUI already did a pre-check
-        // via fresh getUser before mounting and emitted purchase_completed{restored}
-        // headless if needed. If the modal is mounted anyway (awaiting_payment
-        // with the URL already in hand, or a preauth auth-gate), then the user
-        // is really in the middle of paying — re-emitting "restored" and
-        // disrupting the UI isn't warranted.
-        const skipActiveSubOverride =
-          initialView === 'support' || initialView === 'auth' || isDirectCheckout;
-        if (data.user?.has_active_subscription && !renew && !skipActiveSubOverride) {
-          onEvent('purchase_completed', {
-            priceId: initialCheckoutPriceId ?? null,
-            sessionId: null,
-            restored: true
-          });
-          setGate({ kind: 'purchase_success', restored: true });
-        }
+        // "Already subscribed" is NOT handled here: a blind open() for a user
+        // with an active subscription is suppressed by PaywallUI before/right
+        // after mount (openInternal pre-check + runOpenGates/runDelayedGates),
+        // symmetric with the visibility/trial gates. The restored success-view
+        // is reserved for flows where the user explicitly recovered access:
+        // auth-resume after signin, Restore purchases, and the 409
+        // already_purchased catch in runCheckout.
       })
       .catch((error: unknown) => {
         if (cancelled) return;
@@ -388,6 +368,13 @@ export function PaywallRoot({
     if (!open) {
       setGate({ kind: 'layout' });
       resumingRef.current = false;
+      // A load cancelled mid-flight leaves state at 'loading' (the bootstrap
+      // effect's cleanup set cancelled=true, so neither 'ready' nor 'error'
+      // ever landed). Reset to 'idle' so the next open() restarts the load
+      // instead of early-returning into a stuck spinner — hit when a delayed
+      // gate closes the first mount-then-load open and the user reopens (e.g.
+      // the trial expiring between two clicks).
+      setState((prev) => (prev.status === 'loading' ? { status: 'idle' } : prev));
       return;
     }
     if (initialView === 'support') {

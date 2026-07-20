@@ -63,10 +63,10 @@ export interface PaywallEventPayloads {
    *  conversion by acquiring in host analytics). */
   checkout_started: { priceId: string; url: string; acquiring?: Acquiring };
   /** The user returned with a successful payment (via URL markers or
-   *  postMessage), or after signIn / a checkout attempt it turned out the
-   *  subscription is already active (`restored: true`). priceId = null when the
-   *  payment intent wasn't tied to a specific price (UserWatcher tick,
-   *  restore-flow). */
+   *  postMessage), or after signIn / a checkout attempt / a suppressed blind
+   *  open() it turned out the subscription is already active (`restored: true`).
+   *  priceId = null when the payment intent wasn't tied to a specific price
+   *  (UserWatcher tick, restore-flow, suppressed open). */
   purchase_completed: {
     priceId: string | null;
     sessionId: string | null;
@@ -279,13 +279,15 @@ export interface OpenOptions {
    *  opening the modal if visible=false (country/device/visibility-flag didn't
    *  match). An escape hatch for dev debugging. */
   skipVisibility?: boolean;
-  /** Renewal/upgrade flow. By default (false) the SDK, after bootstrap or
-   *  signIn, checks `user.has_active_subscription` and switches to the restored
-   *  success-view without showing the plans — open() for an already-subscribed
-   *  user turns into a confirmation "you already have a subscription". With
-   *  `renew: true` all these checks are skipped: the plans are always shown,
-   *  and on checkout the SDK passes `ignoreActivePurchase: true` to the backend
-   *  so /start-checkout doesn't return a 409. Use it when the host UI
+  /** Renewal/upgrade flow. By default (false) open() for a user with an active
+   *  subscription is suppressed: nothing mounts, and the SDK emits
+   *  `purchase_completed{restored:true}` once per instance — same semantics as
+   *  the visibility/trial gates ("the feature is already unlocked, no modal").
+   *  The restored success-view is reserved for flows where the user explicitly
+   *  recovered access (signin auth-resume, Restore purchases, a 409 from
+   *  checkout). With `renew: true` the check is skipped: the plans are always
+   *  shown, and on checkout the SDK passes `ignoreActivePurchase: true` to the
+   *  backend so /start-checkout doesn't return a 409. Use it when the host UI
    *  explicitly shows a "Renew"/"Upgrade plan" button. */
   renew?: boolean;
 }
@@ -340,6 +342,10 @@ export class PaywallUI {
   private lastTrialStatus: TrialStatus | null = null;
   /** Dedupe flag for the `trial_expired` event within the instance's lifetime. */
   private trialExpiredFired = false;
+  /** Dedupe flag for the suppressed-open `purchase_completed{restored}` emit —
+   *  a subscriber clicking a gated feature on every popup visit shouldn't spam
+   *  the host (and events analytics) with a restored signal per click. */
+  private restoredEmitted = false;
   /** In-memory snapshot of the last bootstrap — for synchronous getVisibility(). */
   private lastVisibility: VisibilityStatus | null = null;
   /** open() behavior on a cold bootstrap. See PaywallUIOptions.mountThenLoad. */
@@ -1030,6 +1036,29 @@ export class PaywallUI {
     // layout, not from a previous "Payment received".
     this.purchased = false;
 
+    // Subscription gate: a blind open() for a user with an active subscription
+    // is suppressed — nothing mounts, the host gets purchase_completed
+    // {restored:true} once per instance (see emitRestoredOnce). Symmetric with
+    // the visibility/trial gates and with how getAccess() ranks the checks
+    // (has_subscription first). The restored success-view is reserved for flows
+    // where the user explicitly recovered access (signin auth-resume, Restore
+    // purchases, 409 in checkout) — a subscriber clicking a gated feature
+    // shouldn't get any modal at all. `renew: true` bypasses (explicit
+    // "Renew"/"Upgrade" button). getCachedUser() is the single trusted source:
+    // every bootstrap ingress runs applyUser before resolving, and setIdentity
+    // clears it — a stale bootstrap.user snapshot can't leak a previous
+    // identity's subscription into the gate. Cold start (cachedUser not loaded
+    // yet) falls through — runOpenGates/runDelayedGates re-check after
+    // bootstrap resolves.
+    if (
+      view === 'layout' &&
+      opts.renew !== true &&
+      this.billing.getCachedUser()?.has_active_subscription
+    ) {
+      this.emitRestoredOnce();
+      return;
+    }
+
     // The support and auth-standalone flows bypass both gates (trial and
     // targeting): the user came for support or to log in to an already-bought
     // subscription — blocking them by trial-stage or targeting is inappropriate.
@@ -1074,7 +1103,7 @@ export class PaywallUI {
       this.mountAndShow(view, { renew, title });
       this.billing
         .bootstrap()
-        .then((b) => this.runDelayedGates(b, { skipTrial, skipVisibility }))
+        .then((b) => this.runDelayedGates(b, { skipTrial, skipVisibility, renew }))
         .catch(() => {
           // Bootstrap failed — the modal is already open, PaywallRoot is in the
           // error-state itself.
@@ -1098,9 +1127,19 @@ export class PaywallUI {
    *  themselves before bootstrap resolved — a no-op (isOpen=false). */
   private runDelayedGates(
     bootstrap: PaywallBootstrap,
-    flags: { skipTrial: boolean; skipVisibility: boolean }
+    flags: { skipTrial: boolean; skipVisibility: boolean; renew: boolean }
   ): void {
     if (!this.isOpen) return;
+
+    // Subscription gate first (same ranking as getAccess). fetchBootstrap runs
+    // applyUser before resolving, so getCachedUser() is fresh here even on a
+    // cold start. The modal is already mounted (mount-then-load) — close it,
+    // same trade-off as a delayed visibility/trial block.
+    if (!flags.renew && this.billing.getCachedUser()?.has_active_subscription) {
+      this.close();
+      this.emitRestoredOnce();
+      return;
+    }
 
     if (!flags.skipVisibility) {
       const v = bootstrap.settings.visibility;
@@ -1157,6 +1196,19 @@ export class PaywallUI {
       title: string | null;
     }
   ): void {
+    // Subscription gate first (same ranking as getAccess): the cached path may
+    // reach here with a cachedUser that the openInternal pre-check hasn't seen
+    // yet (bootstrap() resolved between the two on the mountThenLoad=false
+    // path and ran applyUser).
+    if (
+      view === 'layout' &&
+      !flags.renew &&
+      this.billing.getCachedUser()?.has_active_subscription
+    ) {
+      this.emitRestoredOnce();
+      return;
+    }
+
     if (!flags.skipVisibility) {
       const v = bootstrap.settings.visibility;
       if (v) {
@@ -1645,6 +1697,19 @@ export class PaywallUI {
       this.handle.update({ purchased: true });
     }
     void user; // the shape is available via paywall.billing.getCachedUser()
+  }
+
+  /** Blind open() hit the subscription gate: the modal is suppressed, the host
+   *  gets the same signal as every other "subscription is already active" path
+   *  — purchase_completed{restored:true}. Once per instance lifetime. */
+  private emitRestoredOnce(): void {
+    if (this.restoredEmitted) return;
+    this.restoredEmitted = true;
+    this.emit('purchase_completed', {
+      priceId: null,
+      sessionId: null,
+      restored: true
+    });
   }
 
   close(): void {
