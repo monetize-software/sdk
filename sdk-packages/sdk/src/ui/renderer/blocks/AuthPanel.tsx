@@ -174,6 +174,14 @@ function AuthForm({ block, allowSignup, allowReset, ctx }: FormProps) {
   // so it can open a popup again; switchAccount=true skips linkIdentity.
   const [switchProvider, setSwitchProvider] = useState<OAuthProvider | null>(null);
 
+  // Signup credentials held for the email-confirm auto-resume (see the
+  // signup_sent effect below). Memory-only (ref, never storage): the confirm
+  // page lives on the paywall's custom domain, so its session can't cross
+  // origins into this tab — the only way to continue without re-typing the
+  // password is to retry signin with the credentials the user just entered.
+  // Cleared on successful signin, on leaving signup_sent, and with the tab.
+  const pendingCredsRef = useRef<{ email: string; password: string } | null>(null);
+
   // Last-used auth method and email (per-paywall). Async-loaded from storage on mount,
   // while null — the UI just renders without the badge. Pre-fill email only if
   // the user hasn't typed anything yet — otherwise we'd overwrite what they're typing.
@@ -209,7 +217,69 @@ function AuthForm({ block, allowSignup, allowReset, ctx }: FormProps) {
     setInfo(null);
     setSignupExpanded(false);
     setSwitchProvider(null);
+    // Leaving signup_sent by hand (Back to sign in) abandons the auto-resume —
+    // the user will type the password themselves; don't keep it in memory.
+    pendingCredsRef.current = null;
   };
+
+  // Email-confirm auto-resume. While signup_sent is on screen we silently retry
+  // signin with the in-memory credentials: on tab focus (the confirm page
+  // closes itself after verifying, focus returns here) and on a modest
+  // background interval (confirmation may happen on another device). GoTrue
+  // rejects with email_not_confirmed until the link is clicked — those (and
+  // network hiccups) are swallowed, the view stays as-is. On success SIGNED_IN
+  // reaches PaywallRoot via onAuthChange and the auth-resume flow continues the
+  // pending checkout by itself. Interval stops after ~10 minutes; focus retries
+  // keep working for as long as the view is open.
+  useEffect(() => {
+    if (mode !== 'signup_sent') return;
+    if (!pendingCredsRef.current) return;
+    if (typeof window === 'undefined') return;
+
+    let disposed = false;
+    let inFlight = false;
+    const attempt = async (): Promise<void> => {
+      const creds = pendingCredsRef.current;
+      if (disposed || inFlight || !creds) return;
+      inFlight = true;
+      try {
+        await auth.signInWithEmail({ email: creds.email, password: creds.password });
+        // Signed in — drop the password from memory immediately; the gate
+        // advances via onAuthChange.
+        pendingCredsRef.current = null;
+      } catch {
+        /* not confirmed yet / offline — wait for the next signal */
+      } finally {
+        inFlight = false;
+      }
+    };
+
+    const onFocus = (): void => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      void attempt();
+    };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onFocus);
+    // 20s × 30 ticks ≈ 10 minutes of background polling — enough for the
+    // same-device flow many times over, bounded so an abandoned tab doesn't
+    // poll the auth endpoint forever.
+    let ticks = 0;
+    const iv = window.setInterval(() => {
+      ticks += 1;
+      if (ticks > 30) {
+        window.clearInterval(iv);
+        return;
+      }
+      void attempt();
+    }, 20_000);
+
+    return () => {
+      disposed = true;
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onFocus);
+      window.clearInterval(iv);
+    };
+  }, [mode, auth]);
 
   const onSubmit = async (e: Event): Promise<void> => {
     e.preventDefault();
@@ -243,8 +313,12 @@ function AuthForm({ block, allowSignup, allowReset, ctx }: FormProps) {
             // Link flow (like recovery): the prod template sends a confirmation link,
             // not a code. We show "check your email → click the link" instead of
             // a dead-end code-entry screen. Confirmation completes at
-            // /paywall/v3/auth/confirm, the session arrives cross-tab → the gate advances
-            // by itself. We clear the password so it doesn't linger in state.
+            // /paywall/v3/auth/confirm on the paywall's custom domain — that
+            // session can NOT cross origins into this tab, so the signup_sent
+            // effect below retries signin with the credentials kept in memory
+            // until the confirmation lands. The password leaves component state
+            // either way (ref only).
+            pendingCredsRef.current = { email, password };
             setPassword('');
             setMode('signup_sent');
           } else if (res.kind === 'already_registered') {
@@ -900,7 +974,7 @@ function SignupSentView({
       <p class="text-base leading-relaxed text-gray-600">
         {t(
           'auth.signup_sent_subtitle',
-          'We sent a confirmation link to your email. Click it to activate your account, then sign in.'
+          'We sent a confirmation link to your email. Click it to activate your account — you will be signed in here automatically.'
         )}
       </p>
 

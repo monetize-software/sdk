@@ -309,6 +309,107 @@ describe('AuthPanel render', () => {
     expect(container.textContent).toContain('confirmation link');
   });
 
+  // Email-confirm auto-resume: while signup_sent is on screen the panel
+  // silently retries signin with the just-entered credentials on tab focus
+  // (the confirm page closes itself → focus returns here) and on a background
+  // interval (confirmation on another device).
+  async function driveToSignupSent(container: HTMLElement): Promise<void> {
+    const toSignup = Array.from(container.querySelectorAll('button')).find(
+      (b) => (b.textContent ?? '').trim() === 'Sign Up'
+    );
+    act(() => toSignup!.click());
+    const email = container.querySelector<HTMLInputElement>('input[type="email"]')!;
+    const form = container.querySelector('form')!;
+    await act(async () => {
+      email.value = 'new@b.c';
+      email.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await act(async () => {
+      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    });
+    const passwords = container.querySelectorAll<HTMLInputElement>('input[type="password"]');
+    await act(async () => {
+      passwords[0].value = 'pw_new';
+      passwords[0].dispatchEvent(new Event('input', { bubbles: true }));
+      passwords[1].value = 'pw_new';
+      passwords[1].dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await act(async () => {
+      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    });
+    expect(container.textContent).toContain('Check your email');
+  }
+
+  const CONFIRMATION_REQUIRED = async () =>
+    ({ kind: 'confirmation_required', user: { id: 'u_2', email: 'new@b.c' } } as const);
+
+  it('signup_sent: tab focus retries signin with the signup credentials', async () => {
+    const signInWithEmail = vi
+      .fn()
+      .mockRejectedValueOnce(new PaywallError('email_not_confirmed', 'not confirmed'))
+      .mockResolvedValue(makeSession());
+    const auth = makeAuthMock({ signUp: vi.fn(CONFIRMATION_REQUIRED), signInWithEmail });
+    const { container } = renderPanel(BLOCK_DEFAULT, { auth });
+    await driveToSignupSent(container);
+    expect(signInWithEmail).not.toHaveBeenCalled();
+
+    // First focus — GoTrue still says email_not_confirmed: stay on the screen.
+    await act(async () => {
+      window.dispatchEvent(new Event('focus'));
+    });
+    expect(signInWithEmail).toHaveBeenCalledTimes(1);
+    expect(signInWithEmail).toHaveBeenCalledWith({ email: 'new@b.c', password: 'pw_new' });
+    expect(container.textContent).toContain('Check your email');
+
+    // Second focus — the confirmation landed, signin succeeds.
+    await act(async () => {
+      window.dispatchEvent(new Event('focus'));
+    });
+    expect(signInWithEmail).toHaveBeenCalledTimes(2);
+
+    // Credentials are dropped after success — further focuses don't retry.
+    await act(async () => {
+      window.dispatchEvent(new Event('focus'));
+    });
+    expect(signInWithEmail).toHaveBeenCalledTimes(2);
+  });
+
+  it('signup_sent: background interval retries signin (other-device confirm)', async () => {
+    vi.useFakeTimers();
+    try {
+      const signInWithEmail = vi.fn(async () => makeSession());
+      const auth = makeAuthMock({ signUp: vi.fn(CONFIRMATION_REQUIRED), signInWithEmail });
+      const { container } = renderPanel(BLOCK_DEFAULT, { auth });
+      await driveToSignupSent(container);
+      expect(signInWithEmail).not.toHaveBeenCalled();
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(20_000);
+      });
+      expect(signInWithEmail).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('signup_sent: Back to Login stops the auto-retry (password leaves memory)', async () => {
+    const signInWithEmail = vi.fn(async () => makeSession());
+    const auth = makeAuthMock({ signUp: vi.fn(CONFIRMATION_REQUIRED), signInWithEmail });
+    const { container } = renderPanel(BLOCK_DEFAULT, { auth });
+    await driveToSignupSent(container);
+
+    const back = Array.from(container.querySelectorAll('button')).find(
+      (b) => (b.textContent ?? '').trim() === 'Back to Login'
+    );
+    await act(async () => {
+      back!.click();
+    });
+    await act(async () => {
+      window.dispatchEvent(new Event('focus'));
+    });
+    expect(signInWithEmail).not.toHaveBeenCalled();
+  });
+
   it('signup rejected with custom_domain_required shows the actionable misconfig message', async () => {
     const signUp = vi.fn(async () => {
       throw new PaywallError(

@@ -616,7 +616,9 @@ describe('PaywallUI open for an already-subscribed user', () => {
 
     ui.close();
     ui.open({ renew: true });
-    await new Promise((r) => setTimeout(r, 20));
+    await waitForView(ui, 'layout');
+    // Settle: make sure nothing asynchronously flips the view away afterwards.
+    await new Promise((r) => setTimeout(r, 50));
     expect(ui.getState().view).toBe('layout');
   });
 
@@ -627,7 +629,9 @@ describe('PaywallUI open for an already-subscribed user', () => {
 
     ui.close();
     ui.open();
-    await new Promise((r) => setTimeout(r, 20));
+    await waitForView(ui, 'layout');
+    // Settle: make sure nothing asynchronously flips the view away afterwards.
+    await new Promise((r) => setTimeout(r, 50));
     expect(ui.getState().view).toBe('layout');
   });
 
