@@ -353,6 +353,13 @@ export class PaywallUI {
    *  a subscriber clicking a gated feature on every popup visit shouldn't spam
    *  the host (and events analytics) with a restored signal per click. */
   private restoredEmitted = false;
+  /** Whether the current mount was opened with `renew: true`. The post-mount
+   *  subscription corrective must not close an explicit Renew/Upgrade flow. */
+  private mountedRenew = false;
+  /** Whether a checkout was started within the current mount session. Blocks
+   *  the post-mount corrective: a purchase landing mid-flow is handled by
+   *  handlePurchaseDetected (success view), not by a suppress-close. */
+  private checkoutStartedSinceMount = false;
   /** In-memory snapshot of the last bootstrap — for synchronous getVisibility(). */
   private lastVisibility: VisibilityStatus | null = null;
   /** open() behavior on a cold bootstrap. See PaywallUIOptions.mountThenLoad. */
@@ -404,6 +411,30 @@ export class PaywallUI {
           this.lastMountedView === 'popup_blocked')
       ) {
         this.handlePurchaseDetected(user);
+        return;
+      }
+      // Post-mount corrective for the subscription gate: the truth about an
+      // active subscription arrived AFTER a blind open() mounted the layout
+      // (the settled user resolved null on a network hiccup; a background
+      // revalidate / cross-context broadcast caught up later). Close the modal
+      // and give the host the same signal as a pre-mount suppress. Strictly a
+      // blind layout mount showing the layout itself: renew flows keep the
+      // picker, a checkout started in this mount is finished by
+      // handlePurchaseDetected (success view), and the internal auth/support/
+      // verifying navigations run their own flows — the post-signin verifying
+      // state maps to view 'loading' and must land on the restored
+      // success-view, not a silent close.
+      if (
+        user.has_active_subscription &&
+        this.isOpen &&
+        !this.purchased &&
+        !this.mountedRenew &&
+        !this.checkoutStartedSinceMount &&
+        this.lastMountedView === 'layout' &&
+        this.currentState.view === 'layout'
+      ) {
+        this.close();
+        this.emitRestoredOnce();
       }
     });
 
@@ -1064,18 +1095,52 @@ export class PaywallUI {
     // "Renew"/"Upgrade" button). getCachedUser() is the single trusted source:
     // every bootstrap ingress runs applyUser before resolving, and setIdentity
     // clears it — a stale bootstrap.user snapshot can't leak a previous
-    // identity's subscription into the gate. Cold start (cachedUser not loaded
-    // yet) falls through — runOpenGates/runDelayedGates re-check after
-    // bootstrap resolves.
-    if (
-      view === 'layout' &&
-      opts.renew !== true &&
-      this.billing.getCachedUser()?.has_active_subscription
-    ) {
-      this.emitRestoredOnce();
-      return;
+    // identity's subscription into the gate.
+    if (view === 'layout' && opts.renew !== true) {
+      const cachedUser = this.billing.getCachedUser();
+      if (cachedUser?.has_active_subscription) {
+        this.emitRestoredOnce();
+        return;
+      }
+      // Cold start: cachedUser is not loaded yet while a source that could
+      // reveal a subscription exists (managed-auth session / explicit
+      // identity). Deciding on null here is a race — the extension-popup
+      // lifecycle (auth hydrate → INITIAL_SESSION → setIdentity → persisted
+      // user / user-state) regularly loses it and a subscriber lands on the
+      // plan picker (the 3.3.0 leak: the sync gate fell through on null and
+      // nothing re-checked on the hydrated-bootstrap path, which never fetches
+      // a user). Resolve the settled user first and only then continue the
+      // open. Costs up to one user-state RTT on the first open() of a popup
+      // session; usually resolves from storage within milliseconds. Hosts with
+      // neither auth nor identity skip this — there is nothing to wait for,
+      // and the synchronous mount-then-load contract stays intact for
+      // anonymous visitors.
+      if (!cachedUser && this.canResolveUser()) {
+        void this.billing.getSettledUser().then((user) => {
+          if (user?.has_active_subscription) {
+            this.emitRestoredOnce();
+            return;
+          }
+          this.proceedOpen(view, opts);
+        });
+        return;
+      }
     }
 
+    this.proceedOpen(view, opts);
+  }
+
+  /** Whether some source can still reveal the user for the subscription gate:
+   *  a managed-auth session (Bearer) or an explicitly set identity. Anonymous
+   *  visitors have neither — waiting on getSettledUser would be pointless. */
+  private canResolveUser(): boolean {
+    return !!this.auth || !!this.billing.getIdentity();
+  }
+
+  /** The tail of openInternal after the subscription gate: skip-flag
+   *  normalization and the cached/cold bootstrap paths. Extracted so the
+   *  settled-user branch above can continue the flow asynchronously. */
+  private proceedOpen(view: PaywallView, opts: InternalOpenOptions): void {
     // The support and auth-standalone flows bypass both gates (trial and
     // targeting): the user came for support or to log in to an already-bought
     // subscription — blocking them by trial-stage or targeting is inappropriate.
@@ -1142,20 +1207,31 @@ export class PaywallUI {
   /** Apply gates AFTER the modal is already mounted (the mount-then-load path).
    *  If a gate blocks — close() + emit. If the user already closed the modal
    *  themselves before bootstrap resolved — a no-op (isOpen=false). */
-  private runDelayedGates(
+  private async runDelayedGates(
     bootstrap: PaywallBootstrap,
     flags: { skipTrial: boolean; skipVisibility: boolean; renew: boolean }
-  ): void {
+  ): Promise<void> {
     if (!this.isOpen) return;
 
-    // Subscription gate first (same ranking as getAccess). fetchBootstrap runs
-    // applyUser before resolving, so getCachedUser() is fresh here even on a
-    // cold start. The modal is already mounted (mount-then-load) — close it,
-    // same trade-off as a delayed visibility/trial block.
-    if (!flags.renew && this.billing.getCachedUser()?.has_active_subscription) {
-      this.close();
-      this.emitRestoredOnce();
-      return;
+    // Subscription gate first (same ranking as getAccess). On the Bearer path
+    // fetchBootstrap runs applyUser before resolving, so getCachedUser() is
+    // already fresh and the settle resolves instantly. getSettledUser covers
+    // the rest: the bootstrap request may have left before identity synced (no
+    // X-User-Email) with a Bearer the server failed to resolve — a later
+    // /user-state with the synced email still knows the subscription. The
+    // modal is already mounted (mount-then-load) — close it, same trade-off as
+    // a delayed visibility/trial block.
+    if (!flags.renew) {
+      let user = this.billing.getCachedUser();
+      if (!user && this.canResolveUser()) {
+        user = await this.billing.getSettledUser();
+        if (!this.isOpen) return;
+      }
+      if (user?.has_active_subscription) {
+        this.close();
+        this.emitRestoredOnce();
+        return;
+      }
     }
 
     if (!flags.skipVisibility) {
@@ -1333,6 +1409,11 @@ export class PaywallUI {
     // with a tracked viewed (see initTracker / extension bindAnalytics).
     this.viewedTracked = false;
     const renew = mountOpts.renew === true;
+    // Context for the post-mount subscription corrective (see the onUserChange
+    // handler in the constructor): each mount session starts checkout-less and
+    // remembers its renew flag.
+    this.mountedRenew = renew;
+    this.checkoutStartedSinceMount = false;
     const initialAuthMode = mountOpts.authMode;
     // The title override only applies to the layout view; on the other views we
     // normalize it to null so handle.update doesn't carry a stale title from a
@@ -1385,8 +1466,13 @@ export class PaywallUI {
         onEvent: (event, payload) => {
           this.emit(event as PaywallEvent, payload as never);
           // We start the watcher as soon as checkout begins — from here on we
-          // rely on the server-confirmed flow, not URL markers.
-          if (event === 'checkout_started') this.startUserWatcher();
+          // rely on the server-confirmed flow, not URL markers. The flag hands
+          // the flow over to handlePurchaseDetected (see the post-mount
+          // corrective in the constructor).
+          if (event === 'checkout_started') {
+            this.checkoutStartedSinceMount = true;
+            this.startUserWatcher();
+          }
         },
         onState: (snapshot) => this.applyState(snapshot),
         inline: this.inline,
@@ -1589,12 +1675,19 @@ export class PaywallUI {
     // even though UserWatcher already updated `billing.cachedUser` to true and
     // emitted userChange. `getCachedBootstrap()` intentionally returns the raw
     // structure (it shouldn't be rebuilt every time), so we do the overlay here:
-    // we prefer cachedUser, falling back to bootstrap.user if cachedUser isn't
-    // loaded yet (cold start or after signOut). Without this fix usePaywallAccess
-    // reacts to a userChange event, calls getAccess, but gets a
-    // stale-bootstrap.user — the host's <PaywallGate> stays blocked while the
-    // subscription is actually active.
-    const user = this.billing.getCachedUser() ?? bootstrap.user ?? null;
+    // we prefer cachedUser. When cachedUser isn't loaded yet, the same
+    // cold-start race as the open() subscription gate applies: deciding
+    // "blocked" from an absent cache while the session/user are still in
+    // flight told subscribers they have no access (and a hydrated persisted
+    // bootstrap carries no user at all). Wait for the settled user instead;
+    // bootstrap.user stays as the last resort (network down, no cache) — it
+    // may be a stale snapshot of a previous identity, so it must not outrank
+    // the settle.
+    let user: PaywallUser | null = this.billing.getCachedUser();
+    if (!user && this.canResolveUser()) {
+      user = await this.billing.getSettledUser({ signal: opts.signal });
+    }
+    if (!user) user = bootstrap.user ?? null;
 
     if (user?.has_active_subscription) {
       return {

@@ -732,3 +732,249 @@ describe('PaywallUI open for an already-subscribed user', () => {
     expect(ui.getState().open).toBe(false);
   });
 });
+
+// Cold-start race (3.3.0 leak, support ticket #2): in the extension-popup
+// lifecycle the subscription gate used to read the sync getCachedUser() while
+// auth hydrate → INITIAL_SESSION → setIdentity → user-state were still in
+// flight. With a hydrated persisted bootstrap (which carries no user) nothing
+// ever re-checked, and a subscriber intermittently got the plan picker. The
+// gate now resolves the settled user before continuing, getUser waits for the
+// auth hydrate before stamping EMPTY_USER, and a post-mount corrective closes
+// the layout if the truth arrives late.
+describe('PaywallUI subscription gate on cold start (settled user)', () => {
+  const ACTIVE_USER = {
+    has_active_subscription: true,
+    purchases: [] as unknown[],
+    trial: null as unknown
+  };
+  const INACTIVE_USER = {
+    has_active_subscription: false,
+    purchases: [] as unknown[],
+    trial: null as unknown
+  };
+
+  function makeBootstrap(user: unknown = null) {
+    return {
+      settings: { name: 'Test', is_test_mode: false },
+      prices: [] as unknown[],
+      offers: [] as unknown[],
+      layout: { type: 'modal', blocks: [] as unknown[] },
+      user
+    };
+  }
+
+  type FakeSession = {
+    access_token: string;
+    refresh_token: string;
+    expires_at: number;
+    user: { id: string; email: string; is_anonymous: boolean };
+  };
+
+  // Duck-typed AuthClient (isAuthClientLike) with a controllable hydrate: the
+  // session "arrives from storage" only after hydrateNow(), mirroring the real
+  // AuthClient contract — getAccessToken awaits the hydrate, INITIAL_SESSION
+  // fires via hydrated.then in subscription order.
+  function makeFakeAuth(email: string | null) {
+    let resolveHydrated!: () => void;
+    const hydrated = new Promise<void>((r) => {
+      resolveHydrated = r;
+    });
+    const session: FakeSession | null = email
+      ? {
+          access_token: 'tok_1',
+          refresh_token: 'ref_1',
+          expires_at: Math.floor(Date.now() / 1000) + 3600,
+          user: { id: 'u1', email, is_anonymous: false }
+        }
+      : null;
+    return {
+      hydrateNow: () => resolveHydrated(),
+      ready: () => hydrated,
+      getCachedSession: () => session,
+      getCachedUser: () => session?.user ?? null,
+      getAccessToken: async () => {
+        await hydrated;
+        return session?.access_token ?? null;
+      },
+      refresh: async () => session,
+      onAuthChange: (cb: (event: string, s: FakeSession | null) => void) => {
+        void hydrated.then(() => cb('INITIAL_SESSION', session));
+        return () => {};
+      },
+      signOut: async () => {}
+    };
+  }
+
+  // Routes /user-state separately from /bootstrap; the user body is mutable so
+  // tests can flip the server truth mid-flight.
+  function makeFetch(state: { user: unknown; bootstrapUser?: unknown }): typeof fetch {
+    return (async (input: RequestInfo | URL) => {
+      const url =
+        typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+      const body = url.includes('/user-state')
+        ? state.user
+        : makeBootstrap(state.bootstrapUser ?? null);
+      return new Response(JSON.stringify(body), {
+        status: 200,
+        headers: { 'content-type': 'application/json' }
+      });
+    }) as typeof fetch;
+  }
+
+  function seedPersistedBootstrap(paywallId: string): void {
+    const { user: _user, ...rest } = makeBootstrap(null);
+    window.localStorage.setItem(
+      `pw-${paywallId}-bootstrap-v1`,
+      JSON.stringify({ at: Date.now(), bootstrap: rest })
+    );
+  }
+
+  function makeUI(opts: {
+    auth: ReturnType<typeof makeFakeAuth>;
+    fetch: typeof fetch;
+    mountThenLoad?: boolean;
+  }) {
+    return new PaywallUI({
+      apiOrigin: TEST_API_ORIGIN,
+      paywallId: 'pw_1',
+      fetch: opts.fetch,
+      auth: opts.auth as never,
+      autoDetectReturn: false,
+      analytics: false,
+      ...(opts.mountThenLoad === undefined ? {} : { mountThenLoad: opts.mountThenLoad })
+    });
+  }
+
+  beforeEach(() => {
+    window.history.replaceState(null, '', '/');
+    window.localStorage.clear();
+  });
+
+  it('popup race repro: hydrated bootstrap + late session → open() suppressed, no picker', async () => {
+    seedPersistedBootstrap('pw_1');
+    const auth = makeFakeAuth('sub@example.com');
+    const ui = makeUI({ auth, fetch: makeFetch({ user: ACTIVE_USER }), mountThenLoad: false });
+    // Wait for the persisted bootstrap to hydrate — the exact leak path: the
+    // sync cached-bootstrap gate used to run with cachedUser=null.
+    await vi.waitFor(() => {
+      if (!ui.billing.getCachedBootstrap()) throw new Error('bootstrap not hydrated');
+    });
+
+    const events: unknown[] = [];
+    ui.on('open', () => events.push('open'));
+    ui.on('purchase_completed', (p) => events.push(p));
+
+    ui.open(); // the session is still "loading" at this point
+    expect(ui.getState().open).toBe(false);
+    expect(events).toEqual([]);
+
+    auth.hydrateNow(); // the session arrives after open()
+
+    await vi.waitFor(() => {
+      if (events.length === 0) throw new Error('gate has not settled yet');
+    });
+    expect(events).toEqual([{ priceId: null, sessionId: null, restored: true }]);
+    expect(ui.getState().open).toBe(false);
+  });
+
+  it('same race with mountThenLoad default: still suppressed without a picker flash', async () => {
+    seedPersistedBootstrap('pw_1');
+    const auth = makeFakeAuth('sub@example.com');
+    const ui = makeUI({ auth, fetch: makeFetch({ user: ACTIVE_USER }) });
+    await vi.waitFor(() => {
+      if (!ui.billing.getCachedBootstrap()) throw new Error('bootstrap not hydrated');
+    });
+
+    const events: unknown[] = [];
+    ui.on('open', () => events.push('open'));
+    ui.on('purchase_completed', (p) => events.push(p));
+
+    ui.open();
+    auth.hydrateNow();
+
+    await vi.waitFor(() => {
+      if (events.length === 0) throw new Error('gate has not settled yet');
+    });
+    expect(events).toEqual([{ priceId: null, sessionId: null, restored: true }]);
+    expect(ui.getState().open).toBe(false);
+  });
+
+  it('non-subscriber with auth: settle resolves and the picker still opens', async () => {
+    seedPersistedBootstrap('pw_1');
+    const auth = makeFakeAuth('free@example.com');
+    const ui = makeUI({ auth, fetch: makeFetch({ user: INACTIVE_USER }) });
+    await vi.waitFor(() => {
+      if (!ui.billing.getCachedBootstrap()) throw new Error('bootstrap not hydrated');
+    });
+
+    ui.open();
+    auth.hydrateNow();
+
+    await vi.waitFor(() => {
+      if (ui.getState().view !== 'layout') {
+        throw new Error(`view is ${ui.getState().view}, want layout`);
+      }
+    });
+  });
+
+  it('post-mount corrective: subscription truth arriving after mount closes the layout', async () => {
+    seedPersistedBootstrap('pw_1');
+    const auth = makeFakeAuth('sub@example.com');
+    const state = { user: INACTIVE_USER as unknown };
+    const ui = makeUI({ auth, fetch: makeFetch(state) });
+    await vi.waitFor(() => {
+      if (!ui.billing.getCachedBootstrap()) throw new Error('bootstrap not hydrated');
+    });
+
+    const completed: unknown[] = [];
+    ui.on('purchase_completed', (p) => completed.push(p));
+
+    ui.open();
+    auth.hydrateNow();
+    await vi.waitFor(() => {
+      if (ui.getState().view !== 'layout') {
+        throw new Error(`view is ${ui.getState().view}, want layout`);
+      }
+    });
+
+    // The server truth flips (e.g. a cross-context broadcast / revalidate).
+    state.user = ACTIVE_USER;
+    await ui.billing.getUser({ force: true });
+
+    await vi.waitFor(() => {
+      if (ui.getState().open) throw new Error('corrective has not closed the modal');
+    });
+    expect(completed).toEqual([{ priceId: null, sessionId: null, restored: true }]);
+  });
+
+  it('getUser before hydrate waits for the session instead of stamping EMPTY_USER', async () => {
+    const auth = makeFakeAuth('sub@example.com');
+    const ui = makeUI({ auth, fetch: makeFetch({ user: ACTIVE_USER }) });
+
+    const promise = ui.billing.getUser();
+    auth.hydrateNow();
+    const user = await promise;
+
+    expect(user.has_active_subscription).toBe(true);
+    // No EMPTY_USER persisted under the guest key — the poison that used to
+    // feed the next popup's gate.
+    expect(window.localStorage.getItem('pw-pw_1-guest-user-v1')).toBeNull();
+  });
+
+  it('getAccess on the same race resolves granted/has_subscription', async () => {
+    seedPersistedBootstrap('pw_1');
+    const auth = makeFakeAuth('sub@example.com');
+    const ui = makeUI({ auth, fetch: makeFetch({ user: ACTIVE_USER }) });
+    await vi.waitFor(() => {
+      if (!ui.billing.getCachedBootstrap()) throw new Error('bootstrap not hydrated');
+    });
+
+    const promise = ui.getAccess();
+    auth.hydrateNow();
+    const result = await promise;
+
+    expect(result.access).toBe('granted');
+    expect(result.reason).toBe('has_subscription');
+    expect(result.user?.has_active_subscription).toBe(true);
+  });
+});

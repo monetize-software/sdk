@@ -35,6 +35,7 @@ declare module './protocol' {
     'billing.getCachedBootstrap': void;
     'billing.getUser': { force?: boolean };
     'billing.getCachedUser': void;
+    'billing.getSettledUser': void;
     'billing.getBalances': { force?: boolean };
     'billing.getCachedBalances': void;
     'billing.createCheckout': {
@@ -150,6 +151,7 @@ declare module './protocol' {
     'billing.getCachedBootstrap': PaywallBootstrap | null;
     'billing.getUser': PaywallUser;
     'billing.getCachedUser': PaywallUser | null;
+    'billing.getSettledUser': PaywallUser | null;
     'billing.getBalances': ReadonlyArray<Balance>;
     'billing.getCachedBalances': ReadonlyArray<Balance> | null;
     'billing.createCheckout': CheckoutResult;

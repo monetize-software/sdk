@@ -102,6 +102,9 @@ export class OffscreenServer {
       this.billing.getUser({ force: params.force, signal: ctx.signal })
     );
     this.transport.on('billing.getCachedUser', () => this.billing.getCachedUser());
+    this.transport.on('billing.getSettledUser', async (_params, ctx) =>
+      this.billing.getSettledUser({ signal: ctx.signal })
+    );
 
     this.transport.on('billing.getBalances', async (params, ctx) =>
       this.billing.getBalances({ force: params.force, signal: ctx.signal })

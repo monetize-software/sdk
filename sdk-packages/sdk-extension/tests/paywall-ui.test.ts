@@ -114,6 +114,7 @@ function setupOffscreen(opts: {
   server.on('billing.getVisitorId', async () => billing.getVisitorId());
   server.on('billing.getUser', async (p) => billing.getUser({ force: p.force }));
   server.on('billing.getCachedUser', () => billing.getCachedUser());
+  server.on('billing.getSettledUser', async () => billing.getSettledUser());
   server.on('billing.getBalances', async (p) => billing.getBalances({ force: p.force }));
   server.on('billing.getCachedBalances', () => billing.getCachedBalances());
   server.on('billing.createCheckout', async (p) => billing.createCheckout(p));
@@ -213,13 +214,17 @@ describe('PaywallUI integration (extension)', () => {
     expect(stub.fetchSpy.mock.calls.filter(([u]) => String(u).includes('/bootstrap'))).toHaveLength(1);
   });
 
-  it('open() emits "open" synchronously (mount-then-load default)', async () => {
+  it('open() emits "open" after the settled-user gate (mount-then-load default)', async () => {
     const { paywall } = bootstrapPaywall();
     const onOpen = vi.fn();
     paywall.on('open', onOpen);
     paywall.open();
-    // Cold bootstrap, but mount-then-load → open is emitted immediately.
-    expect(onOpen).toHaveBeenCalledTimes(1);
+    // With managed-auth the subscription gate first resolves the settled user
+    // (auth hydrate → identity → user-state) — for a guest that's a few
+    // microtask/transport hops, then mount-then-load mounts the spinner.
+    await vi.waitFor(() => {
+      expect(onOpen).toHaveBeenCalledTimes(1);
+    });
   });
 
   it('track() forwards events to offscreen EventTracker batch', async () => {

@@ -194,6 +194,10 @@ export class BillingClient {
   private cachedUserAt = 0;
   private inflightUser: Promise<PaywallUser> | null = null;
   private userListeners = new Set<UserListener>();
+  // The in-flight hydrateUserFromStorage for the CURRENT identity key.
+  // getSettledUser awaits it so the persisted user (TTL 30 min) can answer the
+  // subscription gate without a network round-trip. Reassigned by setIdentity.
+  private userHydration: Promise<void> = Promise.resolve();
 
   // Stable visitor_id for analytics. Resolved once on initialization, reused for
   // all track calls. Not bound to identity.
@@ -325,7 +329,15 @@ export class BillingClient {
 
     // Seed from persistent storage — so the first getUser() can return the
     // last-known value instantly (offline fallback). Don't block the constructor.
-    void this.hydrateUserFromStorage();
+    // With managed-auth and no identity yet the storage key would be 'guest' —
+    // the real identity arrives with INITIAL_SESSION → setIdentity re-runs the
+    // hydrate under the right key. Hydrating 'guest' before the sync is not
+    // just useless: a persisted EMPTY_USER under that key poisons cachedUser
+    // and the subscription gate confidently decides "no subscription" while
+    // the session is still loading.
+    if (!(this.auth && !this.identity)) {
+      this.userHydration = this.hydrateUserFromStorage();
+    }
 
     // Same for the bootstrap: hydrate + subscribe to cross-context changes. If a
     // popup already fetched a fresh bootstrap, the content-script picks it up via
@@ -394,7 +406,7 @@ export class BillingClient {
     }
     void this.hydrateBalancesFromStorage();
     this.subscribeBalancesStorage();
-    void this.hydrateUserFromStorage();
+    this.userHydration = this.hydrateUserFromStorage();
     if (identity) {
       // Auto-refetch the user in the background for the new identity. Without
       // this, UIs subscribed to onUserChange (account widgets, status pops) would
@@ -896,6 +908,22 @@ export class BillingClient {
     }
     if (this.inflightUser) return this.inflightUser;
 
+    if (!this.identity?.email && this.auth) {
+      // Identity may simply not have synced from the session yet —
+      // INITIAL_SESSION fires a microtask after the auth hydrate. Deciding
+      // "guest" here stamps EMPTY_USER for a signed-in subscriber AND persists
+      // it, poisoning the subscription gate for subsequent popup opens. Wait
+      // for the hydrate: the INITIAL_SESSION listener (subscribed in the
+      // constructor, i.e. registered on `hydrated` before this await) runs
+      // setIdentity first, so after the await the identity is final. setIdentity
+      // also fires its own force-getUser — dedupe on its inflight/cache below.
+      await this.auth.ready().catch((): undefined => undefined);
+      if (this.inflightUser) return this.inflightUser;
+      if (!force && this.cachedUser && Date.now() - this.cachedUserAt < USER_CACHE_TTL_MS) {
+        return this.cachedUser;
+      }
+    }
+
     this.inflightUser = (async () => {
       try {
         if (!this.identity?.email) {
@@ -961,6 +989,44 @@ export class BillingClient {
   /** The current cached user without a network request. null = not loaded yet. */
   getCachedUser(): PaywallUser | null {
     return this.cachedUser;
+  }
+
+  /**
+   * User for subscription-gate decisions. Unlike `getCachedUser()`, waits for
+   * the sources that are still in flight on a cold start (the extension-popup
+   * lifecycle): auth session hydrate → identity sync → persisted user →
+   * network user-state. Never rejects: a network failure resolves to the last
+   * known cachedUser or null ("unknown"). null = nothing to resolve with (a
+   * guest without identity ends up as EMPTY_USER, not null) or the network is
+   * down with no cache.
+   */
+  async getSettledUser(opts: { signal?: AbortSignal } = {}): Promise<PaywallUser | null> {
+    if (this.auth) {
+      await this.auth.ready().catch((): undefined => undefined);
+      // Identity is normally synced by the INITIAL_SESSION listener (subscribed
+      // in the constructor — its callback on `hydrated` is registered before
+      // this await and runs first). The direct sync below is belt-and-suspenders
+      // for a re-created subscription (destroy/re-init edge).
+      this.syncIdentityFromAuth();
+    }
+    await this.userHydration.catch((): undefined => undefined);
+    if (this.cachedUser) return this.cachedUser;
+    try {
+      return await this.getUser({ signal: opts.signal });
+    } catch {
+      return this.cachedUser;
+    }
+  }
+
+  // Sync identity from the current auth session — the same thing the
+  // constructor's onAuthChange listener does; the sameIdentity guard swallows
+  // no-ops, so calling it out-of-band is safe.
+  private syncIdentityFromAuth(): void {
+    if (!this.auth) return;
+    const session = this.auth.getCachedSession();
+    const next = session ? authUserToIdentity(session.user) : undefined;
+    if (sameIdentity(this.identity, next)) return;
+    this.setIdentity(next);
   }
 
   private applyUser(user: PaywallUser): void {

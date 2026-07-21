@@ -193,6 +193,24 @@ export class RemoteBillingClient {
     return this.cachedUser;
   }
 
+  /** Settled user for subscription-gate decisions — proxied to the offscreen
+   *  BillingClient, where auth hydration / identity sync / persisted caches
+   *  actually live (see BillingClient.getSettledUser). The mirror is updated so
+   *  a subsequent getCachedUser() stays consistent with the gate's answer. */
+  async getSettledUser(opts: { signal?: AbortSignal } = {}): Promise<PaywallUser | null> {
+    try {
+      const result = await this.transport.request('billing.getSettledUser', undefined, {
+        signal: opts.signal
+      });
+      if (result) this.applyUser(result);
+      return result;
+    } catch {
+      // The contract is "never rejects" — the subscription gate must degrade to
+      // "unknown" on a dead port / aborted request, not break open().
+      return this.cachedUser;
+    }
+  }
+
   /** Subscribe to user state. We mirror the offscreen broadcasts; the initial
    *  snapshot is delivered via microtask from the local cache (if present) —
    *  exactly like in BillingClient.onUserChange. Returns an unsubscribe function. */

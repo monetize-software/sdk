@@ -36,6 +36,7 @@ export type RequestKind =
   | 'billing.getCachedBootstrap'
   | 'billing.getUser'
   | 'billing.getCachedUser'
+  | 'billing.getSettledUser'
   | 'billing.getBalances'
   | 'billing.getCachedBalances'
   | 'billing.createCheckout'
