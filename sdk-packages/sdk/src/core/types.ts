@@ -49,7 +49,8 @@ export interface PaywallSettings {
    *  is always filled (moderation requires custom_domain); for legacy v2 it may
    *  be null/undefined. */
   custom_domain?: string | null;
-  runtime_mode?: 'client' | 'hybrid' | 'server' | 'client-native' | 'hybrid-native';
+  runtime_mode?:
+    'client' | 'hybrid' | 'server' | 'client-native' | 'hybrid-native';
   /** true if the paywall's acquiring is in test-mode — the SDK draws a TEST
    *  MODE badge. */
   is_test_mode?: boolean;
@@ -140,9 +141,7 @@ export interface TrialConfig {
  *  payload of `trial_blocked` events, and returns it synchronously from
  *  `paywall.getTrialStatus()`. */
 export type TrialStatus =
-  | { mode: 'none'; blocked: false }
-  | TimeTrialStatus
-  | OpensTrialStatus;
+  { mode: 'none'; blocked: false } | TimeTrialStatus | OpensTrialStatus;
 
 export interface TimeTrialStatus {
   mode: 'time';
@@ -425,7 +424,8 @@ export interface PaywallBootstrap {
   version?: string;
 }
 
-export type Acquiring = 'stripe' | 'paddle' | 'chargebee' | 'overpay' | 'freemius';
+export type Acquiring =
+  'stripe' | 'paddle' | 'chargebee' | 'overpay' | 'freemius';
 
 export interface CheckoutResult {
   url: string;
@@ -439,13 +439,25 @@ export class PaywallError extends Error {
   readonly code: string;
   readonly status?: number;
   readonly cause?: unknown;
+  /** Set by the transport layer on `network_error`s: may the edge-mirror
+   *  failover (core/edge.ts) replay this request on another origin? `false`
+   *  when the origin already received the request (headers arrived) and the
+   *  request is not idempotent — a replay would re-execute the side effect.
+   *  Absent/true — replay is safe (connect-level failure or idempotent). */
+  readonly originRetryable?: boolean;
 
-  constructor(code: string, message: string, opts: { status?: number; cause?: unknown } = {}) {
+  constructor(
+    code: string,
+    message: string,
+    opts: { status?: number; cause?: unknown; originRetryable?: boolean } = {}
+  ) {
     super(message);
     this.name = 'PaywallError';
     this.code = code;
     this.status = opts.status;
     this.cause = opts.cause;
+    if (opts.originRetryable !== undefined)
+      this.originRetryable = opts.originRetryable;
   }
 }
 

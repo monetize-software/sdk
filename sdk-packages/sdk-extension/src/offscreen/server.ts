@@ -344,8 +344,11 @@ function createTrackerIfEnabled(
 ): EventTracker | undefined {
   if (opts.analytics === false) return undefined;
   const cfg = typeof opts.analytics === 'object' && opts.analytics !== null ? opts.analytics : {};
+  // A thunk, not a string: after an edge failover (sdk core/edge.ts) events
+  // must follow the origin that is actually reachable, resolved at flush time.
   const endpoint =
-    cfg.endpoint ?? `${billing.apiOrigin}/api/v1/paywall/${billing.paywallId}/events`;
+    cfg.endpoint ??
+    (() => `${billing.activeApiOrigin()}/api/v1/paywall/${billing.paywallId}/events`);
   return new EventTracker({
     endpoint,
     paywallId: billing.paywallId,

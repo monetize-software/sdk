@@ -124,6 +124,10 @@ export interface AuthClientOptions {
   apiOrigin: string;
   storage?: StorageAdapter;
   fetch?: typeof fetch;
+  /** Mirror-origin failover, same contract as
+   *  {@link BillingClientOptions.edgeFallback}. Keep the two clients
+   *  consistent — they share the discovered state within one JS context. */
+  edgeFallback?: false | string;
   // Injectable for tests and for Chrome extensions (there a popup can be opened
   // via chrome.windows.create rather than window.open). Default — window.open.
   openPopup?: (url: string, name: string) => Window | null;
@@ -185,7 +189,9 @@ export class AuthClient {
     this.api = new ApiClient({
       apiOrigin: this.apiOrigin,
       paywallId: opts.paywallId,
-      fetch: opts.fetch
+      fetch: opts.fetch,
+      edgeFallback: opts.edgeFallback,
+      storage: this.storage
     });
     this.openPopup =
       opts.openPopup ??

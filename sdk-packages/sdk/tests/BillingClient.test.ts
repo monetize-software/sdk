@@ -243,10 +243,12 @@ describe('BillingClient', () => {
     const p2 = client.createCheckout({ priceId: 'monthly' });
     const p3 = client.createCheckout({ priceId: 'monthly' });
 
-    // ApiClient.request does one await before fetch (auth token guard) —
-    // we let the microtasks run so fetch has a chance to fire.
-    await Promise.resolve();
-    await Promise.resolve();
+    // ApiClient.request awaits a few internals before fetch (edge-resolver
+    // hydration, auth token guard) — flush microtasks until fetch fires
+    // instead of counting the exact await depth.
+    for (let i = 0; i < 20 && checkoutFetch.mock.calls.length === 0; i++) {
+      await Promise.resolve();
+    }
     expect(checkoutFetch.mock.calls.length).toBe(1);
     resolveResp(json({ checkoutUrl: 'https://pay/x', userId: 'u_1', acquiring: 'stripe' }));
 
@@ -359,8 +361,10 @@ describe('BillingClient', () => {
     const p1 = client.createCheckout({ priceId: 'monthly' });
     const p2 = client.createCheckout({ priceId: 'monthly' });
 
-    await Promise.resolve();
-    await Promise.resolve();
+    // See the dedupe test above: flush microtasks until fetch fires.
+    for (let i = 0; i < 20 && checkoutFetch.mock.calls.length === 0; i++) {
+      await Promise.resolve();
+    }
     expect(checkoutFetch.mock.calls.length).toBe(1);
     resolveResp(
       json({

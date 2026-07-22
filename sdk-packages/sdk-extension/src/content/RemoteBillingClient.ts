@@ -108,6 +108,15 @@ export class RemoteBillingClient {
     return this.cachedBootstrap;
   }
 
+  /** Mirrors `BillingClient.activeApiOrigin`. The edge failover state lives in
+   *  the offscreen BillingClient and this method must stay sync, so the mirror
+   *  returns the configured origin: the content script never builds sibling
+   *  API URLs itself (the only consumer — the events endpoint — is the
+   *  offscreen tracker, which reads the real BillingClient). */
+  activeApiOrigin(): string {
+    return this.apiOrigin ?? '';
+  }
+
   /** Sticky A/B assignment of this device. Mirrors
    *  `BillingClient.getExperimentAssignment`: the offscreen BillingClient
    *  resolves the assignment and materializes `experiment.assigned_variant`

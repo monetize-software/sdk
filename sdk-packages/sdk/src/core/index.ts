@@ -19,6 +19,15 @@ export {
 } from './auth';
 export { EventTracker, type EventTrackerOptions, type TrackedEvent } from './EventTracker';
 export {
+  deriveEdgeOrigin,
+  OriginResolver,
+  type OriginResolverOptions,
+  EDGE_SUBDOMAIN_PREFIX,
+  EDGE_STICKY_TTL_MS,
+  EDGE_HEDGE_TIMEOUT_MS,
+  EDGE_FINAL_TIMEOUT_MS
+} from './edge';
+export {
   createStorage,
   ensureVisitorId,
   generateVisitorId,

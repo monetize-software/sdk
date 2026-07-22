@@ -1,10 +1,13 @@
 import { SDK_VERSION } from './api';
 import type { AuthClient } from './auth';
 import {
-  type Balance,
-  PaywallError,
-  QuotaExceededError
-} from './types';
+  EDGE_HEDGE_TIMEOUT_MS,
+  createDeadline,
+  errorName,
+  OriginResolver,
+  runWithFailover
+} from './edge';
+import { type Balance, PaywallError, QuotaExceededError } from './types';
 
 // ApiGatewayClient — the SDK 3.0 client for the metered AI proxy
 // `/api/v1/api-gateway/<provider_id>[/<path>]?paywall_id=<id>`.
@@ -36,6 +39,11 @@ export interface ApiGatewayClientOptions {
   userId?: string;
   capabilities?: string[];
   fetch?: typeof fetch;
+  /** Mirror-origin failover, same contract as
+   *  {@link BillingClientOptions.edgeFallback}. The discovered sticky state is
+   *  shared in-memory with BillingClient/AuthClient of the same apiOrigin (no
+   *  storage here — this client is stateless). */
+  edgeFallback?: false | string;
   /** Hook for the optimistic balance decrement in BillingClient.
    *  ApiGatewayClient calls it on 200 (success), passing the queryType from the
    *  response (if the backend sent it in `X-Query-Type`) or undefined.
@@ -71,8 +79,10 @@ export class ApiGatewayClient {
   private userId: string | undefined;
   private capabilities: string[] | undefined;
   private customFetch: typeof fetch | undefined;
-  private onChargeSuccess: ((queryType: string | undefined) => void) | undefined;
+  private onChargeSuccess:
+    ((queryType: string | undefined) => void) | undefined;
   private onQuotaExceeded: ((err: QuotaExceededError) => void) | undefined;
+  private resolver: OriginResolver;
 
   constructor(opts: ApiGatewayClientOptions) {
     if (!opts.paywallId) {
@@ -92,6 +102,10 @@ export class ApiGatewayClient {
     this.customFetch = opts.fetch;
     this.onChargeSuccess = opts.onChargeSuccess;
     this.onQuotaExceeded = opts.onQuotaExceeded;
+    this.resolver = new OriginResolver({
+      apiOrigin: this.apiOrigin,
+      edgeFallback: opts.edgeFallback
+    });
     // Security: in the browser userId must come from Bearer (the backend
     // resolves it via GoTrue), not be passed explicitly — otherwise the host
     // could slip in someone else's ID. `auth` without `userId` is normal;
@@ -111,13 +125,16 @@ export class ApiGatewayClient {
 
   async call(params: ApiGatewayCallParams): Promise<Response> {
     const path = params.path ? params.path.replace(/^\/+/, '') : '';
-    const url = new URL(
-      `/api/v1/api-gateway/${encodeURIComponent(params.providerId)}${path ? `/${path}` : ''}`,
-      this.apiOrigin
-    );
-    // We send paywall_id both in the query (legacy v2 contract) and in the
-    // X-Paywall-Id header (SDK 3.0 contract). The backend route accepts both after the patch.
-    url.searchParams.set('paywall_id', this.paywallId);
+    const buildUrl = (origin: string): string => {
+      const url = new URL(
+        `/api/v1/api-gateway/${encodeURIComponent(params.providerId)}${path ? `/${path}` : ''}`,
+        origin
+      );
+      // We send paywall_id both in the query (legacy v2 contract) and in the
+      // X-Paywall-Id header (SDK 3.0 contract). The backend route accepts both after the patch.
+      url.searchParams.set('paywall_id', this.paywallId);
+      return url.toString();
+    };
 
     const headers = new Headers(params.headers);
     headers.set('X-SDK-Version', SDK_VERSION);
@@ -135,10 +152,12 @@ export class ApiGatewayClient {
 
     // Content-Type: same approach as in ApiClient. FormData — the browser sets it.
     // unknown body, not string/FormData/Blob — JSON.stringify.
-    const isFormData = typeof FormData !== 'undefined' && params.body instanceof FormData;
+    const isFormData =
+      typeof FormData !== 'undefined' && params.body instanceof FormData;
     const isBlob = typeof Blob !== 'undefined' && params.body instanceof Blob;
     const isStream =
-      typeof ReadableStream !== 'undefined' && params.body instanceof ReadableStream;
+      typeof ReadableStream !== 'undefined' &&
+      params.body instanceof ReadableStream;
     const isString = typeof params.body === 'string';
 
     let body: BodyInit | undefined;
@@ -148,46 +167,99 @@ export class ApiGatewayClient {
       body = params.body as BodyInit;
     } else {
       body = JSON.stringify(params.body);
-      if (!headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
+      if (!headers.has('Content-Type'))
+        headers.set('Content-Type', 'application/json');
     }
 
     // Local variable instead of `this.fetchImpl(...)` — native fetch requires
     // this=globalThis, and calling through an object field binds this to
     // ApiGatewayClient, making Chrome throw 'Illegal invocation'.
     const fetchImpl = this.customFetch ?? fetch;
-    const doFetch = async (): Promise<Response> => {
+
+    // One send. `timeoutMs` is a headers deadline for hedged (non-final)
+    // attempts: the timer is disarmed the moment fetch resolves, so a slow
+    // streaming BODY is never aborted — only a connection that produced no
+    // response yet. A caller abort keeps the dedicated 'aborted' code and is
+    // never retried (replaying an intentionally cancelled AI call would
+    // double-charge). Our own deadline maps to network_error but is marked
+    // originRetryable:false — by hedge-expiry the request body has usually
+    // been uploaded, so the server may already be processing (and charging)
+    // it; a replay on the mirror could double-charge. Gateway failover
+    // therefore happens only on hard connect-level errors; blocked-network
+    // users still reach the mirror because the sticky state discovered by
+    // BillingClient's requests routes gateway calls edge-first.
+    const doFetch = async (
+      target: string,
+      timeoutMs: number | null
+    ): Promise<Response> => {
+      const deadline = createDeadline(params.signal, {
+        eager: timeoutMs != null
+      });
+      deadline.arm(timeoutMs);
       try {
-        return await fetchImpl(url.toString(), {
+        return await fetchImpl(target, {
           method: params.method ?? 'POST',
           headers,
           body,
-          signal: params.signal,
+          signal: deadline.signal,
           credentials: 'omit'
         });
       } catch (cause) {
+        if (errorName(cause) === 'AbortError') {
+          if (!deadline.timedOut()) {
+            throw new PaywallError('aborted', 'Request aborted', { cause });
+          }
+          throw new PaywallError('network_error', 'Request deadline exceeded', {
+            cause,
+            originRetryable: false
+          });
+        }
         const detail = cause instanceof Error ? cause.message : String(cause);
-        throw new PaywallError('network_error', `Network request failed: ${detail}`, { cause });
+        throw new PaywallError(
+          'network_error',
+          `Network request failed: ${detail}`,
+          { cause }
+        );
+      } finally {
+        deadline.dispose();
       }
     };
-    let response = await doFetch();
 
-    // Dead-session recovery, mirrors ApiClient: a 401 with a Bearer attached
-    // means the server rejected a token the client still considered fresh
-    // (revoked in another context / GoTrue family revocation). Force one
-    // rotation and replay the request. refresh() dedupes in-flight calls, on
-    // its own 401 clears the session and returns null (no retry), on
-    // network/5xx throws — swallowed, the original 401 surfaces. Stream bodies
-    // are consumed by the first send and can't be replayed — no retry for them.
-    if (response.status === 401 && token && this.auth && !isStream) {
-      const fresh = await this.auth
-        .refresh()
-        .then((s) => s?.access_token ?? null)
-        .catch((): null => null);
-      if (fresh && fresh !== token) {
-        headers.set('Authorization', `Bearer ${fresh}`);
-        response = await doFetch();
-      }
-    }
+    // Mirror-origin failover (see core/edge.ts): try candidates in sticky
+    // order, move on only on connect-level failures. A stream body is consumed
+    // by the first send and can't be replayed — it gets a single attempt at
+    // the preferred origin, exactly like the pre-edge behavior.
+    const response = await runWithFailover(
+      this.resolver,
+      async (origin, isLast) => {
+        const target = buildUrl(origin);
+        // The final attempt gets no artificial deadline — AI calls can be
+        // legitimately slow to first byte.
+        let res = await doFetch(target, isLast ? null : EDGE_HEDGE_TIMEOUT_MS);
+
+        // Dead-session recovery, mirrors ApiClient: a 401 with a Bearer
+        // attached means the server rejected a token the client still
+        // considered fresh (revoked in another context / GoTrue family
+        // revocation). Force one rotation and replay ON THE SAME ORIGIN (it
+        // is reachable — it just answered). refresh() dedupes in-flight
+        // calls, on its own 401 clears the session and returns null (no
+        // retry), on network/5xx throws — swallowed, the original 401
+        // surfaces. Stream bodies are consumed by the first send and can't
+        // be replayed — no retry for them.
+        if (res.status === 401 && token && this.auth && !isStream) {
+          const fresh = await this.auth
+            .refresh()
+            .then((s) => s?.access_token ?? null)
+            .catch((): null => null);
+          if (fresh && fresh !== token) {
+            headers.set('Authorization', `Bearer ${fresh}`);
+            res = await doFetch(target, null);
+          }
+        }
+        return res;
+      },
+      { firstOnly: isStream }
+    );
 
     if (response.status === 402) {
       const err = await parseQuotaError(response);
@@ -227,7 +299,9 @@ interface QuotaErrorBody {
   };
 }
 
-async function parseQuotaError(response: Response): Promise<QuotaExceededError> {
+async function parseQuotaError(
+  response: Response
+): Promise<QuotaExceededError> {
   let body: QuotaErrorBody = {};
   try {
     body = (await response.json()) as QuotaErrorBody;
@@ -240,10 +314,14 @@ async function parseQuotaError(response: Response): Promise<QuotaExceededError> 
   const rawBalances = body.details?.balances;
   let balances: Balance[] = [];
   if (Array.isArray(rawBalances)) {
-    const first = rawBalances[0] as { balances?: Balance[] } | Balance[] | undefined;
+    const first = rawBalances[0] as
+      { balances?: Balance[] } | Balance[] | undefined;
     if (Array.isArray(first)) {
       balances = first as Balance[];
-    } else if (first && Array.isArray((first as { balances?: Balance[] }).balances)) {
+    } else if (
+      first &&
+      Array.isArray((first as { balances?: Balance[] }).balances)
+    ) {
       balances = (first as { balances: Balance[] }).balances;
     }
   }

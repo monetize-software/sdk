@@ -19,7 +19,9 @@ export interface TrackedEvent {
 }
 
 export interface EventTrackerOptions {
-  endpoint: string;
+  /** Absolute events URL, or a thunk resolved at flush time — so the endpoint
+   *  can follow a mirror-origin failover (see core/edge.ts). */
+  endpoint: string | (() => string);
   paywallId: string;
   capabilities?: string[];
   getVisitorId: () => Promise<string>;
@@ -29,7 +31,10 @@ export interface EventTrackerOptions {
    *  event gets `experiment_id` + `variant` merged into its props (explicit
    *  props win on key collision). Read at track-time so events carry the
    *  assignment that was active when they happened. */
-  getExperimentContext?: () => { experiment_id: string; variant: string } | null;
+  getExperimentContext?: () => {
+    experiment_id: string;
+    variant: string;
+  } | null;
   enabled?: boolean;
   flushIntervalMs?: number;
   maxBufferSize?: number;
@@ -59,6 +64,12 @@ export class EventTracker {
 
   private isEnabled(): boolean {
     return this.opts.enabled !== false;
+  }
+
+  private endpoint(): string {
+    return typeof this.opts.endpoint === 'function'
+      ? this.opts.endpoint()
+      : this.opts.endpoint;
   }
 
   track(type: string, props?: Record<string, unknown>): void {
@@ -110,10 +121,11 @@ export class EventTracker {
       const visitorId = await this.opts.getVisitorId();
       const userId = this.opts.getUserId?.() ?? null;
       const body = JSON.stringify({ events });
-      const fetchImpl = this.opts.fetch ?? (typeof fetch !== 'undefined' ? fetch : undefined);
+      const fetchImpl =
+        this.opts.fetch ?? (typeof fetch !== 'undefined' ? fetch : undefined);
       if (!fetchImpl) return;
 
-      await fetchImpl(this.opts.endpoint, {
+      await fetchImpl(this.endpoint(), {
         method: 'POST',
         credentials: 'omit',
         keepalive: true, // if the page closes at this moment — the browser still finishes it
@@ -160,7 +172,8 @@ export class EventTracker {
 
     const beacon =
       this.opts.sendBeacon ??
-      (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function'
+      (typeof navigator !== 'undefined' &&
+      typeof navigator.sendBeacon === 'function'
         ? navigator.sendBeacon.bind(navigator)
         : null);
 
@@ -173,7 +186,7 @@ export class EventTracker {
 
     try {
       // text/plain — sendBeacon usually sets this type, the server parses manually.
-      const ok = beacon(this.opts.endpoint, body);
+      const ok = beacon(this.endpoint(), body);
       if (!ok) {
         this.buffer.unshift(...events);
         void this.flush();
@@ -184,7 +197,10 @@ export class EventTracker {
     }
   }
 
-  private buildHeaders(visitorId: string, userId: string | null): Record<string, string> {
+  private buildHeaders(
+    visitorId: string,
+    userId: string | null
+  ): Record<string, string> {
     const h: Record<string, string> = {
       'Content-Type': 'application/json',
       'X-SDK-Version': SDK_VERSION,
@@ -203,7 +219,10 @@ export class EventTracker {
 
     this.unloadHandler = () => this.flushBeacon();
     this.visibilityHandler = () => {
-      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+      if (
+        typeof document !== 'undefined' &&
+        document.visibilityState === 'hidden'
+      ) {
         this.flushBeacon();
       }
     };
@@ -218,7 +237,8 @@ export class EventTracker {
 
   private detachUnloadHandlers(): void {
     if (typeof window === 'undefined') return;
-    if (this.unloadHandler) window.removeEventListener('pagehide', this.unloadHandler);
+    if (this.unloadHandler)
+      window.removeEventListener('pagehide', this.unloadHandler);
     if (this.visibilityHandler && typeof document !== 'undefined') {
       document.removeEventListener('visibilitychange', this.visibilityHandler);
     }
