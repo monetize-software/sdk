@@ -1,7 +1,6 @@
 import { SDK_VERSION } from './api';
 import type { AuthClient } from './auth';
 import {
-  EDGE_HEDGE_TIMEOUT_MS,
   createDeadline,
   errorName,
   OriginResolver,
@@ -176,26 +175,18 @@ export class ApiGatewayClient {
     // ApiGatewayClient, making Chrome throw 'Illegal invocation'.
     const fetchImpl = this.customFetch ?? fetch;
 
-    // One send. `timeoutMs` is a headers deadline for hedged (non-final)
-    // attempts: the timer is disarmed the moment fetch resolves, so a slow
-    // streaming BODY is never aborted — only a connection that produced no
-    // response yet. A caller abort keeps the dedicated 'aborted' code and is
-    // never retried (replaying an intentionally cancelled AI call would
-    // double-charge). Our own deadline maps to network_error but is marked
-    // originRetryable:false — by hedge-expiry the request body has usually
-    // been uploaded, so the server may already be processing (and charging)
-    // it; a replay on the mirror could double-charge. Gateway failover
-    // therefore happens only on hard connect-level errors; blocked-network
-    // users still reach the mirror because the sticky state discovered by
-    // BillingClient's requests routes gateway calls edge-first.
-    const doFetch = async (
-      target: string,
-      timeoutMs: number | null
-    ): Promise<Response> => {
-      const deadline = createDeadline(params.signal, {
-        eager: timeoutMs != null
-      });
-      deadline.arm(timeoutMs);
+    // No artificial deadline for the gateway — unlike ApiClient (paywall API)
+    // this is the metered AI proxy: time-to-first-byte is legitimately long and
+    // unbounded (provider selection/fallbacks, reasoning, tool loops), so ANY
+    // finite hedge would falsely abort real streaming calls. The only deadline
+    // is the caller's own AbortSignal, which keeps the dedicated 'aborted' code
+    // (never retried — replaying an intentionally cancelled AI call would
+    // double-charge). Failover therefore happens only on hard connect-level
+    // errors (fetch rejects before any response); blocked-network users still
+    // reach the mirror because the sticky state discovered by BillingClient's
+    // lightweight requests routes gateway calls edge-first.
+    const doFetch = async (target: string): Promise<Response> => {
+      const deadline = createDeadline(params.signal);
       try {
         return await fetchImpl(target, {
           method: params.method ?? 'POST',
@@ -206,13 +197,7 @@ export class ApiGatewayClient {
         });
       } catch (cause) {
         if (errorName(cause) === 'AbortError') {
-          if (!deadline.timedOut()) {
-            throw new PaywallError('aborted', 'Request aborted', { cause });
-          }
-          throw new PaywallError('network_error', 'Request deadline exceeded', {
-            cause,
-            originRetryable: false
-          });
+          throw new PaywallError('aborted', 'Request aborted', { cause });
         }
         const detail = cause instanceof Error ? cause.message : String(cause);
         throw new PaywallError(
@@ -231,11 +216,9 @@ export class ApiGatewayClient {
     // the preferred origin, exactly like the pre-edge behavior.
     const response = await runWithFailover(
       this.resolver,
-      async (origin, isLast) => {
+      async (origin) => {
         const target = buildUrl(origin);
-        // The final attempt gets no artificial deadline — AI calls can be
-        // legitimately slow to first byte.
-        let res = await doFetch(target, isLast ? null : EDGE_HEDGE_TIMEOUT_MS);
+        let res = await doFetch(target);
 
         // Dead-session recovery, mirrors ApiClient: a 401 with a Bearer
         // attached means the server rejected a token the client still
@@ -253,7 +236,7 @@ export class ApiGatewayClient {
             .catch((): null => null);
           if (fresh && fresh !== token) {
             headers.set('Authorization', `Bearer ${fresh}`);
-            res = await doFetch(target, null);
+            res = await doFetch(target);
           }
         }
         return res;

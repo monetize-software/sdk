@@ -13,7 +13,11 @@ function freshStorage() {
   };
 }
 
-function jsonResponse(body: unknown, status = 200, headers: Record<string, string> = {}): Response {
+function jsonResponse(
+  body: unknown,
+  status = 200,
+  headers: Record<string, string> = {}
+): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: { 'content-type': 'application/json', ...headers }
@@ -38,7 +42,9 @@ describe('ApiGatewayClient.call', () => {
   afterEach(() => vi.restoreAllMocks());
 
   it('builds URL with provider id, path, paywall_id query and X-Paywall-Id header', async () => {
-    const fetchMock = vi.fn<typeof fetch>(async () => jsonResponse({ ok: true }));
+    const fetchMock = vi.fn<typeof fetch>(async () =>
+      jsonResponse({ ok: true })
+    );
     const gw = new ApiGatewayClient({
       paywallId: 'pw_1',
       apiOrigin: 'https://example.test',
@@ -91,6 +97,64 @@ describe('ApiGatewayClient.call', () => {
     expect(text).toBe('data: a\n\ndata: b\n\n');
   });
 
+  it('does NOT impose an artificial deadline — a slow-TTFB AI stream is not aborted', async () => {
+    vi.useFakeTimers();
+    let resolveResp: (r: Response) => void = () => {};
+    const fetchMock = vi.fn<typeof fetch>(
+      (_url, init) =>
+        new Promise<Response>((res, rej) => {
+          resolveResp = res;
+          // Mirror real fetch: only a signal abort rejects it.
+          init?.signal?.addEventListener('abort', () =>
+            rej(Object.assign(new Error('aborted'), { name: 'AbortError' }))
+          );
+        })
+    );
+    const gw = new ApiGatewayClient({
+      paywallId: 'pw_1',
+      apiOrigin: 'https://example.test',
+      userId: 'u',
+      fetch: fetchMock
+    });
+
+    const pending = gw.call({ providerId: 'p', body: { stream: true } });
+    // Well past the old 5s hedge — the gateway must keep waiting (LLM
+    // time-to-first-byte is legitimately long).
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(fetchMock).toHaveBeenCalledOnce(); // no failover fired
+
+    resolveResp(streamResponse(['data: hi\n\n']));
+    const res = await pending;
+    expect(res.status).toBe(200);
+    vi.useRealTimers();
+  });
+
+  it('surfaces a caller abort as code "aborted", not a deadline', async () => {
+    const abortErr = () =>
+      Object.assign(new Error('aborted'), { name: 'AbortError' });
+    const fetchMock = vi.fn<typeof fetch>(
+      (_url, init) =>
+        new Promise<Response>((_res, rej) => {
+          // Mirror real fetch: an already-aborted signal rejects immediately.
+          if (init?.signal?.aborted) return rej(abortErr());
+          init?.signal?.addEventListener('abort', () => rej(abortErr()));
+        })
+    );
+    const gw = new ApiGatewayClient({
+      paywallId: 'pw_1',
+      apiOrigin: 'https://example.test',
+      userId: 'u',
+      fetch: fetchMock
+    });
+    const ac = new AbortController();
+    const pending = gw.call({ providerId: 'p', body: {}, signal: ac.signal });
+    const assertion = expect(pending).rejects.toMatchObject({
+      code: 'aborted'
+    });
+    ac.abort();
+    await assertion;
+  });
+
   it('throws QuotaExceededError on 402 with parsed details', async () => {
     const errorBody = {
       error: 'not-enough-queries',
@@ -100,7 +164,9 @@ describe('ApiGatewayClient.call', () => {
         currentBalance: { type: 'standard', count: 0 }
       }
     };
-    const fetchMock = vi.fn<typeof fetch>(async () => jsonResponse(errorBody, 402));
+    const fetchMock = vi.fn<typeof fetch>(async () =>
+      jsonResponse(errorBody, 402)
+    );
     const gw = new ApiGatewayClient({
       paywallId: 'pw_1',
       apiOrigin: 'https://example.test',
@@ -190,7 +256,9 @@ describe('ApiGatewayClient.call', () => {
     const auth = {
       getAccessToken: async (): Promise<string> => 'tok_old',
       refresh
-    } as unknown as NonNullable<ConstructorParameters<typeof ApiGatewayClient>[0]['auth']>;
+    } as unknown as NonNullable<
+      ConstructorParameters<typeof ApiGatewayClient>[0]['auth']
+    >;
     return { auth, refresh };
   }
 
@@ -269,10 +337,17 @@ describe('BillingClient.balances', () => {
     vi.restoreAllMocks();
   });
 
-  function makeBalancesFetch(payloads: Array<Balance[] | { error: string; status: number }>) {
+  function makeBalancesFetch(
+    payloads: Array<Balance[] | { error: string; status: number }>
+  ) {
     let i = 0;
     return vi.fn<typeof fetch>(async (input) => {
-      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+      const url =
+        typeof input === 'string'
+          ? input
+          : input instanceof URL
+            ? input.toString()
+            : input.url;
       if (url.includes('/balances')) {
         const next = payloads[i] ?? payloads[payloads.length - 1];
         i += 1;
@@ -309,7 +384,9 @@ describe('BillingClient.balances', () => {
     expect(b).toEqual([]);
     // Without auth /balances isn't called — fetchMock could only have been hit by
     // other routes (but we're testing the balances flow specifically).
-    const balanceCalls = fetchMock.mock.calls.filter(([u]) => String(u).includes('/balances'));
+    const balanceCalls = fetchMock.mock.calls.filter(([u]) =>
+      String(u).includes('/balances')
+    );
     expect(balanceCalls.length).toBe(0);
   });
 
@@ -331,7 +408,8 @@ describe('BillingClient.balances', () => {
     expect(a).toEqual([{ type: 'free', count: 10 }]);
     expect(b).toEqual([{ type: 'free', count: 10 }]);
     const balanceCalls = () =>
-      fetchMock.mock.calls.filter(([u]) => String(u).includes('/balances')).length;
+      fetchMock.mock.calls.filter(([u]) => String(u).includes('/balances'))
+        .length;
     expect(balanceCalls()).toBe(1);
 
     const c = await client.getBalances({ force: true });
@@ -393,18 +471,27 @@ describe('BillingClient.balances', () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    const balanceCalls = fetchMock.mock.calls.filter(([u]) => String(u).includes('/balances'));
+    const balanceCalls = fetchMock.mock.calls.filter(([u]) =>
+      String(u).includes('/balances')
+    );
     expect(balanceCalls.length).toBeGreaterThanOrEqual(2);
   });
 
   it('createApiGatewayClient wires charge → decrement and 402 → refresh', async () => {
     let getBalancesCalls = 0;
     const fetchMock = vi.fn<typeof fetch>(async (input) => {
-      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+      const url =
+        typeof input === 'string'
+          ? input
+          : input instanceof URL
+            ? input.toString()
+            : input.url;
       if (url.includes('/balances')) {
         getBalancesCalls += 1;
         return jsonResponse({
-          balances: [{ type: 'standard', count: getBalancesCalls === 1 ? 3 : 0 }],
+          balances: [
+            { type: 'standard', count: getBalancesCalls === 1 ? 3 : 0 }
+          ],
           tokenization: true
         });
       }
@@ -438,15 +525,19 @@ describe('BillingClient.balances', () => {
 
     const gw = client.createApiGatewayClient();
     await gw.call({ providerId: 'prov_charge', body: {} });
-    expect(client.getCachedBalances()).toEqual([{ type: 'standard', count: 2 }]);
+    expect(client.getCachedBalances()).toEqual([
+      { type: 'standard', count: 2 }
+    ]);
 
-    await expect(gw.call({ providerId: 'prov_quota', body: {} })).rejects.toBeInstanceOf(
-      QuotaExceededError
-    );
+    await expect(
+      gw.call({ providerId: 'prov_quota', body: {} })
+    ).rejects.toBeInstanceOf(QuotaExceededError);
     // refresh fires via void; let it complete.
     await vi.advanceTimersByTimeAsync(0);
     await Promise.resolve();
     await Promise.resolve();
-    expect(client.getCachedBalances()).toEqual([{ type: 'standard', count: 0 }]);
+    expect(client.getCachedBalances()).toEqual([
+      { type: 'standard', count: 0 }
+    ]);
   });
 });
