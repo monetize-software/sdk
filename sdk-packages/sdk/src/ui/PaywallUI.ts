@@ -26,6 +26,7 @@ import {
   type UserLanguageInfo,
   type VisibilityStatus
 } from '../core/types';
+import { STORAGE_KEYS } from '../core/storage';
 import { mountShadow, type MountHandle } from './mount';
 import {
   PaywallRoot,
@@ -444,6 +445,15 @@ export class PaywallUI {
       });
     }
 
+    // Persist the one-shot checkout-pending marker on every started checkout
+    // (both the PaywallRoot-driven and the headless direct-checkout emits land
+    // here). getSettledUser reads it on the next cold start: while it's fresh,
+    // a persisted "no subscription" is re-checked against the network instead
+    // of being trusted — otherwise the first popup open after a purchase
+    // flashes the paywall before the corrective closes it (the popup died
+    // before the purchase confirmation could update the persisted user).
+    this.on('checkout_started', () => this.markCheckoutPending());
+
     this.initTracker(opts.analytics);
 
     if (opts.autoDetectReturn !== false && typeof window !== 'undefined') {
@@ -459,8 +469,11 @@ export class PaywallUI {
       typeof analytics === 'object' && analytics !== null ? analytics : {};
     if (cfg.enabled === false) return;
 
+    // A thunk, not a string: after an edge failover (core/edge.ts) events must
+    // follow the origin that is actually reachable, resolved at flush time.
     const endpoint =
-      cfg.endpoint ?? `${this.billing.apiOrigin}/api/v1/paywall/${this.billing.paywallId}/events`;
+      cfg.endpoint ??
+      (() => `${this.billing.activeApiOrigin()}/api/v1/paywall/${this.billing.paywallId}/events`);
 
     this.tracker = new EventTracker({
       endpoint,
@@ -1102,20 +1115,25 @@ export class PaywallUI {
         this.emitRestoredOnce();
         return;
       }
-      // Cold start: cachedUser is not loaded yet while a source that could
-      // reveal a subscription exists (managed-auth session / explicit
-      // identity). Deciding on null here is a race — the extension-popup
-      // lifecycle (auth hydrate → INITIAL_SESSION → setIdentity → persisted
-      // user / user-state) regularly loses it and a subscriber lands on the
-      // plan picker (the 3.3.0 leak: the sync gate fell through on null and
-      // nothing re-checked on the hydrated-bootstrap path, which never fetches
-      // a user). Resolve the settled user first and only then continue the
-      // open. Costs up to one user-state RTT on the first open() of a popup
-      // session; usually resolves from storage within milliseconds. Hosts with
-      // neither auth nor identity skip this — there is nothing to wait for,
-      // and the synchronous mount-then-load contract stays intact for
-      // anonymous visitors.
-      if (!cachedUser && this.canResolveUser()) {
+      // The user is not confirmed-subscribed while a source that could reveal
+      // a subscription exists (managed-auth session / explicit identity) —
+      // resolve the settled user first and only then continue the open.
+      // Deciding synchronously here loses two races:
+      //  - cachedUser === null: the extension-popup cold start (auth hydrate →
+      //    INITIAL_SESSION → setIdentity → persisted user / user-state is all
+      //    in flight) — the 3.3.0 leak: the gate fell through on null and the
+      //    hydrated-bootstrap path never re-checked, a subscriber landed on
+      //    the plan picker;
+      //  - cachedUser negative: the snapshot may be a pre-purchase stale (the
+      //    popup died before the checkout tab could confirm) — getSettledUser
+      //    re-checks it against the network while the checkout-pending marker
+      //    is fresh, otherwise answers from cache without a request.
+      // Costs microtask hops (plus one user-state RTT when the cache is empty
+      // or distrusted); a confirmed subscriber above stays fully synchronous.
+      // Hosts with neither auth nor identity skip this — nothing to wait for,
+      // the synchronous mount-then-load contract stays intact for anonymous
+      // visitors.
+      if (this.canResolveUser()) {
         void this.billing.getSettledUser().then((user) => {
           if (user?.has_active_subscription) {
             this.emitRestoredOnce();
@@ -1223,8 +1241,8 @@ export class PaywallUI {
     // a delayed visibility/trial block.
     if (!flags.renew) {
       let user = this.billing.getCachedUser();
-      if (!user && this.canResolveUser()) {
-        user = await this.billing.getSettledUser();
+      if (!user?.has_active_subscription && this.canResolveUser()) {
+        user = (await this.billing.getSettledUser()) ?? user;
         if (!this.isOpen) return;
       }
       if (user?.has_active_subscription) {
@@ -1684,8 +1702,8 @@ export class PaywallUI {
     // may be a stale snapshot of a previous identity, so it must not outrank
     // the settle.
     let user: PaywallUser | null = this.billing.getCachedUser();
-    if (!user && this.canResolveUser()) {
-      user = await this.billing.getSettledUser({ signal: opts.signal });
+    if (!user?.has_active_subscription && this.canResolveUser()) {
+      user = (await this.billing.getSettledUser({ signal: opts.signal })) ?? user;
     }
     if (!user) user = bootstrap.user ?? null;
 
@@ -1811,6 +1829,26 @@ export class PaywallUI {
       this.handle.update({ purchased: true });
     }
     void user; // the shape is available via paywall.billing.getCachedUser()
+  }
+
+  /** Fire-and-forget write of the checkout-pending marker (see the
+   *  checkout_started subscription in the constructor). Goes through the
+   *  billing storage adapter, so in the extension it lands in the offscreen
+   *  storage — the same store BillingClient.getSettledUser reads. Storage
+   *  failures degrade to the previous behavior (a one-time flash). */
+  private markCheckoutPending(): void {
+    try {
+      void Promise.resolve(
+        this.billing
+          .getStorage()
+          .setItem(
+            STORAGE_KEYS.checkoutPending(this.billing.paywallId),
+            JSON.stringify({ at: Date.now() })
+          )
+      ).catch((): undefined => undefined);
+    } catch {
+      /* quota / disabled storage — not critical */
+    }
   }
 
   /** Blind open() hit the subscription gate: the modal is suppressed, the host

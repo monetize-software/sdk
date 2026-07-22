@@ -88,6 +88,12 @@ const BALANCES_CACHE_TTL_MS = 5_000;
 // purchases in a row. A fresh decrement via `decrementBalanceLocal` is written
 // to storage right away and reaches other tabs via `storage.watch`.
 const BALANCES_PERSIST_TTL_MS = 5 * 60_000;
+// Lifetime of the one-shot checkout-pending marker (see
+// STORAGE_KEYS.checkoutPending). Matches USER_PERSIST_TTL_MS on purpose: past
+// that the persisted user expires anyway and getSettledUser goes to the
+// network regardless, so a longer marker would change nothing.
+const CHECKOUT_PENDING_TTL_MS = USER_PERSIST_TTL_MS;
+
 // Freshness threshold for the cached balances: when younger, `getBalances()`
 // returns the cache without a network request. Older — a background refetch
 // (stale-while-revalidate). force=true bypasses the threshold. 30 seconds is a
@@ -120,6 +126,14 @@ export interface BillingClientOptions {
   storage?: StorageAdapter;
   capabilities?: string[];
   fetch?: typeof fetch;
+  /**
+   * Mirror-origin failover for networks where the primary custom_domain is
+   * blocked at the IP level (see core/edge.ts). Default: derived by convention
+   * as `edge.<apiOrigin host>` — the platform provisions that DNS record for
+   * every custom domain, so most integrations need nothing here. Pass an
+   * origin to override the convention, or false to disable failover entirely.
+   */
+  edgeFallback?: false | string;
   /**
    * Server SDK API key. Used for `/start-checkout` in headless/hybrid scenarios
    * where the call comes from a trusted environment (the client's backend). On
@@ -293,6 +307,10 @@ export class BillingClient {
       paywallId: opts.paywallId,
       capabilities: opts.capabilities,
       fetch: opts.fetch,
+      edgeFallback: opts.edgeFallback,
+      // Sticky failover choice survives restarts — a returning blocked user
+      // goes straight to the working origin.
+      storage: this.storage,
       // Bearer is passed on every request. AuthClient.getAccessToken does a lazy
       // refresh, dedupes, and on 401 returns null — then the Authorization
       // header simply isn't set.
@@ -461,6 +479,13 @@ export class BillingClient {
 
   getStorage(): StorageAdapter {
     return this.storage;
+  }
+
+  /** Origin the SDK is currently talking to: `apiOrigin`, or the edge mirror
+   *  after a network-level failover (see core/edge.ts). For building sibling
+   *  URLs that must reach the same host — e.g. the analytics endpoint. */
+  activeApiOrigin(): string {
+    return this.api.activeOrigin();
   }
 
   async bootstrap(
@@ -1010,11 +1035,55 @@ export class BillingClient {
       this.syncIdentityFromAuth();
     }
     await this.userHydration.catch((): undefined => undefined);
-    if (this.cachedUser) return this.cachedUser;
+    if (this.cachedUser) {
+      if (this.cachedUser.has_active_subscription) return this.cachedUser;
+      // A cached "no subscription" right after a checkout is exactly the stale
+      // snapshot behind the one-time paywall flash: the purchase completed in
+      // the checkout tab while no SDK context was alive to record it (the
+      // popup died), and the persisted user keeps saying false for up to
+      // USER_PERSIST_TTL. While the checkout-pending marker is fresh, distrust
+      // the negative and fall through to /user-state — the request is already
+      // in flight from the setIdentity auto-refetch, so this await dedupes
+      // instead of adding a round-trip. Without a marker the persisted answer
+      // stays authoritative — free users keep the no-network fast path.
+      const pending = await this.consumeCheckoutPending();
+      if (!pending) return this.cachedUser;
+      // force — the hydrate just stamped cachedUserAt, so a plain getUser()
+      // would answer from the 5s in-memory TTL with the very stale negative we
+      // are distrusting. force still dedupes on an in-flight request (the
+      // setIdentity auto-refetch), so no extra round-trip in the common case.
+      try {
+        return await this.getUser({ force: true, signal: opts.signal });
+      } catch {
+        return this.cachedUser;
+      }
+    }
     try {
       return await this.getUser({ signal: opts.signal });
     } catch {
       return this.cachedUser;
+    }
+  }
+
+  // Reads AND removes the one-shot checkout-pending marker. true = a checkout
+  // was started on this device recently, the negative persisted user must be
+  // re-checked against the network. Consumed on first read — an abandoned
+  // checkout must not tax every subsequent open with an extra await; a
+  // successful purchase persists an active user anyway, after which the
+  // marker path is never consulted again.
+  private async consumeCheckoutPending(): Promise<boolean> {
+    const key = STORAGE_KEYS.checkoutPending(this.paywallId);
+    try {
+      const raw = await this.storage.getItem(key);
+      if (!raw) return false;
+      void Promise.resolve(this.storage.removeItem(key)).catch(
+        (): undefined => undefined
+      );
+      const parsed = JSON.parse(raw) as { at?: number } | null;
+      if (typeof parsed?.at !== 'number') return false;
+      return Date.now() - parsed.at <= CHECKOUT_PENDING_TTL_MS;
+    } catch {
+      return false;
     }
   }
 

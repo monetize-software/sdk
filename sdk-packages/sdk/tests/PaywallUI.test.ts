@@ -787,11 +787,18 @@ describe('PaywallUI subscription gate on cold start (settled user)', () => {
           user: { id: 'u1', email, is_anonymous: false }
         }
       : null;
+    // Mirrors the real AuthClient contract: the sync getters return null until
+    // the storage hydrate resolves — that's exactly what makes the popup cold
+    // start a race.
+    let isHydrated = false;
     return {
-      hydrateNow: () => resolveHydrated(),
+      hydrateNow: () => {
+        isHydrated = true;
+        resolveHydrated();
+      },
       ready: () => hydrated,
-      getCachedSession: () => session,
-      getCachedUser: () => session?.user ?? null,
+      getCachedSession: () => (isHydrated ? session : null),
+      getCachedUser: () => (isHydrated ? session?.user ?? null : null),
       getAccessToken: async () => {
         await hydrated;
         return session?.access_token ?? null;
@@ -959,6 +966,151 @@ describe('PaywallUI subscription gate on cold start (settled user)', () => {
     // No EMPTY_USER persisted under the guest key — the poison that used to
     // feed the next popup's gate.
     expect(window.localStorage.getItem('pw-pw_1-guest-user-v1')).toBeNull();
+  });
+
+  it('post-purchase reopen: stale persisted false + checkout marker → no flash at all', async () => {
+    // The one-time flash report: the purchase completed in the checkout tab
+    // while the popup was dead, so the persisted user still says false. The
+    // checkout-pending marker (written on checkout_started) makes the settle
+    // distrust the negative and wait for /user-state — nothing mounts.
+    seedPersistedBootstrap('pw_1');
+    window.localStorage.setItem(
+      'pw-pw_1-sub@example.com-user-v1',
+      JSON.stringify({ at: Date.now(), user: INACTIVE_USER })
+    );
+    window.localStorage.setItem(
+      'pw-pw_1-checkout-pending-v1',
+      JSON.stringify({ at: Date.now() })
+    );
+    const auth = makeFakeAuth('sub@example.com');
+    const ui = makeUI({ auth, fetch: makeFetch({ user: ACTIVE_USER }) });
+    await vi.waitFor(() => {
+      if (!ui.billing.getCachedBootstrap()) throw new Error('bootstrap not hydrated');
+    });
+
+    const events: unknown[] = [];
+    ui.on('open', () => events.push('open'));
+    ui.on('close', () => events.push('close'));
+    ui.on('purchase_completed', (p) => events.push(p));
+
+    ui.open();
+    auth.hydrateNow();
+
+    await vi.waitFor(() => {
+      if (events.length === 0) throw new Error('gate has not settled yet');
+    });
+    // No open/close pair — the flash is gone. (Marker consumption is asserted
+    // in the abandoned-checkout test: here the network race may resolve the
+    // active user before the negative hydrate, leaving the marker untouched.)
+    expect(events).toEqual([{ priceId: null, sessionId: null, restored: true }]);
+    expect(ui.getState().open).toBe(false);
+  });
+
+  it('hybrid identity (no auth): stale persisted false + marker → suppressed without a flash', async () => {
+    // Identity is known at construction here, so the persisted negative user
+    // hydrates before open() — the gate must still distrust it via the marker
+    // instead of mounting synchronously.
+    seedPersistedBootstrap('pw_1');
+    window.localStorage.setItem(
+      'pw-pw_1-sub@example.com-user-v1',
+      JSON.stringify({ at: Date.now(), user: INACTIVE_USER })
+    );
+    window.localStorage.setItem(
+      'pw-pw_1-checkout-pending-v1',
+      JSON.stringify({ at: Date.now() })
+    );
+    const ui = new PaywallUI({
+      apiOrigin: TEST_API_ORIGIN,
+      paywallId: 'pw_1',
+      identity: { email: 'sub@example.com' },
+      fetch: makeFetch({ user: ACTIVE_USER }),
+      autoDetectReturn: false,
+      analytics: false
+    });
+    await vi.waitFor(() => {
+      if (!ui.billing.getCachedBootstrap()) throw new Error('bootstrap not hydrated');
+    });
+
+    const events: unknown[] = [];
+    ui.on('open', () => events.push('open'));
+    ui.on('purchase_completed', (p) => events.push(p));
+
+    ui.open();
+
+    await vi.waitFor(() => {
+      if (events.length === 0) throw new Error('gate has not settled yet');
+    });
+    expect(events).toEqual([{ priceId: null, sessionId: null, restored: true }]);
+    expect(ui.getState().open).toBe(false);
+    expect(window.localStorage.getItem('pw-pw_1-checkout-pending-v1')).toBeNull();
+  });
+
+  it('abandoned checkout: marker + network false → picker opens, marker consumed', async () => {
+    seedPersistedBootstrap('pw_1');
+    window.localStorage.setItem(
+      'pw-pw_1-free@example.com-user-v1',
+      JSON.stringify({ at: Date.now(), user: INACTIVE_USER })
+    );
+    window.localStorage.setItem(
+      'pw-pw_1-checkout-pending-v1',
+      JSON.stringify({ at: Date.now() })
+    );
+    const auth = makeFakeAuth('free@example.com');
+    const ui = makeUI({ auth, fetch: makeFetch({ user: INACTIVE_USER }) });
+    await vi.waitFor(() => {
+      if (!ui.billing.getCachedBootstrap()) throw new Error('bootstrap not hydrated');
+    });
+
+    ui.open();
+    auth.hydrateNow();
+
+    await vi.waitFor(() => {
+      if (ui.getState().view !== 'layout') {
+        throw new Error(`view is ${ui.getState().view}, want layout`);
+      }
+    });
+    expect(window.localStorage.getItem('pw-pw_1-checkout-pending-v1')).toBeNull();
+  });
+
+  it('stale persisted false without a marker keeps the no-network fast path', async () => {
+    seedPersistedBootstrap('pw_1');
+    window.localStorage.setItem(
+      'pw-pw_1-free@example.com-user-v1',
+      JSON.stringify({ at: Date.now(), user: INACTIVE_USER })
+    );
+    const auth = makeFakeAuth('free@example.com');
+    const ui = makeUI({ auth, fetch: makeFetch({ user: INACTIVE_USER }) });
+    await vi.waitFor(() => {
+      if (!ui.billing.getCachedBootstrap()) throw new Error('bootstrap not hydrated');
+    });
+
+    ui.open();
+    auth.hydrateNow();
+    await vi.waitFor(() => {
+      if (ui.getState().view !== 'layout') {
+        throw new Error(`view is ${ui.getState().view}, want layout`);
+      }
+    });
+  });
+
+  it('checkout_started persists the checkout-pending marker', async () => {
+    const auth = makeFakeAuth('sub@example.com');
+    const ui = makeUI({ auth, fetch: makeFetch({ user: INACTIVE_USER }) });
+
+    (ui as unknown as { emit: Function }).emit('checkout_started', {
+      priceId: 'p1',
+      url: 'https://pay.example.com/x'
+    });
+
+    await vi.waitFor(() => {
+      if (!window.localStorage.getItem('pw-pw_1-checkout-pending-v1')) {
+        throw new Error('marker not written yet');
+      }
+    });
+    const parsed = JSON.parse(
+      window.localStorage.getItem('pw-pw_1-checkout-pending-v1')!
+    ) as { at: number };
+    expect(typeof parsed.at).toBe('number');
   });
 
   it('getAccess on the same race resolves granted/has_subscription', async () => {

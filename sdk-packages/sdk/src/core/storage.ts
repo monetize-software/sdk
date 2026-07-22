@@ -23,24 +23,35 @@ interface ChromeStorageChange {
   newValue?: unknown;
 }
 
-declare const chrome: {
-  storage?: {
-    local?: {
-      get(keys: string[], cb: (items: Record<string, unknown>) => void): void;
-      set(items: Record<string, unknown>, cb?: () => void): void;
-      remove(keys: string[], cb?: () => void): void;
-    };
-    onChanged?: {
-      addListener(
-        cb: (changes: Record<string, ChromeStorageChange>, area: string) => void
-      ): void;
-      removeListener(
-        cb: (changes: Record<string, ChromeStorageChange>, area: string) => void
-      ): void;
-    };
-  };
-  runtime?: { id?: string };
-} | undefined;
+declare const chrome:
+  | {
+      storage?: {
+        local?: {
+          get(
+            keys: string[],
+            cb: (items: Record<string, unknown>) => void
+          ): void;
+          set(items: Record<string, unknown>, cb?: () => void): void;
+          remove(keys: string[], cb?: () => void): void;
+        };
+        onChanged?: {
+          addListener(
+            cb: (
+              changes: Record<string, ChromeStorageChange>,
+              area: string
+            ) => void
+          ): void;
+          removeListener(
+            cb: (
+              changes: Record<string, ChromeStorageChange>,
+              area: string
+            ) => void
+          ): void;
+        };
+      };
+      runtime?: { id?: string };
+    }
+  | undefined;
 
 function hasChromeStorage(): boolean {
   return (
@@ -144,7 +155,8 @@ const memoryLocal: StorageAdapter = {
 export function createStorage(override?: StorageAdapter): StorageAdapter {
   if (override) return override;
   if (hasChromeStorage()) return chromeLocal;
-  if (typeof window !== 'undefined' && 'localStorage' in window) return webLocal;
+  if (typeof window !== 'undefined' && 'localStorage' in window)
+    return webLocal;
   return memoryLocal;
 }
 
@@ -174,12 +186,28 @@ export const STORAGE_KEYS = {
   // for all users of one paywall; user-state lives separately under
   // `userState(...)`. Bump '-v1' on a breaking shape change.
   bootstrap: (paywallId: string) => `pw-${paywallId}-bootstrap-v1`,
+  // One-shot "a checkout was started on this device" marker ({at: ts}).
+  // Written by PaywallUI on checkout_started, consumed by
+  // BillingClient.getSettledUser: a persisted has_active_subscription:false is
+  // NOT trusted while the marker is fresh — the purchase may have completed in
+  // the checkout tab while no SDK context was alive to record it (an extension
+  // popup dies when the user leaves to pay), and the stale negative caused a
+  // one-time paywall flash on the next open. Not identity-bound: the checkout
+  // and the re-check happen on the same device within minutes.
+  checkoutPending: (paywallId: string) => `pw-${paywallId}-checkout-pending-v1`,
   // Persisted balances (AI providers × tokenization_queries). Identity-bound,
   // since balance is counted per-Bearer-user; on re-login the key changes and
   // other users' balances aren't visible. They change after payment (backend)
   // and API calls (optimistically via `decrementBalanceLocal`).
   balances: (paywallId: string, identityKey: string) =>
     `pw-${paywallId}-${identityKey}-balances-v1`,
+  // Sticky mirror-origin failover state ({active: 'primary'|'edge',
+  // switchedAt} — see core/edge.ts). Written only on primary↔edge
+  // transitions, read once per client construction. Keyed by the PRIMARY
+  // ORIGIN HOST, not paywallId: the in-memory shared state is origin-keyed,
+  // and a paywallId key let two paywalls on one custom_domain hydrate/persist
+  // past each other (review finding).
+  edgeState: (originHost: string) => `pw-edge-${originHost}-v1`,
   // Sticky A/B experiment assignment for this device: {experimentId, variant,
   // at}. First-touch persisted so a later change of experiment weights doesn't
   // rebucket users who were already exposed. One key per paywall — the backend
@@ -192,7 +220,10 @@ export const STORAGE_KEYS = {
 // identity/email. Used in EventTracker. The fallback to Math.random is needed
 // for old runtimes without crypto.randomUUID (rare, but happens in e2e mocks).
 export function generateVisitorId(): string {
-  const c = typeof globalThis !== 'undefined' ? (globalThis as { crypto?: Crypto }).crypto : undefined;
+  const c =
+    typeof globalThis !== 'undefined'
+      ? (globalThis as { crypto?: Crypto }).crypto
+      : undefined;
   if (c && typeof c.randomUUID === 'function') return c.randomUUID();
 
   const bytes = new Uint8Array(16);
@@ -203,17 +234,22 @@ export function generateVisitorId(): string {
   }
   bytes[6] = (bytes[6] & 0x0f) | 0x40;
   bytes[8] = (bytes[8] & 0x3f) | 0x80;
-  const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+  const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join(
+    ''
+  );
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
 // Resolves a stable visitor_id: reads it from storage by the
 // STORAGE_KEYS.visitorId key, generates and saves it if absent. A Promise
 // because storage is async (chrome.storage.local is callback-based).
-export async function ensureVisitorId(storage: StorageAdapter): Promise<string> {
+export async function ensureVisitorId(
+  storage: StorageAdapter
+): Promise<string> {
   try {
     const existing = await storage.getItem(STORAGE_KEYS.visitorId);
-    if (existing && typeof existing === 'string' && existing.length >= 16) return existing;
+    if (existing && typeof existing === 'string' && existing.length >= 16)
+      return existing;
   } catch {
     /* fall through to generation */
   }
