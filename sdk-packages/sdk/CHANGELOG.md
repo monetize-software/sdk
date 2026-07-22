@@ -1,5 +1,15 @@
 # @monetize.software/sdk
 
+## 3.4.0-rc.3
+
+### Patch Changes
+
+- abe4c24: AI-gateway imposes no artificial deadline — slow LLM streams no longer abort
+
+  rc.2 gave the first of two failover candidates a 5s hedge in `ApiGatewayClient`. The `isStream` guard checks the REQUEST body for a `ReadableStream`, but AI streaming uses a JSON-string body with `stream:true` for the RESPONSE — so `isStream` was false, two candidates were tried, and the primary got a 5s deadline. LLM time-to-first-byte (provider selection/fallbacks, reasoning, tool loops) routinely exceeds 5s, so the hedge aborted real streaming calls with `Request deadline exceeded` for ALL users, not just blocked networks.
+
+  The metered AI proxy now imposes no hedge/timeout of its own: LLM TTFB is legitimately unbounded, so any finite deadline falsely aborts real calls. It fails over only on hard connect-level errors and never replays a stream; a blocked-network user still reaches the mirror because the sticky state discovered by the lightweight paywall requests routes gateway calls edge-first. Caller aborts surface as `aborted` (previously `network_error`).
+
 ## 3.4.0-rc.2
 
 ### Minor Changes

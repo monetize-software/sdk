@@ -2,8 +2,8 @@
   "mode": "exit",
   "tag": "rc",
   "initialVersions": {
-    "@monetize.software/sdk": "3.4.0-rc.1",
-    "@monetize.software/sdk-extension": "4.0.0-rc.1",
+    "@monetize.software/sdk": "3.4.0-rc.2",
+    "@monetize.software/sdk-extension": "4.0.0-rc.2",
     "@monetize.software/sdk-react": "4.0.0-rc.0"
   },
   "changesets": [

@@ -1,5 +1,13 @@
 # @monetize.software/sdk-extension
 
+## 4.0.0-rc.3
+
+### Patch Changes
+
+- abe4c24: Bundles the sdk 3.4.0-rc.3 gateway fix — AI-gateway no longer aborts slow LLM streams
+
+  The extension bundles the sdk source, so it ships the same fix: `ApiGatewayClient` imposes no artificial deadline (LLM time-to-first-byte is legitimately unbounded), fails over only on connect-level errors, and surfaces caller aborts as `aborted`. Fixes `Request deadline exceeded` on streaming AI calls in rc.2.
+
 ## 4.0.0-rc.2
 
 ### Minor Changes
