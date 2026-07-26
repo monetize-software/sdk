@@ -1,5 +1,42 @@
 # @monetize.software/sdk-extension
 
+## 3.4.0
+
+> Released as 3.4.0, not 4.0.0: the 4.0.0-rc.\* line was an artifact of the
+> pre-release peer-range rule (a prerelease base SDK never satisfies `^3.3.1`,
+> which makes Changesets major-bump peer dependents). No breaking changes.
+
+### Minor Changes
+
+- b485bcd: Edge-mirror failover — the SDK survives state-level IP blocking of the primary custom domain
+
+  - **Zero-config mirror convention.** Every API client (`BillingClient`, `AuthClient`, `ApiGatewayClient`) derives `https://edge.<apiOrigin host>` and fails over to it when the primary origin dies at the network level. The platform provisions that DNS record for every custom domain automatically (NS-delegated zones), so integrations need no changes. Opt out or override with the new `edgeFallback: false | '<origin>'` option.
+  - **Network-only failover semantics.** The mirror is tried only on connection failures, deadline expiry, or a response body killed mid-read — never on HTTP statuses (any status proves reachability) and never on a caller abort. Phased deadlines: a 5s hedge (30s on the final candidate) bounds connect+headers and is swapped for a separate 30s body-read deadline once headers arrive, so slow-but-alive responses are not killed mid-body; FormData uploads are exempt from artificial deadlines entirely. Single-candidate setups (http/dev origins, `edgeFallback: false`) keep the previous no-timeout behavior.
+  - **Replay safety.** A failure AFTER response headers arrived means the origin already processed the request — replaying it on the mirror would re-execute the side effect. Post-headers failover is therefore gated: automatic for GET/HEAD, opt-in via `request(path, { replayable: true })` for idempotent POSTs, and off for everything else (support tickets, anonymous signin, token adjustments, single-use-token auth calls). Connect-level failures still fail over for every request. The 401-recovery replay gets its own fresh deadline (a slow refresh no longer overflows the hedge into a spurious failover), and the Bearer is re-resolved per attempt.
+  - **Sticky + self-healing.** A discovered working mirror is preferred for 30 minutes (shared across all clients of the origin in the JS context, persisted via storage when available), then the primary is re-probed automatically — no state to clear after an unblock.
+  - **Truncated-body fix.** A 200 response whose JSON body dies mid-read (DPI stream cuts) no longer resolves as a silent `null` payload — it is classified as a retryable network failure. Genuinely malformed JSON keeps the legacy `null` tolerance.
+  - **Analytics follow the failover.** The events endpoint resolves through `billing.activeApiOrigin()` at flush time, so trackers keep delivering after a switch.
+  - **Gateway has no artificial deadline.** The metered AI proxy (`ApiGatewayClient`) imposes NO hedge/timeout of its own: LLM time-to-first-byte is legitimately long and unbounded (provider selection/fallbacks, reasoning, tool loops), so any finite deadline would falsely abort real streaming calls. It fails over only on hard connect-level errors and never replays a stream; a blocked-network user still reaches the mirror because the sticky state discovered by the lightweight paywall requests routes gateway calls edge-first. Caller aborts surface as `aborted` (previously `network_error`).
+  - The sticky failover state is persisted per origin host (`pw-edge-<host>-v1`) — shared correctly by all clients of one custom_domain regardless of paywallId.
+
+- 604c95c: Subscription gate no longer races the cold start — subscribers can't leak onto the plan picker
+
+  - **Settled-user gate.** `paywall.open()` for the layout view now resolves the user through the new `billing.getSettledUser()` before deciding: it waits for the auth session hydrate → identity sync → persisted user cache → `/user-state`, instead of reading the sync in-memory cache that is empty for the first moments of an extension-popup lifecycle. The 3.3.0 leak — a hydrated persisted bootstrap (which stores no user) let the gate fall through on `null` and mount the picker for a subscriber — is closed. Hosts without managed-auth and identity keep the fully synchronous mount path.
+  - **Post-mount corrective.** If the subscription truth still arrives after a blind open() mounted the layout (network hiccup during the settle, cross-context broadcast), the modal closes and the host gets the same `purchase_completed{restored:true}` signal. Renew flows, started checkouts and in-modal auth flows are untouched.
+  - **EMPTY_USER poisoning fixed.** `getUser()` called before the auth session hydrated used to stamp-and-persist an empty user under the guest storage key, feeding the next popup's gate a confident "no subscription". It now waits for the hydrate (identity is final afterwards); the guest-key hydrate is skipped entirely when managed-auth is on.
+  - **`getAccess()`** resolves through the same settled user — no more intermittent `blocked/no_subscription` with `purchases: []` for an active subscriber on a cold popup start.
+  - `@monetize.software/sdk-extension`: `RemoteBillingClient.getSettledUser()` proxies to the offscreen client over the new `billing.getSettledUser` transport request; degrades to the cached user if the port is gone.
+
+### Patch Changes
+
+- 2781112: Post-purchase reopen no longer flashes the paywall once
+
+  The first popup open after a purchase mounted the plan picker for a moment and immediately closed it (the post-mount corrective). Cause: the popup dies when the user leaves for the checkout tab, so nothing updates the persisted user — for up to 30 minutes it keeps saying `has_active_subscription: false`, and the settled-user gate trusted it.
+
+  - `checkout_started` now persists a one-shot **checkout-pending marker**. While it's fresh, `getSettledUser()` distrusts a cached/persisted "no subscription" and re-checks `/user-state` (with `force`, deduped against the in-flight auto-refetch) before the gate decides — the post-purchase reopen suppresses cleanly, nothing mounts.
+  - The marker is consumed on first use and capped at the persisted-user TTL: an abandoned checkout costs exactly one extra re-check, free users without a checkout keep the no-network fast path.
+  - The open()/`getAccess()` gates now also settle when the cached user is _negative_ (not only when it's missing) — covers hosts where identity is known at construction (hybrid mode) and the stale snapshot hydrates before `open()`.
+
 ## 4.0.0-rc.3
 
 ### Patch Changes
