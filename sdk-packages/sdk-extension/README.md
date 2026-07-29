@@ -35,7 +35,10 @@ content script (per tab) ──port──▶ service worker ──port──▶ 
 ```ts
 // service-worker.ts
 import { installRouter } from '@monetize.software/sdk-extension/sw';
-installRouter({ offscreenUrl: chrome.runtime.getURL('offscreen.html') });
+installRouter({
+  offscreenUrl: chrome.runtime.getURL('offscreen.html'),
+  apiOrigin: 'https://your-paywall-domain.com'   // see "Surviving surfaces" below
+});
 ```
 
 ```ts
@@ -114,6 +117,38 @@ offscreen, plus it fingerprints your extension ID).
 
 The SDK does **not** use `chrome.identity` — OAuth runs via a popup window opened
 against your `apiOrigin`, so no `"identity"` permission is needed.
+
+### Surviving surfaces: pass `apiOrigin` to `installRouter`
+
+OAuth normally returns the auth code by `postMessage` to the window that started
+it. A **toolbar action popup does not survive that**: Chrome closes it the moment
+the provider window takes focus, and whether that happens is up to the OS window
+manager — the same extension signs in fine on one machine and silently fails on
+another (users see the popup vanish and nothing happen; opening DevTools "fixes"
+it, because DevTools keeps the popup alive).
+
+Passing `apiOrigin` to `installRouter` closes that hole. The service worker
+watches for the provider's redirect landing on your callback page, reads the code
+from the URL, and hands it to offscreen, which owns the PKCE verifier and
+completes the sign-in on its own. The originating surface no longer needs to be
+alive; every surface still open gets the usual `authChange`, and the next one to
+open picks the session up from storage.
+
+No new manifest permission is required — the URL is already visible to the worker
+through the `host_permissions` entry you declare for `apiOrigin`. Omit the option
+and behaviour is exactly as before.
+
+Two caveats worth knowing:
+
+- If the **offscreen document itself** died mid-flow (extension reload/update,
+  browser restart, OOM), the verifier is gone and nothing can be adopted — the
+  user signs in again.
+- Provider **errors** come back in the URL fragment, which a worker cannot read.
+  Those still surface the old way: the window closes without a code and the flow
+  reports a cancellation.
+
+For a paywall that must work in a popup regardless, a **side panel** or a
+full-page extension tab remains the sturdiest surface — neither is tied to focus.
 
 ### `host_permissions` — what to pick
 

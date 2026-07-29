@@ -62,6 +62,7 @@ export type RequestKind =
   | 'auth.revokeAllSessions'
   | 'auth.oauthStart'
   | 'auth.oauthExchange'
+  | 'auth.oauthAdopt'
   | 'auth.getAccessToken'
   | 'auth.signInAnonymously'
   | 'auth.getLastLogin'

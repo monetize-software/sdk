@@ -6,6 +6,7 @@
 
 import type { RouterOptions } from './types';
 import { ensureOffscreen } from './ensure-offscreen';
+import { installOAuthWatcher } from './oauth-watcher';
 import { PORT_NAME, RELAY_PORT_NAME } from '../shared/port-name';
 
 const DEFAULT_REASONS: chrome.offscreen.Reason[] = [chrome.offscreen.Reason.LOCAL_STORAGE];
@@ -16,6 +17,15 @@ const DEFAULT_JUSTIFICATION =
 export function installForwarder(opts: RouterOptions): void {
   const reasons = opts.offscreenReasons ?? DEFAULT_REASONS;
   const justification = opts.offscreenJustification ?? DEFAULT_JUSTIFICATION;
+
+  if (opts.apiOrigin) {
+    installOAuthWatcher({
+      apiOrigin: opts.apiOrigin,
+      offscreenUrl: opts.offscreenUrl,
+      offscreenReasons: reasons,
+      offscreenJustification: justification
+    });
+  }
 
   chrome.runtime.onConnect.addListener((contentPort) => {
     if (contentPort.name !== PORT_NAME) return;

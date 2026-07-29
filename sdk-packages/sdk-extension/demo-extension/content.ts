@@ -13,6 +13,7 @@ import { ApiGatewayClient } from '@sdk/core/ApiGatewayClient';
 import { type Balance, type PaywallUser } from '@sdk/core/types';
 import type { AuthClient, AuthSession } from '@sdk/core/auth';
 import { trackRealAuth, handleGatewayError, callWithRetry } from './unauthorized-handler';
+import { readDemoConfig, DEMO_CONFIG_HINT } from './demo-config';
 
 const PROVIDER_ID = '1'; // DeepSeek api provider.
 
@@ -50,14 +51,15 @@ interface WidgetState {
 }
 
 async function bootstrapPaywall(): Promise<void> {
-  const { __demo_paywall_id, __demo_api_origin } = (await chrome.storage.local.get([
-    '__demo_paywall_id',
-    '__demo_api_origin'
-  ])) as { __demo_paywall_id?: string; __demo_api_origin?: string };
+  const cfg = await readDemoConfig();
+  if (!cfg) {
+    console.warn('[demo] %s', DEMO_CONFIG_HINT);
+    return;
+  }
 
   const paywall = new PaywallUI({
-    paywallId: __demo_paywall_id ?? '3',
-    apiOrigin: __demo_api_origin ?? 'https://onlineapp.stream',
+    paywallId: cfg.paywallId,
+    apiOrigin: cfg.apiOrigin,
     shadowMode: 'open',
     auth: true
   });

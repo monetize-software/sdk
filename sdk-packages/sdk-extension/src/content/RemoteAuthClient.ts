@@ -254,6 +254,12 @@ export class RemoteAuthClient {
     }
     injectLoaderUI(popup, input.provider);
 
+    // Identity before the flow. If the window disappears we cannot tell a user
+    // closing it from the service-worker rescue path finishing the sign-in and
+    // closing the tab (see sw/oauth-watcher) — comparing against this snapshot
+    // tells us which happened.
+    const before = this.session;
+
     try {
       // Async part: hit offscreen for authorize_url and state. For now the popup
       // shows about:blank.
@@ -281,11 +287,17 @@ export class RemoteAuthClient {
         /* ignore */
       }
 
-      if (result.kind === 'cancelled') {
-        throw new PaywallError('oauth_cancelled', 'auth popup was closed');
-      }
-      if (result.kind === 'timeout') {
-        throw new PaywallError('oauth_timeout', 'OAuth flow timed out');
+      if (result.kind === 'cancelled' || result.kind === 'timeout') {
+        // The window vanishing is ambiguous — ask the session owner before
+        // reporting a failure the user didn't experience.
+        const adopted = await this.adoptedSessionSince(before);
+        if (adopted) {
+          this.applySession('SIGNED_IN', adopted);
+          return adopted;
+        }
+        throw result.kind === 'cancelled'
+          ? new PaywallError('oauth_cancelled', 'auth popup was closed')
+          : new PaywallError('oauth_timeout', 'OAuth flow timed out');
       }
       if (result.kind === 'error') {
         throw new PaywallError(
@@ -308,6 +320,26 @@ export class RemoteAuthClient {
       }
       throw e;
     }
+  }
+
+  /** The session offscreen holds now, if it represents a sign-in that happened
+   *  during this flow rather than whatever we started with. Returns null when
+   *  nothing changed, i.e. the window really was closed by the user.
+   *
+   *  Compared by identity, not by token: a routine background refresh also
+   *  rotates the token, and mistaking that for a completed sign-in would swallow
+   *  a genuine cancellation. A signed-in user re-linking another provider is
+   *  therefore not detected here and still reports cancelled — the conservative
+   *  side of the trade. */
+  private async adoptedSessionSince(before: AuthSession | null): Promise<AuthSession | null> {
+    const current = await this.transport
+      .request('auth.getCachedSession', undefined)
+      .catch((): null => null);
+    if (!current) return null;
+    if (!before) return current;
+    if (before.user.id !== current.user.id) return current;
+    if (before.user.is_anonymous && !current.user.is_anonymous) return current;
+    return null;
   }
 
   destroy(): void {

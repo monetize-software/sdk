@@ -1,0 +1,12 @@
+{
+  "mode": "pre",
+  "tag": "rc",
+  "initialVersions": {
+    "@monetize.software/sdk": "3.4.0",
+    "@monetize.software/sdk-extension": "3.4.0",
+    "@monetize.software/sdk-react": "3.4.0"
+  },
+  "changesets": [
+    "oauth-popup-rescue"
+  ]
+}

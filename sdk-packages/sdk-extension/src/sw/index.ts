@@ -3,20 +3,27 @@
 // die at any moment; the next content runtime.connect wakes it and the
 // pipe is recreated.
 //
-// We don't proxy OAuth — the auth-flow in the extension uses the same
-// web variant as on websites: window.open to our domain → the callback in a new
-// tab passes the code to offscreen via a chrome.runtime message.
-// chrome.identity is deliberately not used (it requires a chrome-extension://
-// redirect URL at providers, which breaks compatibility with web).
+// OAuth uses the same web flow as on websites — window.open to our domain, the
+// callback page posting the code back to its opener. chrome.identity is
+// deliberately not used (it needs a chrome-extension:// redirect URL registered
+// at the provider, which breaks parity with web).
+//
+// Pass `apiOrigin` and the SW additionally watches for that callback landing in
+// a tab, so a sign-in survives its originating surface being destroyed — see
+// ./oauth-watcher. Without it, behaviour is unchanged.
 //
 // Usage in the host:
 //   import { installRouter } from '@monetize.software/sdk-extension/sw';
-//   installRouter({ offscreenUrl: chrome.runtime.getURL('offscreen.html') });
+//   installRouter({
+//     offscreenUrl: chrome.runtime.getURL('offscreen.html'),
+//     apiOrigin: 'https://your-custom-domain.com'
+//   });
 
 import { installForwarder } from './forwarder';
 import type { RouterOptions } from './types';
 
 export type { RouterOptions };
+export { matchOAuthCallback } from './oauth-watcher';
 
 export function installRouter(opts: RouterOptions): void {
   if (typeof chrome === 'undefined' || !chrome.runtime) {

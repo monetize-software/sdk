@@ -112,6 +112,13 @@ declare module './protocol' {
     /** Exchange the code for a session. The state from the oauthStart resolution
      *  comes here — offscreen looks up the stored verifier by state. */
     'auth.oauthExchange': { state: string; code: string };
+    /** Finish an OAuth flow whose originating surface is gone. The service
+     *  worker sees the provider's redirect land on our callback URL and reads
+     *  the code straight out of it; the state travels in `window.name`, which a
+     *  worker cannot read, so offscreen resolves the flow itself (it handed the
+     *  state out in oauthStart). Never throws — the SW only needs to know
+     *  whether it may close the tab. */
+    'auth.oauthAdopt': { code: string };
     /** The current access token (lazy-refreshable). content/popup calls this to
      *  pass the Bearer into external fetches (for example, ApiGatewayClient in
      *  the content-script). Returns null if logged out or the refresh failed. */
@@ -184,6 +191,13 @@ declare module './protocol' {
     'auth.revokeAllSessions': void;
     'auth.oauthStart': { authorizeUrl: string; state: string };
     'auth.oauthExchange': AuthSession;
+    'auth.oauthAdopt': {
+      /** true — the session is live and broadcast; the SW may close the tab. */
+      adopted: boolean;
+      /** Why not, for diagnostics: `no_pending_flow` (offscreen restarted, or
+       *  the originating surface already finished) or the exchange error code. */
+      reason?: string;
+    };
     'auth.getAccessToken': string | null;
     'auth.signInAnonymously': AuthSession;
     'auth.getLastLogin': LastLogin | null;

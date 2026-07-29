@@ -37,7 +37,10 @@ async function doEnsure(opts: EnsureOffscreenOptions): Promise<void> {
   }
 }
 
-async function offscreenExists(url: string): Promise<boolean> {
+/** Whether the offscreen document is currently up. Exported for the OAuth
+ *  watcher, which must not *create* one — a fresh document holds no PKCE
+ *  verifier, so there would be nothing to adopt. */
+export async function offscreenExists(url: string): Promise<boolean> {
   if (typeof chrome.runtime.getContexts === 'function') {
     const contexts = await chrome.runtime.getContexts({
       contextTypes: [chrome.runtime.ContextType.OFFSCREEN_DOCUMENT],

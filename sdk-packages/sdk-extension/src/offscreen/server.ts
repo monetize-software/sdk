@@ -14,7 +14,7 @@
 
 import { BillingClient } from '@sdk/core/BillingClient';
 import { PaywallError } from '@sdk/core/types';
-import { AuthClient } from '@sdk/core/auth';
+import { AuthClient, type AuthSession } from '@sdk/core/auth';
 import { EventTracker } from '@sdk/core/EventTracker';
 import { createTrialStore } from '@sdk/core/trial';
 import type { TrialConfig } from '@sdk/core/types';
@@ -35,6 +35,15 @@ const STAGED_FILES_MAX_COUNT = MAX_SUPPORT_FILES * 2;
 
 type StagedFile = { name: string; type: string; bytes: Uint8Array; stagedAt: number };
 
+// How long a state handed out by oauthStart stays adoptable. Matches
+// OAUTH_FLOW_TTL_MS in @sdk/core/auth — past it the verifier is gone anyway.
+const OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
+// How long a settled exchange is remembered after success. Covers the race where
+// the SW adopts the code first and the still-alive popup asks for the same state
+// a moment later: it gets the session instead of `oauth_invalid_state`. The code
+// is single-use at GoTrue, so replaying it is not an option.
+const OAUTH_EXCHANGE_MEMO_MS = 60 * 1000;
+
 export class OffscreenServer {
   readonly billing: BillingClient;
   readonly auth: AuthClient | undefined;
@@ -45,6 +54,13 @@ export class OffscreenServer {
   private userUnsub: (() => void) | null = null;
   private balanceUnsub: (() => void) | null = null;
   private authUnsub: (() => void) | null = null;
+  /** States handed out by auth.oauthStart, oldest first. The adopt path (service
+   *  worker) learns only the code — the state rides in `window.name`, which a
+   *  worker cannot read — so we resolve the flow from here. */
+  private pendingOAuthStates: Array<{ state: string; at: number }> = [];
+  /** Exchanges keyed by state, in-flight and briefly after settling. Both entry
+   *  points funnel through it so one auth code is never sent to GoTrue twice. */
+  private oauthExchanges = new Map<string, Promise<AuthSession>>();
 
   constructor(opts: OffscreenServerOptions) {
     if (opts.auth) {
@@ -249,11 +265,30 @@ export class OffscreenServer {
         userMeta: params.userMeta,
         switchAccount: params.switchAccount
       });
+      this.rememberOAuthState(state);
       return { authorizeUrl: authorize_url, state };
     });
     this.transport.on('auth.oauthExchange', async (params) =>
-      auth.completeOAuthFlow({ state: params.state, code: params.code })
+      this.exchangeOAuthOnce(auth, params.state, params.code)
     );
+    // Adopt: the surface that started the flow is gone (a toolbar action popup
+    // is destroyed the moment the provider window takes focus, which on some
+    // window managers happens every time), so nobody is left to hand us the
+    // code. The SW read it off the callback URL instead. We own the verifier, so
+    // we can finish alone — and the resulting authChange broadcast reaches every
+    // surface that is still alive, plus the next one to open.
+    this.transport.on('auth.oauthAdopt', async (params) => {
+      const state = this.newestPendingOAuthState();
+      if (!state) return { adopted: false, reason: 'no_pending_flow' };
+      try {
+        await this.exchangeOAuthOnce(auth, state, params.code);
+        this.forgetOAuthState(state);
+        return { adopted: true };
+      } catch (e) {
+        const code = e instanceof PaywallError ? e.code : 'exchange_failed';
+        return { adopted: false, reason: code };
+      }
+    });
     this.transport.on('auth.getAccessToken', async () => auth.getAccessToken());
 
     this.transport.on('auth.signInAnonymously', async (params) =>
@@ -263,6 +298,52 @@ export class OffscreenServer {
         forceNewAnon: params.forceNewAnon
       })
     );
+  }
+
+  private rememberOAuthState(state: string): void {
+    const cutoff = Date.now() - OAUTH_STATE_TTL_MS;
+    this.pendingOAuthStates = this.pendingOAuthStates.filter((f) => f.at >= cutoff);
+    this.pendingOAuthStates.push({ state, at: Date.now() });
+  }
+
+  /** The most recently started flow, which is the one a returning code belongs
+   *  to. Concurrent OAuth flows in one extension are not a real scenario — each
+   *  needs its own provider window — so newest-wins is enough, and a wrong guess
+   *  costs only a failed exchange, never a wrong session (the code is bound to
+   *  the challenge sent with that state). */
+  private newestPendingOAuthState(): string | null {
+    const cutoff = Date.now() - OAUTH_STATE_TTL_MS;
+    for (let i = this.pendingOAuthStates.length - 1; i >= 0; i--) {
+      if (this.pendingOAuthStates[i].at >= cutoff) return this.pendingOAuthStates[i].state;
+    }
+    return null;
+  }
+
+  private forgetOAuthState(state: string): void {
+    this.pendingOAuthStates = this.pendingOAuthStates.filter((f) => f.state !== state);
+  }
+
+  private exchangeOAuthOnce(
+    auth: AuthClient,
+    state: string,
+    code: string
+  ): Promise<AuthSession> {
+    const inflight = this.oauthExchanges.get(state);
+    if (inflight) return inflight;
+
+    const promise = auth.completeOAuthFlow({ state, code });
+    this.oauthExchanges.set(state, promise);
+    promise.then(
+      () => {
+        setTimeout(() => this.oauthExchanges.delete(state), OAUTH_EXCHANGE_MEMO_MS);
+      },
+      () => {
+        // Failures are forgotten immediately — a retry with a fresh code must
+        // not be answered from the memo.
+        this.oauthExchanges.delete(state);
+      }
+    );
+    return promise;
   }
 
   private bridgeBroadcasts(): void {

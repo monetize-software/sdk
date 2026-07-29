@@ -37,6 +37,14 @@ if (pkgs.length === 0) {
 let failed = false;
 for (const { name, version } of pkgs) {
   const spec = `${name}@${version}`;
+  // Prerelease (3.5.0-rc.0, 3.0.0-beta.4, …) must never become `latest`: a bare
+  // `npm i` would hand every customer a release candidate. Changesets already
+  // publishes these under their pre-tag (`rc`/`beta`), which is how testers are
+  // meant to opt in. `latest` moves only when a stable version ships.
+  if (version.includes('-')) {
+    console.log(`promote-latest: ${spec} — prerelease, latest не трогаю.`);
+    continue;
+  }
   try {
     execFileSync('npm', ['dist-tag', 'add', spec, 'latest'], { stdio: 'inherit' });
   } catch {

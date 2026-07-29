@@ -18,4 +18,21 @@ export interface RouterOptions {
   offscreenReasons?: chrome.offscreen.Reason[];
   /** Justification for the CWS review. */
   offscreenJustification?: string;
+  /**
+   * Your paywall's `custom_domain` — the same value passed to `PaywallUI` and
+   * `startOffscreenServer`. Accepts a resolver, like `offscreenUrl`, for configs
+   * that live in chrome.storage.
+   *
+   * Supplying it lets the SW finish an OAuth sign-in whose originating surface
+   * was destroyed mid-flow — the common case being a toolbar action popup, which
+   * Chrome closes as soon as the provider window takes focus. The worker watches
+   * for the provider's redirect landing on this origin's callback page and hands
+   * the code to offscreen itself.
+   *
+   * Needs no new manifest permission: the URL is visible to `tabs.onUpdated`
+   * through the host permission you already declare for this origin. Omit it and
+   * OAuth keeps working exactly as before, but only while the surface that
+   * started it stays alive.
+   */
+  apiOrigin?: string | (() => string | Promise<string>);
 }

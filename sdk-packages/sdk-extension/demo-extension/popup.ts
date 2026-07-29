@@ -11,6 +11,7 @@ import { ApiGatewayClient } from '@sdk/core/ApiGatewayClient';
 import type { AuthClient, AuthSession } from '@sdk/core/auth';
 import { type Balance, type PaywallPurchaseDetailed, type PaywallUser } from '@sdk/core/types';
 import { trackRealAuth, handleGatewayError, callWithRetry } from './unauthorized-handler';
+import { readDemoConfig, DEMO_CONFIG_HINT } from './demo-config';
 
 const PROVIDER_ID = '1'; // DeepSeek api provider. The host configures it via the platform.
 
@@ -100,13 +101,13 @@ async function init(): Promise<void> {
 
   // apiOrigin/paywallId are read from chrome.storage.local — this lets e2e
   // switch the demo to a local mock server (see fixtures.ts).
-  const { __demo_paywall_id, __demo_api_origin } = (await chrome.storage.local.get([
-    '__demo_paywall_id',
-    '__demo_api_origin'
-  ])) as { __demo_paywall_id?: string; __demo_api_origin?: string };
-
-  const paywallId = __demo_paywall_id ?? '3';
-  const apiOrigin = __demo_api_origin ?? 'https://onlineapp.stream';
+  const cfg = await readDemoConfig();
+  if (!cfg) {
+    app.textContent = DEMO_CONFIG_HINT;
+    app.setAttribute('style', 'padding:16px;white-space:pre-wrap;font-size:12px');
+    return;
+  }
+  const { paywallId, apiOrigin } = cfg;
 
   const paywall = new PaywallUI({
     paywallId,
