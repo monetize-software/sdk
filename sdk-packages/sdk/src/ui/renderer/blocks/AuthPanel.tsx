@@ -7,7 +7,20 @@ import { useI18n, type TFn } from '../../i18n';
 
 type AuthPanelBlock = Extract<LayoutBlock, { type: 'auth_panel' }>;
 
-type Mode = 'signin' | 'signup' | 'signup_sent' | 'forgot' | 'reset_sent' | 'reset_verify';
+// `otp` — email entry for the passwordless code flow; `otp_verify` — the
+// 6-digit code entry that follows. Both live entirely in this panel, so
+// verifyOtp mints the session on the host origin — unlike the signup link flow,
+// whose confirmation happens on the paywall's custom domain and can't cross
+// back (see the signup_sent auto-resume effect).
+type Mode =
+  | 'signin'
+  | 'signup'
+  | 'signup_sent'
+  | 'forgot'
+  | 'reset_sent'
+  | 'reset_verify'
+  | 'otp'
+  | 'otp_verify';
 
 function providerLabel(provider: OAuthProvider, t: TFn): string {
   switch (provider) {
@@ -83,6 +96,7 @@ export function AuthPanel({ block, ctx }: BlockProps<AuthPanelBlock>) {
   const session = ctx.authSession;
   const allowSignup = block.allow_signup !== false;
   const allowReset = block.allow_password_reset !== false;
+  const allowEmailCode = block.allow_email_code !== false;
   const hideWhenAuthed = block.hide_when_authenticated !== false;
 
   if (!auth) {
@@ -106,6 +120,7 @@ export function AuthPanel({ block, ctx }: BlockProps<AuthPanelBlock>) {
       block={block}
       allowSignup={allowSignup}
       allowReset={allowReset}
+      allowEmailCode={allowEmailCode}
       ctx={ctx}
     />
   );
@@ -136,10 +151,11 @@ interface FormProps {
   block: AuthPanelBlock;
   allowSignup: boolean;
   allowReset: boolean;
+  allowEmailCode: boolean;
   ctx: BlockProps<AuthPanelBlock>['ctx'];
 }
 
-function AuthForm({ block, allowSignup, allowReset, ctx }: FormProps) {
+function AuthForm({ block, allowSignup, allowReset, allowEmailCode, ctx }: FormProps) {
   const { t } = useI18n();
   const auth = ctx.auth!;
   const providers = block.providers ?? [];
@@ -217,6 +233,9 @@ function AuthForm({ block, allowSignup, allowReset, ctx }: FormProps) {
     setInfo(null);
     setSignupExpanded(false);
     setSwitchProvider(null);
+    // A code belongs to the flow that requested it — never carry it into another
+    // verify screen, where it would be submitted against a different OTP type.
+    setOtpCode('');
     // Leaving signup_sent by hand (Back to sign in) abandons the auto-resume —
     // the user will type the password themselves; don't keep it in memory.
     pendingCredsRef.current = null;
@@ -348,6 +367,18 @@ function AuthForm({ block, allowSignup, allowReset, ctx }: FormProps) {
           if (password) {
             await auth.updatePassword({ password });
           }
+        } else if (mode === 'otp') {
+          // create_user defaults to true server-side, so one flow covers both
+          // sign-in and sign-up. The backend is anti-enumeration (always ok), so
+          // we always advance — a non-existent email fails at verify instead.
+          await auth.sendOtp({ email });
+          setOtpCode('');
+          setMode('otp_verify');
+        } else if (mode === 'otp_verify') {
+          // type 'email' is the signin/signup-by-code variant ('recovery' is the
+          // password-reset one). On success setSession + onAuthChange fire, and
+          // the auth gate advances on its own — same as a password signin.
+          await auth.verifyOtp({ email, token: otpCode, type: 'email' });
         }
       } catch (err) {
         // Signup with email-confirm OFF: GoTrue throws email_exists/user_already_exists
@@ -372,7 +403,7 @@ function AuthForm({ block, allowSignup, allowReset, ctx }: FormProps) {
         }
         const errMode =
           mode === 'signup' ? 'signup'
-            : mode === 'reset_verify' ? 'otp'
+            : mode === 'reset_verify' || mode === 'otp' || mode === 'otp_verify' ? 'otp'
             : mode === 'forgot' ? 'reset' : 'signin';
         setError(authErrorMessage(err, errMode, t));
       } finally {
@@ -380,6 +411,27 @@ function AuthForm({ block, allowSignup, allowReset, ctx }: FormProps) {
       }
     } finally {
       submittingRef.current = false;
+    }
+  };
+
+  // Resend from the code screen. Shares submittingRef/busy with the form so it
+  // can't race a verify in flight. Errors surface here (unlike sendOtp on the
+  // email step, which is anti-enumeration and always advances) — at this point
+  // the user is already committed to the flow, so a rate-limit needs to be seen.
+  const onResendCode = async (): Promise<void> => {
+    if (submittingRef.current || busy) return;
+    submittingRef.current = true;
+    setBusy('email');
+    setError(null);
+    setInfo(null);
+    try {
+      await auth.sendOtp({ email });
+      setInfo(t('auth.code_resent', 'We sent you a new code.'));
+    } catch (err) {
+      setError(authErrorMessage(err, 'otp', t));
+    } finally {
+      submittingRef.current = false;
+      setBusy(null);
     }
   };
 
@@ -436,7 +488,8 @@ function AuthForm({ block, allowSignup, allowReset, ctx }: FormProps) {
   };
 
   const showOAuth = providers.length > 0 && (mode === 'signin' || mode === 'signup');
-  const showEmailField = mode === 'signin' || mode === 'signup' || mode === 'forgot';
+  const showEmailField =
+    mode === 'signin' || mode === 'signup' || mode === 'forgot' || mode === 'otp';
   const showPasswordField =
     mode === 'signin' || (mode === 'signup' && signupExpanded);
 
@@ -508,7 +561,7 @@ function AuthForm({ block, allowSignup, allowReset, ctx }: FormProps) {
           />
         )}
 
-        {mode === 'reset_verify' && (
+        {(mode === 'reset_verify' || mode === 'otp_verify') && (
           <FilledField
             type="text"
             placeholder={t('auth.confirmation_code', 'Confirmation code')}
@@ -532,10 +585,28 @@ function AuthForm({ block, allowSignup, allowReset, ctx }: FormProps) {
           />
         )}
 
-        {mode === 'signin' && allowReset && (
-          <div class="flex justify-end text-sm">
-            <AccentLink onClick={() => switchTo('forgot')}>
-              {t('auth.forgot_password', 'Forgot password?')}
+        {(mode === 'signin' || mode === 'signup') &&
+          (allowEmailCode || (mode === 'signin' && allowReset)) && (
+            <div class="flex items-center justify-between gap-3 text-sm">
+              {allowEmailCode ? (
+                <AccentLink onClick={() => switchTo('otp')}>
+                  {t('auth.use_email_code', 'Sign in with a code')}
+                </AccentLink>
+              ) : (
+                <span />
+              )}
+              {mode === 'signin' && allowReset ? (
+                <AccentLink onClick={() => switchTo('forgot')}>
+                  {t('auth.forgot_password', 'Forgot password?')}
+                </AccentLink>
+              ) : null}
+            </div>
+          )}
+
+        {mode === 'otp_verify' && (
+          <div class="flex justify-start text-sm">
+            <AccentLink onClick={onResendCode}>
+              {t('auth.resend_code', 'Send the code again')}
             </AccentLink>
           </div>
         )}
@@ -640,6 +711,22 @@ function defaultHeader(mode: Mode, t: TFn): { title: string; subtitle: string | 
           'Enter the code from your email and a new password.'
         )
       };
+    case 'otp':
+      return {
+        title: t('auth.otp_title', 'Sign in with a code'),
+        subtitle: t(
+          'auth.otp_subtitle',
+          "Enter your email and we'll send you a sign-in code — no password needed."
+        )
+      };
+    case 'otp_verify':
+      return {
+        title: t('auth.otp_verify_title', 'Enter the code'),
+        subtitle: t(
+          'auth.otp_verify_subtitle',
+          'We sent a 6-digit code to your email. Enter it here to sign in.'
+        )
+      };
   }
 }
 
@@ -662,7 +749,10 @@ function submitLabel(
         : t('auth.sign_up', 'Sign Up');
     case 'forgot':
       return t('auth.send_reset', 'Send Reset Email');
+    case 'otp':
+      return t('auth.send_code', 'Send Code');
     case 'reset_verify':
+    case 'otp_verify':
       return t('auth.verify', 'Verify');
     default:
       return t('cta.continue', 'Continue');
@@ -705,6 +795,17 @@ function FormFooter({
         {t('auth.no_account', "Don't have an account?")}{' '}
         <AccentLink onClick={() => onSwitch('signup')}>
           {t('auth.sign_up_link', 'Sign Up')}
+        </AccentLink>
+      </p>
+    );
+  }
+  // The code flow signs up and signs in alike, so there's no "no account?"
+  // branch to offer here — only the way back to the password form.
+  if (mode === 'otp' || mode === 'otp_verify') {
+    return (
+      <p class="text-center text-sm text-gray-600">
+        <AccentLink onClick={() => onSwitch('signin')}>
+          {t('auth.back_to_login', 'Back to Login')}
         </AccentLink>
       </p>
     );

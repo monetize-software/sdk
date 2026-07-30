@@ -1,17 +1,26 @@
 # @monetize.software/sdk-react
 
+## 3.5.0-rc.0
+
+### Patch Changes
+
+- Updated dependencies
+- Updated dependencies
+  - @monetize.software/sdk@3.5.0-rc.0
+
 ## 3.4.0
 
 ### Patch Changes
 
 - Updated dependencies:
+
   - @monetize.software/sdk@3.4.0
 
   No source changes in this package — the release only widens the peer range to
   the new base SDK. (The 4.0.0-rc.\* line was an artifact of the pre-release
   peer-range rule and was never shipped as stable.)
 
-## 4.0.0-rc.0
+## 3.5.0-rc.0
 
 ### Patch Changes
 

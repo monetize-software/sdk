@@ -1478,8 +1478,12 @@ export class BillingClient {
     // who was shown £9.99 on the paywall sees $9.99 on Stripe — a literal
     // UI/checkout mismatch. The canonical source is `price.local.currency` from
     // the bootstrap (where the backend resolves by geolocation/settings).
+    // String() on both sides: the declared type is string, but plain-JS hosts
+    // pass numeric ids from their own configs — a strict === would silently
+    // drop localCurrency here while the request itself still succeeds (the
+    // body coerces via Number()), shipping the user a base-USD checkout.
     const cachedPrice = this.cachedBootstrap?.prices.find(
-      (p) => p.id === params.priceId
+      (p) => String(p.id) === String(params.priceId)
     );
     const localCurrency = cachedPrice?.local?.currency ?? undefined;
 

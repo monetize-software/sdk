@@ -1,5 +1,13 @@
 # @monetize.software/sdk-extension
 
+## 3.5.0-rc.1
+
+### Patch Changes
+
+- Updated dependencies
+- Updated dependencies
+  - @monetize.software/sdk@3.5.0-rc.0
+
 ## 3.5.0-rc.0
 
 ### Minor Changes
@@ -97,7 +105,7 @@
   - The marker is consumed on first use and capped at the persisted-user TTL: an abandoned checkout costs exactly one extra re-check, free users without a checkout keep the no-network fast path.
   - The open()/`getAccess()` gates now also settle when the cached user is _negative_ (not only when it's missing) — covers hosts where identity is known at construction (hybrid mode) and the stale snapshot hydrates before `open()`.
 
-## 4.0.0-rc.1
+## 3.5.0-rc.1
 
 ### Minor Changes
 

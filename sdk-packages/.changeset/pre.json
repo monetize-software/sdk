@@ -7,6 +7,8 @@
     "@monetize.software/sdk-react": "3.4.0"
   },
   "changesets": [
+    "email-code-signin",
+    "numeric-price-id-coercion",
     "oauth-popup-rescue"
   ]
 }

@@ -189,6 +189,50 @@ describe('BillingClient', () => {
     });
   });
 
+  it('createCheckout resolves localCurrency from cache even for a numeric priceId', async () => {
+    // Regression: plain-JS hosts pass numeric price ids despite the declared
+    // string type. The strict === lookup missed the cached price, localCurrency
+    // silently dropped out of the request body and the user who saw €71.88 on
+    // the paywall got a base-USD checkout (support: Runtrip / paywall 715).
+    const pricesWithLocal: PaywallPrice[] = [
+      {
+        id: '10275',
+        currency: 'USD',
+        amount: 108,
+        interval: 'year',
+        interval_count: 1,
+        trial_days: null,
+        local: { currency: 'EUR', amount: 71.88 }
+      }
+    ];
+    const fetchImpl = vi.fn<typeof fetch>(async (input) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+      if (url.endsWith('/bootstrap')) {
+        return json({ settings: SETTINGS, prices: pricesWithLocal, offers: [] });
+      }
+      if (url.includes('/start-checkout')) {
+        return json({ checkoutUrl: 'https://pay/x', userId: 'u_42', acquiring: 'stripe' });
+      }
+      throw new Error(`Unexpected fetch for ${url}`);
+    });
+    const client = new BillingClient({
+      apiOrigin: TEST_API_ORIGIN,
+      paywallId: 'pw_1',
+      identity: { email: 'a@b.c' },
+      fetch: fetchImpl
+    });
+    await client.bootstrap();
+
+    await client.createCheckout({ priceId: 10275 as unknown as string });
+
+    const checkoutCall = fetchImpl.mock.calls.find(([u]) =>
+      String(u).includes('/start-checkout')
+    )!;
+    const body = JSON.parse(checkoutCall[1]?.body as string);
+    expect(body.localCurrency).toBe('EUR');
+    expect(body.priceId).toBe(10275);
+  });
+
   it('createCheckout auto-generates a UUID Idempotency-Key', async () => {
     const checkoutFetch = vi.fn<typeof fetch>(async () =>
       json({ checkoutUrl: 'https://pay/x', userId: 'u_42', acquiring: 'stripe' })

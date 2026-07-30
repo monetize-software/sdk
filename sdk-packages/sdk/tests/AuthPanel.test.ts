@@ -478,4 +478,114 @@ describe('AuthPanel render', () => {
     expect(container.textContent).toContain('me@b.c');
     expect(container.textContent).toMatch(/back to login/i);
   });
+
+  // --- passwordless email code (OTP) ----------------------------------------
+  // The code is typed into this panel, so verifyOtp mints the session on the
+  // host origin. That's the whole point of the flow: the signup *link* confirms
+  // on the paywall's custom domain, whose localStorage the host can't read.
+
+  function findButton(container: HTMLElement, re: RegExp): HTMLButtonElement | undefined {
+    return Array.from(container.querySelectorAll('button')).find((b) =>
+      re.test(b.textContent ?? '')
+    );
+  }
+
+  function openCodeFlow(container: HTMLElement): void {
+    act(() => findButton(container, /sign in with a code/i)!.click());
+  }
+
+  async function fillEmailAndSubmit(container: HTMLElement, value: string): Promise<void> {
+    const email = container.querySelector<HTMLInputElement>('input[type="email"]')!;
+    await act(async () => {
+      email.value = value;
+      email.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await act(async () => {
+      container
+        .querySelector('form')!
+        .dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    });
+  }
+
+  it('code flow: sends a code, then verifies it — no password collected', async () => {
+    const sendOtp = vi.fn(async () => undefined);
+    const verifyOtp = vi.fn(async () => makeSession());
+    const auth = makeAuthMock({ sendOtp, verifyOtp });
+    const { container } = renderPanel(BLOCK_DEFAULT, { auth });
+
+    openCodeFlow(container);
+    expect(container.querySelector('button[type="submit"]')?.textContent).toContain('Send Code');
+    expect(container.querySelector('input[type="password"]')).toBeNull();
+
+    await fillEmailAndSubmit(container, 'me@b.c');
+    expect(sendOtp).toHaveBeenCalledWith({ email: 'me@b.c' });
+
+    const code = container.querySelector<HTMLInputElement>('input[autocomplete="one-time-code"]')!;
+    expect(code).not.toBeNull();
+    await act(async () => {
+      code.value = '123456';
+      code.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await act(async () => {
+      container
+        .querySelector('form')!
+        .dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    });
+
+    // type 'email' — the signin/signup-by-code variant, not 'recovery'.
+    expect(verifyOtp).toHaveBeenCalledWith({
+      email: 'me@b.c',
+      token: '123456',
+      type: 'email'
+    });
+  });
+
+  it('allow_email_code=false hides the code option and keeps the reset link', () => {
+    const auth = makeAuthMock();
+    const { container } = renderPanel(
+      { type: 'auth_panel', allow_email_code: false },
+      { auth }
+    );
+    expect(findButton(container, /sign in with a code/i)).toBeUndefined();
+    // The two links share a row now — dropping one must not drop the other.
+    expect(findButton(container, /forgot password/i)).toBeDefined();
+  });
+
+  it('resend on the code screen requests a new code and confirms it', async () => {
+    const sendOtp = vi.fn(async () => undefined);
+    const auth = makeAuthMock({ sendOtp });
+    const { container } = renderPanel(BLOCK_DEFAULT, { auth });
+
+    openCodeFlow(container);
+    await fillEmailAndSubmit(container, 'me@b.c');
+    expect(sendOtp).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      findButton(container, /send the code again/i)!.click();
+    });
+
+    expect(sendOtp).toHaveBeenCalledTimes(2);
+    expect(container.textContent).toMatch(/we sent you a new code/i);
+  });
+
+  it('leaving the code flow clears the entered code', async () => {
+    const auth = makeAuthMock();
+    const { container } = renderPanel(BLOCK_DEFAULT, { auth });
+
+    openCodeFlow(container);
+    await fillEmailAndSubmit(container, 'me@b.c');
+
+    const code = container.querySelector<HTMLInputElement>('input[autocomplete="one-time-code"]')!;
+    await act(async () => {
+      code.value = '123456';
+      code.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+
+    act(() => findButton(container, /back to login/i)!.click());
+    openCodeFlow(container);
+    await fillEmailAndSubmit(container, 'me@b.c');
+
+    const fresh = container.querySelector<HTMLInputElement>('input[autocomplete="one-time-code"]')!;
+    expect(fresh.value).toBe('');
+  });
 });

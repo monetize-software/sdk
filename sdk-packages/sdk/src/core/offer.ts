@@ -36,8 +36,14 @@ export function findApplicableOffer(
   priceId: string
 ): PaywallOffer | null {
   if (!offers || offers.length === 0) return null;
+  // String() on both sides: plain-JS hosts pass numeric price ids despite the
+  // declared string type — a strict === would silently skip the targeted offer
+  // (same silent-drop as the localCurrency lookup in BillingClient.createCheckout).
   const targeted = offers.find(
-    (o) => o.price_id === priceId && (o.discount_percent ?? 0) > 0
+    (o) =>
+      o.price_id != null &&
+      String(o.price_id) === String(priceId) &&
+      (o.discount_percent ?? 0) > 0
   );
   if (targeted) return targeted;
   const global = offers.find(
