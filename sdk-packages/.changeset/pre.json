@@ -9,6 +9,7 @@
   "changesets": [
     "email-code-signin",
     "numeric-price-id-coercion",
-    "oauth-popup-rescue"
+    "oauth-popup-rescue",
+    "resume-checkout-after-oauth"
   ]
 }

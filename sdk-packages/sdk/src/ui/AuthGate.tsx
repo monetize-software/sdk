@@ -1,4 +1,4 @@
-import type { AuthClient, AuthSession } from '../core/auth';
+import type { AuthClient, AuthSession, OAuthResumeCheckout } from '../core/auth';
 import type { LayoutBlock, PaywallBootstrap } from '../core/types';
 import { AuthPanel } from './renderer/blocks/AuthPanel';
 import type { BlockContext } from './renderer/types';
@@ -28,6 +28,9 @@ export interface AuthGateProps {
   /** Which mode to set in AuthPanel on start. The host called openSignup()
    *  → 'signup', openSignin()/openAuth() → 'signin' (default). */
   initialMode?: 'signin' | 'signup';
+  /** The checkout waiting behind this gate, forwarded into OAuth so it can be
+   *  resumed if this surface dies mid-sign-in. */
+  resumeCheckout?: OAuthResumeCheckout;
 }
 
 // Full-screen wrapper over AuthPanel for the AuthGate flow. AuthPanel itself
@@ -42,7 +45,8 @@ export function AuthGate({
   onBack,
   showBack = true,
   intent = 'preauth',
-  initialMode
+  initialMode,
+  resumeCheckout
 }: AuthGateProps) {
   const { t } = useI18n();
   const ctx: BlockContext = {
@@ -52,7 +56,8 @@ export function AuthGate({
     onAction: () => {},
     auth,
     authSession,
-    initialAuthMode: initialMode
+    initialAuthMode: initialMode,
+    resumeCheckout
   };
 
   // intent overrides the layout block's heading/subheading:

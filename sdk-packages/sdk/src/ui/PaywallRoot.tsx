@@ -1,7 +1,7 @@
 import type { ComponentChildren } from 'preact';
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import type { BillingClient } from '../core/BillingClient';
-import type { AuthSession } from '../core/auth';
+import type { AuthSession, OAuthResumeCheckout } from '../core/auth';
 import { findLiveOffer, readBrowserOfferStart } from '../core/offer';
 import type { LayoutBlock, PaywallBootstrap } from '../core/types';
 import { PaywallError } from '../core/types';
@@ -413,6 +413,22 @@ export function PaywallRoot({
     }
   }, [open, initialView, initialCheckoutPriceId, initialCheckoutUrl]);
 
+  /** The purchase waiting behind the auth gate, in the shape OAuth carries it.
+   *  Resolved exactly like runCheckout does — duration offers tick in client
+   *  storage and the backend cannot re-derive them, so the id has to travel with
+   *  the intent. Undefined when the gate isn't gating a checkout (openAuth,
+   *  restore). */
+  const resumeCheckoutFor = (
+    priceId: string | undefined
+  ): OAuthResumeCheckout | undefined => {
+    if (!priceId) return undefined;
+    const cachedOffers = client.getCachedOffers?.() ?? null;
+    const offer = cachedOffers
+      ? findLiveOffer(cachedOffers, priceId, { readStart: readBrowserOfferStart })
+      : null;
+    return { priceId, offerId: offer?.id, renew: renew === true };
+  };
+
   const runCheckout = async (
     priceId: string,
     // allowAuthGate=false — the auth-resume call site: a 401 right after a
@@ -780,6 +796,7 @@ export function PaywallRoot({
           // preauth/restore flow Back leads back to layout — keep it.
           showBack={gate.origin !== 'standalone'}
           intent={gate.intent ?? (gate.origin === 'standalone' ? 'standalone' : 'preauth')}
+          resumeCheckout={resumeCheckoutFor(gate.pendingCheckout?.priceId)}
           initialMode={gate.origin === 'standalone' ? initialAuthMode : undefined}
           onBack={() => {
             if (gate.origin === 'standalone') onClose();

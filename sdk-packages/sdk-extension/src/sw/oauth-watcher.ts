@@ -137,8 +137,23 @@ async function handleNavigation(
   try {
     const result = await client.request('auth.oauthAdopt', { code });
     if (!result.adopted) return;
-    // Only now is the tab expendable. The callback page usually closes itself,
-    // so this is a no-op more often than not.
+
+    if (result.checkoutUrl) {
+      // A purchase was waiting behind the sign-in. Reuse this tab for it: the
+      // user goes from the provider straight to payment, instead of landing back
+      // in an extension they have to reopen and click through a second time.
+      try {
+        await chrome.tabs.update(tabId, { url: result.checkoutUrl });
+        return;
+      } catch {
+        // Tab gone (the callback page closed itself first). The checkout exists
+        // and the pending marker is set, so the next open picks it up.
+        return;
+      }
+    }
+
+    // Nothing to continue with — the tab is expendable. The callback page
+    // usually closes itself, so this is a no-op more often than not.
     try {
       await chrome.tabs.remove(tabId);
     } catch {

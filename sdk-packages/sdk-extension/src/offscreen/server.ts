@@ -14,9 +14,14 @@
 
 import { BillingClient } from '@sdk/core/BillingClient';
 import { PaywallError } from '@sdk/core/types';
-import { AuthClient, type AuthSession } from '@sdk/core/auth';
+import {
+  AuthClient,
+  type AuthSession,
+  type OAuthResumeCheckout
+} from '@sdk/core/auth';
 import { EventTracker } from '@sdk/core/EventTracker';
 import { createTrialStore } from '@sdk/core/trial';
+import { STORAGE_KEYS } from '@sdk/core/storage';
 import type { TrialConfig } from '@sdk/core/types';
 import type { OffscreenServerOptions } from './index';
 import { TransportServer } from '../shared/transport-server';
@@ -57,7 +62,11 @@ export class OffscreenServer {
   /** States handed out by auth.oauthStart, oldest first. The adopt path (service
    *  worker) learns only the code — the state rides in `window.name`, which a
    *  worker cannot read — so we resolve the flow from here. */
-  private pendingOAuthStates: Array<{ state: string; at: number }> = [];
+  private pendingOAuthStates: Array<{
+    state: string;
+    at: number;
+    resumeCheckout?: OAuthResumeCheckout;
+  }> = [];
   /** Exchanges keyed by state, in-flight and briefly after settling. Both entry
    *  points funnel through it so one auth code is never sent to GoTrue twice. */
   private oauthExchanges = new Map<string, Promise<AuthSession>>();
@@ -265,7 +274,7 @@ export class OffscreenServer {
         userMeta: params.userMeta,
         switchAccount: params.switchAccount
       });
-      this.rememberOAuthState(state);
+      this.rememberOAuthState(state, params.resumeCheckout);
       return { authorizeUrl: authorize_url, state };
     });
     this.transport.on('auth.oauthExchange', async (params) =>
@@ -278,16 +287,23 @@ export class OffscreenServer {
     // we can finish alone — and the resulting authChange broadcast reaches every
     // surface that is still alive, plus the next one to open.
     this.transport.on('auth.oauthAdopt', async (params) => {
-      const state = this.newestPendingOAuthState();
-      if (!state) return { adopted: false, reason: 'no_pending_flow' };
+      const pending = this.newestPendingOAuthFlow();
+      if (!pending) return { adopted: false, reason: 'no_pending_flow' };
       try {
-        await this.exchangeOAuthOnce(auth, state, params.code);
-        this.forgetOAuthState(state);
-        return { adopted: true };
+        await this.exchangeOAuthOnce(auth, pending.state, params.code);
       } catch (e) {
         const code = e instanceof PaywallError ? e.code : 'exchange_failed';
         return { adopted: false, reason: code };
       }
+      this.forgetOAuthState(pending.state);
+      // Signed in. If a purchase was waiting behind this gate, create it now so
+      // the worker can send the provider tab straight to payment — otherwise the
+      // user has to reopen the extension and click buy a second time, which is
+      // the whole reason this path exists.
+      const checkoutUrl = pending.resumeCheckout
+        ? await this.createResumeCheckout(pending.resumeCheckout)
+        : undefined;
+      return checkoutUrl ? { adopted: true, checkoutUrl } : { adopted: true };
     });
     this.transport.on('auth.getAccessToken', async () => auth.getAccessToken());
 
@@ -300,10 +316,57 @@ export class OffscreenServer {
     );
   }
 
-  private rememberOAuthState(state: string): void {
+  private rememberOAuthState(state: string, resumeCheckout?: OAuthResumeCheckout): void {
     const cutoff = Date.now() - OAUTH_STATE_TTL_MS;
     this.pendingOAuthStates = this.pendingOAuthStates.filter((f) => f.at >= cutoff);
-    this.pendingOAuthStates.push({ state, at: Date.now() });
+    this.pendingOAuthStates.push({ state, at: Date.now(), resumeCheckout });
+  }
+
+  /**
+   * Creates the checkout a finished sign-in was gating. Returns the URL, or
+   * undefined when there is nothing to open — including the 409 for a user who
+   * already owns the subscription, where sending them to pay again would be
+   * worse than sending them nowhere (they reopen the extension and the settled
+   * -user gate shows the restored state).
+   *
+   * Mirrors what PaywallUI does around a checkout, because the surface that
+   * normally would is gone: the pending marker keeps the next open from flashing
+   * the paywall at a user who is mid-payment, and the analytics event keeps the
+   * funnel honest.
+   */
+  private async createResumeCheckout(
+    intent: OAuthResumeCheckout
+  ): Promise<string | undefined> {
+    try {
+      const result = await this.billing.createCheckout({
+        priceId: intent.priceId,
+        offerId: intent.offerId,
+        ignoreActivePurchase: intent.renew === true
+      });
+      if (!result.url) return undefined;
+
+      this.tracker?.track('checkout_started', {
+        price_id: intent.priceId,
+        acquiring: result.acquiring
+      });
+      try {
+        await Promise.resolve(
+          this.billing
+            .getStorage()
+            .setItem(
+              STORAGE_KEYS.checkoutPending(this.billing.paywallId),
+              JSON.stringify({ at: Date.now() })
+            )
+        );
+      } catch {
+        /* quota / disabled storage — costs a one-time paywall flash, not the sale */
+      }
+      return result.url;
+    } catch {
+      // already_purchased, a dead price, the network — the sign-in itself stands,
+      // so we still report adopted and simply close the tab.
+      return undefined;
+    }
   }
 
   /** The most recently started flow, which is the one a returning code belongs
@@ -311,10 +374,13 @@ export class OffscreenServer {
    *  needs its own provider window — so newest-wins is enough, and a wrong guess
    *  costs only a failed exchange, never a wrong session (the code is bound to
    *  the challenge sent with that state). */
-  private newestPendingOAuthState(): string | null {
+  private newestPendingOAuthFlow(): {
+    state: string;
+    resumeCheckout?: OAuthResumeCheckout;
+  } | null {
     const cutoff = Date.now() - OAUTH_STATE_TTL_MS;
     for (let i = this.pendingOAuthStates.length - 1; i >= 0; i--) {
-      if (this.pendingOAuthStates[i].at >= cutoff) return this.pendingOAuthStates[i].state;
+      if (this.pendingOAuthStates[i].at >= cutoff) return this.pendingOAuthStates[i];
     }
     return null;
   }

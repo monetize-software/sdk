@@ -49,13 +49,39 @@ interface FetchSpy {
   fetch: typeof globalThis.fetch;
   readonly initCalls: number;
   readonly exchangeCalls: number;
+  readonly checkoutCalls: number;
+  readonly lastCheckoutBody: Record<string, unknown> | null;
+  /** Make /start-checkout answer 409, as it does for a user who already owns
+   *  the subscription. */
+  failCheckoutWith409(): void;
 }
 
 function makeOAuthFetch(): FetchSpy {
   let initCalls = 0;
   let exchangeCalls = 0;
-  const impl = vi.fn(async (url: RequestInfo | URL): Promise<Response> => {
+  let checkoutCalls = 0;
+  let lastCheckoutBody: Record<string, unknown> | null = null;
+  let checkout409 = false;
+  const impl = vi.fn(async (url: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const u = typeof url === 'string' ? url : url.toString();
+    if (u.includes('/start-checkout')) {
+      checkoutCalls++;
+      lastCheckoutBody = init?.body ? JSON.parse(String(init.body)) : null;
+      if (checkout409) {
+        return new Response(
+          JSON.stringify({ error: 'User already has an active purchase', hasActivePurchase: true }),
+          { status: 409, headers: { 'content-type': 'application/json' } }
+        ) as unknown as Response;
+      }
+      return new Response(
+        JSON.stringify({
+          checkoutUrl: 'https://checkout.stripe.com/pay/cs_test_1',
+          userId: 'rescued-u1',
+          acquiring: 'stripe'
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } }
+      ) as unknown as Response;
+    }
     if (u.includes('/auth/oauth/init')) {
       initCalls++;
       return new Response(
@@ -82,7 +108,10 @@ function makeOAuthFetch(): FetchSpy {
   return {
     fetch: impl,
     get initCalls() { return initCalls; },
-    get exchangeCalls() { return exchangeCalls; }
+    get exchangeCalls() { return exchangeCalls; },
+    get checkoutCalls() { return checkoutCalls; },
+    get lastCheckoutBody() { return lastCheckoutBody; },
+    failCheckoutWith409() { checkout409 = true; }
   };
 }
 
@@ -209,6 +238,73 @@ describe('auth.oauthAdopt', () => {
     const late = await sw.request('auth.oauthExchange', { state, code: 'shared-code' });
     expect(late.access_token).toBe('rescued-at');
     expect(fetchSpy.exchangeCalls).toBe(1);
+  });
+});
+
+describe('resuming the purchase the sign-in was gating', () => {
+  it('creates the checkout and hands its URL back for the tab to follow', async () => {
+    const fetchSpy = makeOAuthFetch();
+    const server = makeServer('resume-1', fetchSpy);
+    const [swSide, serverSide] = pairChannels();
+    server.acceptChannel(serverSide);
+    const sw = new TransportClient(() => swSide);
+
+    await sw.request('auth.oauthStart', {
+      provider: 'google',
+      resumeCheckout: { priceId: 'price_42', offerId: 'offer_7' }
+    });
+
+    const result = await sw.request('auth.oauthAdopt', { code: 'code-from-url' });
+
+    expect(result.adopted).toBe(true);
+    expect(result.checkoutUrl).toBe('https://checkout.stripe.com/pay/cs_test_1');
+    expect(fetchSpy.checkoutCalls).toBe(1);
+    // The offer must travel with the intent — duration offers tick in client
+    // storage and the backend cannot re-derive them.
+    expect(fetchSpy.lastCheckoutBody?.offerId).toBe('offer_7');
+
+    // The next surface to open must not flash the paywall at a user who is
+    // mid-payment — same marker PaywallUI writes on checkout_started.
+    const marker = await server.billing
+      .getStorage()
+      .getItem(`pw-resume-1-checkout-pending-v1`);
+    expect(marker).toBeTruthy();
+  });
+
+  it('adopts without a checkout when no purchase was pending', async () => {
+    const fetchSpy = makeOAuthFetch();
+    const server = makeServer('resume-2', fetchSpy);
+    const [swSide, serverSide] = pairChannels();
+    server.acceptChannel(serverSide);
+    const sw = new TransportClient(() => swSide);
+
+    await sw.request('auth.oauthStart', { provider: 'google' });
+    const result = await sw.request('auth.oauthAdopt', { code: 'code-from-url' });
+
+    expect(result.adopted).toBe(true);
+    expect(result.checkoutUrl).toBeUndefined();
+    expect(fetchSpy.checkoutCalls).toBe(0);
+  });
+
+  it('keeps the sign-in when the checkout 409s for an existing subscriber', async () => {
+    const fetchSpy = makeOAuthFetch();
+    fetchSpy.failCheckoutWith409();
+    const server = makeServer('resume-3', fetchSpy);
+    const [swSide, serverSide] = pairChannels();
+    server.acceptChannel(serverSide);
+    const sw = new TransportClient(() => swSide);
+
+    await sw.request('auth.oauthStart', {
+      provider: 'google',
+      resumeCheckout: { priceId: 'price_42' }
+    });
+    const result = await sw.request('auth.oauthAdopt', { code: 'code-from-url' });
+
+    // Sending them to pay a second time would be worse than sending them
+    // nowhere: the session stands, the tab just closes.
+    expect(result.adopted).toBe(true);
+    expect(result.checkoutUrl).toBeUndefined();
+    expect(server.auth!.getCachedSession()?.access_token).toBe('rescued-at');
   });
 });
 

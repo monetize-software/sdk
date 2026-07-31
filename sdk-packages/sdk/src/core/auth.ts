@@ -793,6 +793,10 @@ export class AuthClient {
      *  passes this from the "sign in with that account" button after an
      *  `oauth_identity_already_linked` error. */
     switchAccount?: boolean;
+    /** Accepted for parity with the extension SDK and ignored here — this path
+     *  resolves in the caller's own context, which drives the checkout itself.
+     *  See {@link OAuthResumeCheckout}. */
+    resumeCheckout?: OAuthResumeCheckout;
   }): Promise<AuthSession> {
     if (typeof window === 'undefined') {
       throw new PaywallError('oauth_unavailable', 'window is required for OAuth');
@@ -1409,6 +1413,23 @@ interface OAuthMessage {
   errorCode?: string;
   description?: string;
   messageId?: string;
+}
+
+/**
+ * What to continue with once an OAuth sign-in lands — carried through the flow
+ * so a context that dies mid-sign-in doesn't take the user's intent with it.
+ *
+ * Honoured only by `@monetize.software/sdk-extension`, where the offscreen
+ * document outlives the surface and can create the checkout on its own. The
+ * plain SDK accepts and ignores it: there the caller is still alive when
+ * `signInWithOAuth` resolves and drives the checkout itself.
+ */
+export interface OAuthResumeCheckout {
+  priceId: string;
+  /** Resolved by the caller — duration offers tick in client storage and the
+   *  backend cannot re-derive them. See `findLiveOffer`. */
+  offerId?: string;
+  renew?: boolean;
 }
 
 /** The structured outcome of an OAuth popup round-trip. */

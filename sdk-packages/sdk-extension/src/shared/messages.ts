@@ -21,6 +21,7 @@ import type {
   AuthSession,
   LastLogin,
   OAuthProvider,
+  OAuthResumeCheckout,
   OtpVerifyType,
   SignUpResult
 } from '@sdk/core/auth';
@@ -108,6 +109,10 @@ declare module './protocol' {
        *  the account that owns the identity. Set by the "sign in with that
        *  account" button shown after an oauth_identity_already_linked error. */
       switchAccount?: boolean;
+      /** The purchase to continue with once the code comes back. Held in
+       *  offscreen for the lifetime of the flow so it survives the calling
+       *  surface being destroyed — see the adopt handler. */
+      resumeCheckout?: OAuthResumeCheckout;
     };
     /** Exchange the code for a session. The state from the oauthStart resolution
      *  comes here — offscreen looks up the stored verifier by state. */
@@ -197,6 +202,12 @@ declare module './protocol' {
       /** Why not, for diagnostics: `no_pending_flow` (offscreen restarted, or
        *  the originating surface already finished) or the exchange error code. */
       reason?: string;
+      /** Present when the flow carried a `resumeCheckout` and the checkout was
+       *  created: the SW sends the tab here instead of closing it, so the user
+       *  goes straight from signing in to paying. Absent when there was no
+       *  pending purchase, or creating it failed (including the 409 for a user
+       *  who already owns the subscription). */
+      checkoutUrl?: string;
     };
     'auth.getAccessToken': string | null;
     'auth.signInAnonymously': AuthSession;

@@ -15,6 +15,7 @@ import type {
   AuthUser,
   LastLogin,
   OAuthProvider,
+  OAuthResumeCheckout,
   OtpVerifyType,
   SignUpResult
 } from '@sdk/core/auth';
@@ -230,6 +231,11 @@ export class RemoteAuthClient {
     /** Force a plain signin (no anon-upgrade linkIdentity) into the account that
      *  owns the identity. Passed by the UI "sign in with that account" button. */
     switchAccount?: boolean;
+    /** Purchase to continue with after signing in. Unlike the plain SDK, this is
+     *  acted upon: offscreen creates the checkout and the service worker sends
+     *  the provider tab straight there, so the flow completes even though this
+     *  surface is gone by then. */
+    resumeCheckout?: OAuthResumeCheckout;
   }): Promise<AuthSession> {
     if (typeof window === 'undefined') {
       throw new PaywallError('oauth_unavailable', 'window is required for OAuth');
@@ -267,7 +273,10 @@ export class RemoteAuthClient {
         provider: input.provider,
         scopes: input.scopes,
         userMeta: input.userMeta,
-        switchAccount: input.switchAccount
+        switchAccount: input.switchAccount,
+        // Offscreen keeps this for the whole flow: if this surface is destroyed
+        // while the user is with the provider, it still knows what to buy.
+        resumeCheckout: input.resumeCheckout
       });
 
       // Before navigating, rename the popup to the format the callback page

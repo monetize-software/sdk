@@ -450,7 +450,11 @@ function AuthForm({ block, allowSignup, allowReset, allowEmailCode, ctx }: FormP
       await auth.signInWithOAuth({
         provider,
         switchAccount: opts?.switchAccount,
-        onPopupOpened: () => setBusy(null)
+        onPopupOpened: () => setBusy(null),
+        // Only the extension SDK acts on this: there the sign-in can outlive
+        // this panel (an action popup is destroyed when the provider window
+        // takes focus), and offscreen continues the purchase on its own.
+        resumeCheckout: ctx.resumeCheckout
       });
       setSwitchProvider(null);
     } catch (err) {

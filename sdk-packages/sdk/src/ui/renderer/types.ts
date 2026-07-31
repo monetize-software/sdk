@@ -1,5 +1,5 @@
 import type { ComponentType } from 'preact';
-import type { AuthClient, AuthSession } from '../../core/auth';
+import type { AuthClient, AuthSession, OAuthResumeCheckout } from '../../core/auth';
 import type { LayoutBlock, PaywallBootstrap } from '../../core/types';
 
 export interface BlockContext {
@@ -17,6 +17,11 @@ export interface BlockContext {
    *  Set by AuthGate when the host calls openSignup()/openSignin().
    *  Other blocks ignore it. */
   initialAuthMode?: 'signin' | 'signup';
+  /** The checkout this sign-in is a gate for, if any. Passed into OAuth so the
+   *  purchase can continue even when the surface that started it is destroyed
+   *  mid-flow (extension SDK only — see {@link OAuthResumeCheckout}). Other
+   *  blocks ignore it. */
+  resumeCheckout?: OAuthResumeCheckout;
 }
 
 export interface BlockProps<B extends LayoutBlock = LayoutBlock> {

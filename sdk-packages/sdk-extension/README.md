@@ -138,6 +138,15 @@ No new manifest permission is required — the URL is already visible to the wor
 through the `host_permissions` entry you declare for `apiOrigin`. Omit the option
 and behaviour is exactly as before.
 
+**The purchase continues too.** When the sign-in was gating a checkout
+(`checkout_mode: 'preauth'`), the intent travels with the flow: offscreen creates
+the checkout as soon as the session lands and the worker sends that same tab to
+the payment page. The user goes provider → payment in one move, instead of
+returning to an extension they have to reopen and click through a second time.
+Nothing to configure — `PaywallUI` passes the pending purchase automatically. If
+the user turns out to already own the subscription, no checkout is opened; the
+tab closes and the next surface they open shows the restored state.
+
 Two caveats worth knowing:
 
 - If the **offscreen document itself** died mid-flow (extension reload/update,
