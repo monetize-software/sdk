@@ -1,5 +1,13 @@
 # @monetize.software/sdk-extension
 
+## 3.5.0-rc.3
+
+### Patch Changes
+
+- Rebuilt against `@monetize.software/sdk@3.5.0-rc.2`, which makes the
+  "Sign in with a code" option opt-in. The extension inlines its own copy of the
+  base SDK, so the change only reaches extension surfaces through this release.
+
 ## 3.5.0-rc.2
 
 ### Minor Changes

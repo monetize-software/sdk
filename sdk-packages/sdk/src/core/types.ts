@@ -212,11 +212,12 @@ export type LayoutBlock =
       /** Show the "Forgot password?" link. Defaults to true. */
       allow_password_reset?: boolean;
       /** Show the "Sign in with a code" option — passwordless email OTP.
-       *  Defaults to true. The 6-digit code is entered in this panel, so the
-       *  session is created on the host origin: no confirmation-link round-trip
-       *  through the paywall's custom domain (whose localStorage the host can't
-       *  read), no password kept in memory while waiting. It's also the only
-       *  email method that works without a custom domain configured. */
+       *  **Off by default**; set true to offer it. The 6-digit code is entered in
+       *  this panel, so the session is created on the host origin: no
+       *  confirmation-link round-trip through the paywall's custom domain (whose
+       *  localStorage the host can't read), no password kept in memory while
+       *  waiting. It's also the only email method that works without a custom
+       *  domain configured — which is why it's worth turning on for those. */
       allow_email_code?: boolean;
       /** Hide the panel if the user is already signed in. Defaults to true.
        *  false — show "Signed in as ... [Sign out]" even after login. */

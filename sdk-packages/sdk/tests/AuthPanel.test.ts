@@ -490,6 +490,12 @@ describe('AuthPanel render', () => {
     );
   }
 
+  // allow_email_code is off by default, so every code-flow test opts in.
+  const BLOCK_WITH_CODE: Extract<LayoutBlock, { type: 'auth_panel' }> = {
+    type: 'auth_panel',
+    allow_email_code: true
+  };
+
   function openCodeFlow(container: HTMLElement): void {
     act(() => findButton(container, /sign in with a code/i)!.click());
   }
@@ -511,7 +517,7 @@ describe('AuthPanel render', () => {
     const sendOtp = vi.fn(async () => undefined);
     const verifyOtp = vi.fn(async () => makeSession());
     const auth = makeAuthMock({ sendOtp, verifyOtp });
-    const { container } = renderPanel(BLOCK_DEFAULT, { auth });
+    const { container } = renderPanel(BLOCK_WITH_CODE, { auth });
 
     openCodeFlow(container);
     expect(container.querySelector('button[type="submit"]')?.textContent).toContain('Send Code');
@@ -540,12 +546,9 @@ describe('AuthPanel render', () => {
     });
   });
 
-  it('allow_email_code=false hides the code option and keeps the reset link', () => {
+  it('the code option is absent unless the paywall opts in', () => {
     const auth = makeAuthMock();
-    const { container } = renderPanel(
-      { type: 'auth_panel', allow_email_code: false },
-      { auth }
-    );
+    const { container } = renderPanel(BLOCK_DEFAULT, { auth });
     expect(findButton(container, /sign in with a code/i)).toBeUndefined();
     // The two links share a row now — dropping one must not drop the other.
     expect(findButton(container, /forgot password/i)).toBeDefined();
@@ -554,7 +557,7 @@ describe('AuthPanel render', () => {
   it('resend on the code screen requests a new code and confirms it', async () => {
     const sendOtp = vi.fn(async () => undefined);
     const auth = makeAuthMock({ sendOtp });
-    const { container } = renderPanel(BLOCK_DEFAULT, { auth });
+    const { container } = renderPanel(BLOCK_WITH_CODE, { auth });
 
     openCodeFlow(container);
     await fillEmailAndSubmit(container, 'me@b.c');
@@ -570,7 +573,7 @@ describe('AuthPanel render', () => {
 
   it('leaving the code flow clears the entered code', async () => {
     const auth = makeAuthMock();
-    const { container } = renderPanel(BLOCK_DEFAULT, { auth });
+    const { container } = renderPanel(BLOCK_WITH_CODE, { auth });
 
     openCodeFlow(container);
     await fillEmailAndSubmit(container, 'me@b.c');

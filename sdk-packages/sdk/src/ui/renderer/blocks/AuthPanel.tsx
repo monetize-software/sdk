@@ -96,7 +96,9 @@ export function AuthPanel({ block, ctx }: BlockProps<AuthPanelBlock>) {
   const session = ctx.authSession;
   const allowSignup = block.allow_signup !== false;
   const allowReset = block.allow_password_reset !== false;
-  const allowEmailCode = block.allow_email_code !== false;
+  // Opt-in, not opt-out: a second sign-in route next to the password field makes
+  // the form busier for every paywall that never asked for it.
+  const allowEmailCode = block.allow_email_code === true;
   const hideWhenAuthed = block.hide_when_authenticated !== false;
 
   if (!auth) {
