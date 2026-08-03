@@ -30,6 +30,18 @@ import { ensureOffscreen, offscreenExists } from './ensure-offscreen';
  *  Contract shared with `online/app/paywall/v3/auth/callback`. */
 const CALLBACK_PATH = '/paywall/v3/auth/callback';
 
+/**
+ * How long to let a still-living surface claim the flow before we step in.
+ *
+ * When the popup survives, it receives the code by `postMessage` the instant the
+ * callback page loads and exchanges it right away, which consumes the pending
+ * flow — after that we find nothing to adopt and correctly stay out of the way.
+ * Racing it instead would mean two checkouts for one sign-in. The delay costs
+ * nothing in the case this whole path exists for: there the surface is already
+ * gone and nobody is competing.
+ */
+const SURFACE_CLAIM_GRACE_MS = 700;
+
 export interface OAuthWatcherOptions {
   apiOrigin: string | (() => string | Promise<string>);
   offscreenUrl: string | (() => string | Promise<string>);
@@ -70,6 +82,38 @@ export function matchOAuthCallback(url: string, apiOrigin: string): string | nul
   if (!sameHost) return null;
 
   return target.searchParams.get('code');
+}
+
+/**
+ * Opens the checkout as a normal tab in the window the user is actually working
+ * in — not the provider popup window, which is small, transient, and by this
+ * point usually closed.
+ *
+ * Picks the last focused `normal` window explicitly: at this moment the focused
+ * window may well be the provider popup, and `tabs.create` without a target
+ * would drop the payment page in there.
+ */
+async function openCheckoutTab(url: string): Promise<void> {
+  let windowId: number | undefined;
+  try {
+    const focused = await chrome.windows.getLastFocused();
+    if (focused?.type === 'normal' && focused.id != null) {
+      windowId = focused.id;
+    } else {
+      const normals = await chrome.windows.getAll({ windowTypes: ['normal'] });
+      windowId = normals[normals.length - 1]?.id ?? undefined;
+    }
+  } catch {
+    // No windows API answer — let Chrome place the tab itself.
+  }
+  try {
+    await chrome.tabs.create(
+      windowId != null ? { url, windowId, active: true } : { url, active: true }
+    );
+  } catch {
+    // Nowhere to put it (every window closed). The checkout exists and the
+    // pending marker is set, so the next surface the user opens resumes it.
+  }
 }
 
 export function installOAuthWatcher(opts: OAuthWatcherOptions): void {
@@ -131,29 +175,30 @@ async function handleNavigation(
     return;
   }
 
-  const client = new TransportClient(() =>
-    portToChannel(chrome.runtime.connect({ name: RELAY_PORT_NAME }))
-  );
+  await new Promise((resolve) => setTimeout(resolve, SURFACE_CLAIM_GRACE_MS));
+
+  const client = new TransportClient(() => {
+    const port = chrome.runtime.connect({ name: RELAY_PORT_NAME });
+    // Reading lastError marks it handled. Without this Chrome logs "Unchecked
+    // runtime.lastError: Could not establish connection" into the worker console
+    // whenever offscreen went away between our check above and this connect.
+    port.onDisconnect.addListener(() => void chrome.runtime.lastError);
+    return portToChannel(port);
+  });
   try {
     const result = await client.request('auth.oauthAdopt', { code });
     if (!result.adopted) return;
 
     if (result.checkoutUrl) {
-      // A purchase was waiting behind the sign-in. Reuse this tab for it: the
-      // user goes from the provider straight to payment, instead of landing back
-      // in an extension they have to reopen and click through a second time.
-      try {
-        await chrome.tabs.update(tabId, { url: result.checkoutUrl });
-        return;
-      } catch {
-        // Tab gone (the callback page closed itself first). The checkout exists
-        // and the pending marker is set, so the next open picks it up.
-        return;
-      }
+      // A purchase was waiting behind the sign-in. It does NOT go into this tab:
+      // the callback page closes itself moments after loading, so by now the tab
+      // is usually gone — and even alive it is the 480x640 provider window,
+      // which is no place to pay. Put it where the user actually works.
+      await openCheckoutTab(result.checkoutUrl);
     }
 
-    // Nothing to continue with — the tab is expendable. The callback page
-    // usually closes itself, so this is a no-op more often than not.
+    // The callback page normally closes itself; this covers the case where it
+    // couldn't (no opener to post to, so it stayed on screen with a message).
     try {
       await chrome.tabs.remove(tabId);
     } catch {

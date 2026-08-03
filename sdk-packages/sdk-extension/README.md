@@ -140,12 +140,16 @@ and behaviour is exactly as before.
 
 **The purchase continues too.** When the sign-in was gating a checkout
 (`checkout_mode: 'preauth'`), the intent travels with the flow: offscreen creates
-the checkout as soon as the session lands and the worker sends that same tab to
-the payment page. The user goes provider → payment in one move, instead of
-returning to an extension they have to reopen and click through a second time.
-Nothing to configure — `PaywallUI` passes the pending purchase automatically. If
-the user turns out to already own the subscription, no checkout is opened; the
-tab closes and the next surface they open shows the restored state.
+the checkout as soon as the session lands, and the worker opens it as a tab in
+the window the user is actually working in. They go provider → payment without
+reopening an extension and clicking buy a second time. Nothing to configure —
+`PaywallUI` passes the pending purchase automatically.
+
+The payment page deliberately does **not** reuse the provider window: that window
+closes itself moments after the redirect lands, and it is a 480×640 popup, which
+is no place to enter card details. If the user turns out to already own the
+subscription, no checkout is opened at all — the next surface they open shows the
+restored state.
 
 Two caveats worth knowing:
 

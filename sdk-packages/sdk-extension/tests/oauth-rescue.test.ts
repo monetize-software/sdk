@@ -286,6 +286,28 @@ describe('resuming the purchase the sign-in was gating', () => {
     expect(fetchSpy.checkoutCalls).toBe(0);
   });
 
+  it('does not create a second checkout when the surface handled the flow itself', async () => {
+    const fetchSpy = makeOAuthFetch();
+    const server = makeServer('resume-4', fetchSpy);
+    const [swSide, serverSide] = pairChannels();
+    server.acceptChannel(serverSide);
+    const sw = new TransportClient(() => swSide);
+
+    const { state } = await sw.request('auth.oauthStart', {
+      provider: 'google',
+      resumeCheckout: { priceId: 'price_42' }
+    });
+
+    // The popup survived, got the code by postMessage and exchanged it — it will
+    // open the checkout itself, as it always has.
+    await sw.request('auth.oauthExchange', { state, code: 'shared-code' });
+    const adopt = await sw.request('auth.oauthAdopt', { code: 'shared-code' });
+
+    // Two checkouts for one sign-in would mean two payment pages for the user.
+    expect(adopt).toEqual({ adopted: false, reason: 'no_pending_flow' });
+    expect(fetchSpy.checkoutCalls).toBe(0);
+  });
+
   it('keeps the sign-in when the checkout 409s for an existing subscriber', async () => {
     const fetchSpy = makeOAuthFetch();
     fetchSpy.failCheckoutWith409();

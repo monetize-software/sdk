@@ -277,9 +277,15 @@ export class OffscreenServer {
       this.rememberOAuthState(state, params.resumeCheckout);
       return { authorizeUrl: authorize_url, state };
     });
-    this.transport.on('auth.oauthExchange', async (params) =>
-      this.exchangeOAuthOnce(auth, params.state, params.code)
-    );
+    this.transport.on('auth.oauthExchange', async (params) => {
+      const session = await this.exchangeOAuthOnce(auth, params.state, params.code);
+      // Only a live surface calls this — it got the code by postMessage and is
+      // about to continue the flow itself. Drop the flow so the worker's adopt
+      // path finds nothing: otherwise both would create a checkout for one
+      // sign-in, and the user would be charged for whichever they finish.
+      this.forgetOAuthState(params.state);
+      return session;
+    });
     // Adopt: the surface that started the flow is gone (a toolbar action popup
     // is destroyed the moment the provider window takes focus, which on some
     // window managers happens every time), so nobody is left to hand us the
