@@ -1,5 +1,7 @@
 # @monetize.software/sdk-react
 
+## 3.5.0
+
 ## 3.5.0-rc.0
 
 ### Patch Changes

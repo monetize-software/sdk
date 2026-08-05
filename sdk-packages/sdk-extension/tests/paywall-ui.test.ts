@@ -56,6 +56,23 @@ interface OffscreenStub {
   fetchSpy: ReturnType<typeof vi.fn>;
 }
 
+/** Waits until the tracker has actually flushed `type`. A fixed sleep here
+ *  flaked whenever this suite ran alongside the other packages' vitest — the
+ *  bootstrap fetch plus the flush simply took longer than the budget. */
+async function waitForEvent(
+  stub: { flushedEvents: Array<{ type: string }> },
+  type: string,
+  timeoutMs = 3000
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (stub.flushedEvents.some((e) => e.type === type)) return;
+    await new Promise((r) => setTimeout(r, 10));
+  }
+  const seen = stub.flushedEvents.map((e) => e.type).join(', ') || '(none)';
+  throw new Error(`timed out waiting for "${type}"; flushed: ${seen}`);
+}
+
 function setupOffscreen(opts: {
   bootstrap?: unknown;
   user?: unknown;
@@ -232,7 +249,8 @@ describe('PaywallUI integration (extension)', () => {
     paywall.track('host:custom_event', { foo: 'bar' });
     paywall.track('host:another', { x: 1 });
     // Give the tracker flushIntervalMs (25ms).
-    await new Promise((r) => setTimeout(r, 60));
+    await waitForEvent(stub, 'host:custom_event');
+    await waitForEvent(stub, 'host:another');
     const types = stub.flushedEvents.map((e) => e.type);
     expect(types).toContain('host:custom_event');
     expect(types).toContain('host:another');
@@ -243,7 +261,7 @@ describe('PaywallUI integration (extension)', () => {
     paywall.open();
     // 'open' is no longer tracked — the impression records 'viewed' on 'ready'
     // (after bootstrap loads), so we wait for the async resolution of bootstrap.
-    await new Promise((r) => setTimeout(r, 60));
+    await waitForEvent(stub, 'paywall_viewed');
     const types = stub.flushedEvents.map((e) => e.type);
     expect(types).toContain('paywall_viewed');
     expect(types).not.toContain('paywall_opened');

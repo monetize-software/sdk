@@ -1,5 +1,96 @@
 # @monetize.software/sdk-extension
 
+## 3.5.0
+
+### Minor Changes
+
+- bb8cae3: OAuth survives the surface that started it being destroyed
+
+  Signing in from a toolbar action popup could fail silently: Chrome closes an
+  action popup as soon as the provider window takes focus, and the auth code —
+  delivered by `postMessage` to that now-dead window — was lost. Whether the popup
+  dies is decided by the OS window manager, so the same extension worked on one
+  machine and failed on another, and opening DevTools "fixed" it by keeping the
+  popup alive.
+
+  Pass the new `apiOrigin` option to `installRouter` and the service worker watches
+  for the provider's redirect landing on your callback page, reads the code from
+  the URL, and lets the offscreen document — which holds the PKCE verifier —
+  complete the sign-in on its own. Requires no new manifest permission: the URL is
+  already visible through the `host_permissions` entry for that origin. Omit the
+  option and behaviour is unchanged.
+
+  Also: one auth code can no longer be exchanged twice when the popup survives and
+  races the worker (GoTrue burns it on first use), and a window closed by the
+  rescue path is no longer reported as `oauth_cancelled` when the sign-in in fact
+  succeeded.
+
+  The demo extension no longer falls back to a shared host when its config is
+  missing — it now refuses to start with an explicit message instead.
+
+- e58eb05: The purchase continues after a rescued OAuth sign-in
+
+  3.5.0-rc.0 let a sign-in survive its surface being destroyed, but the purchase
+  behind it did not: the user signed in, the tab closed, and they had to reopen the
+  extension and click buy a second time before the payment page appeared.
+
+  The pending checkout now travels with the flow. `signInWithOAuth` takes a
+  `resumeCheckout` intent (price, resolved offer, renew), which `PaywallUI` passes
+  automatically from the auth gate; offscreen holds it for the lifetime of the
+  flow, creates the checkout the moment the session lands, and the service worker
+  sends that same provider tab to the payment page. Provider → payment in one move.
+
+  Offscreen also writes the checkout-pending marker and tracks `checkout_started`
+  itself, since the surface that normally would is gone — so the next open doesn't
+  flash the paywall at someone mid-payment, and the funnel stays honest.
+
+  A user who already owns the subscription gets no second checkout: the 409 leaves
+  the sign-in standing, the tab closes, and the restored state shows on their next
+  open.
+
+  In the plain SDK `resumeCheckout` is accepted and ignored — there the caller is
+  still alive when the sign-in resolves and drives the checkout itself.
+
+### Patch Changes
+
+- bf41fd7: The resumed checkout actually opens
+
+  3.5.0-rc.2 sent the payment page into the tab the provider had redirected — which
+  never worked in the field, because our callback page closes itself ~50ms after it
+  loads. Creating the checkout takes two network round-trips, so by the time the
+  worker navigated that tab it was long gone and the user was left signed in with
+  nothing to pay on. Sign-in was unaffected (the code is read from the URL the
+  moment the navigation is seen), which is exactly how this hid.
+
+  The checkout now opens as a new tab in the last focused normal window — where the
+  user is actually working. The provider window was the wrong target regardless: it
+  is a 480×640 popup meant to be thrown away, not somewhere to enter card details.
+
+  Two more fixes behind the same flow:
+
+  - No second checkout when the surface survives. A live popup receives the code by
+    `postMessage` and continues the purchase itself, so its exchange now consumes
+    the pending flow, and the worker waits briefly before stepping in — previously
+    both could create a checkout for one sign-in.
+  - The worker no longer leaves `Unchecked runtime.lastError: Could not establish
+connection` in the console when offscreen disappears mid-connect.
+
+- 8bed9c8: The post-payment tab closes again
+
+  "Payment Done!" stayed on screen after a purchase, with `Scripts may close only
+the windows that were opened by them` in its console. The return pages close
+  themselves, but a script may only close a window a script opened — and since
+  rc.4 the checkout tab is opened by the extension, so Chrome refused.
+
+  The worker now closes it, on the same ~3.5s schedule the page used, so the
+  confirmation stays readable. A paywall with `success_redirect_url` navigates
+  onward instead: the tab's URL is re-checked right before closing, so the
+  merchant's own page is left alone.
+
+  Matched by URL rather than by remembering which tabs we opened — paying takes
+  minutes and the worker idles out after 30 seconds, so any in-memory list would be
+  long gone by the time the user comes back.
+
 ## 3.5.0-rc.5
 
 ### Patch Changes

@@ -1,5 +1,87 @@
 # @monetize.software/sdk
 
+## 3.5.0
+
+### Minor Changes
+
+- 005c0b2: "Sign in with a code" is now opt-in
+
+  The passwordless email-code route shipped on by default in 3.5.0-rc.0, which put
+  a second sign-in path next to the password field on every paywall — including the
+  ones that never asked for it. It is now off unless the `auth_panel` block sets
+  `allow_email_code: true`.
+
+  Worth turning on for a paywall with no custom domain configured: it is the only
+  email method that works there, since the confirmation link lands on a domain
+  whose session cannot cross back to the host. The password-reset code entry is a
+  separate flow and is unaffected.
+
+- 7f093ab: Passwordless sign-in with an emailed code
+
+  `auth_panel` gains a "Sign in with a code" option: the user gets a 6-digit code
+  by email and enters it in the panel itself. Because the code is verified in
+  place, the session is minted on the host's own origin — unlike the signup
+  confirmation link, which lands on the paywall's custom domain and cannot hand a
+  session back across origins. It also needs no password held in memory while the
+  user goes to their inbox, and it is the only email method that works for a
+  paywall without a custom domain configured.
+
+  Enabled by default; turn it off per paywall with `allow_email_code: false` on the
+  `auth_panel` block. The code screen has its own resend, which surfaces rate-limit
+  errors (the email step stays anti-enumeration and always advances).
+
+- e58eb05: The purchase continues after a rescued OAuth sign-in
+
+  3.5.0-rc.0 let a sign-in survive its surface being destroyed, but the purchase
+  behind it did not: the user signed in, the tab closed, and they had to reopen the
+  extension and click buy a second time before the payment page appeared.
+
+  The pending checkout now travels with the flow. `signInWithOAuth` takes a
+  `resumeCheckout` intent (price, resolved offer, renew), which `PaywallUI` passes
+  automatically from the auth gate; offscreen holds it for the lifetime of the
+  flow, creates the checkout the moment the session lands, and the service worker
+  sends that same provider tab to the payment page. Provider → payment in one move.
+
+  Offscreen also writes the checkout-pending marker and tracks `checkout_started`
+  itself, since the surface that normally would is gone — so the next open doesn't
+  flash the paywall at someone mid-payment, and the funnel stays honest.
+
+  A user who already owns the subscription gets no second checkout: the 409 leaves
+  the sign-in standing, the tab closes, and the restored state shows on their next
+  open.
+
+  In the plain SDK `resumeCheckout` is accepted and ignored — there the caller is
+  still alive when the sign-in resolves and drives the checkout itself.
+
+### Patch Changes
+
+- 7f093ab: Numeric price ids no longer silently drop the local currency or a targeted offer
+
+  `priceId` is typed as a string, but plain-JS hosts routinely pass the number from
+  their own config. Two lookups compared it strictly and just missed: the bootstrap
+  price lookup in `createCheckout`, which meant `localCurrency` was dropped and the
+  user who saw £9.99 on the paywall got a base-USD Stripe page; and
+  `findApplicableOffer`, which skipped a price-targeted discount and fell through
+  to the global one. Neither failed loudly — the checkout still succeeded, just
+  wrong. Both sides are now coerced before comparing.
+
+- 8bed9c8: Server-side clients no longer share one visitor_id per process
+
+  Without `window` and without an explicit `storage` adapter the SDK fell back to a
+  module-level in-memory map, so every client built in one Node process read and
+  wrote the same `pw-visitor-id`. The backend reads visitor_id as "the same
+  device": on sign-in it re-attributes guest purchases made under that id. A
+  process-wide value therefore let each successive login inherit the purchases of
+  the users authenticated before it — for a backend that proxies auth through the
+  SDK, all of its users at once.
+
+  Each client now gets its own memory storage when there is no `window`, so a
+  per-instance visitor_id matches nothing and claims nothing. Pass an explicit
+  `storage` adapter if a server integration genuinely needs persistence. Browser
+  behaviour is unchanged, including the shared fallback used when `localStorage` is
+  unavailable (private mode, sandboxed iframe) — one tab is one user, and
+  `AuthClient` and `BillingClient` must keep seeing the same visitor_id there.
+
 ## 3.5.0-rc.3
 
 ### Patch Changes
