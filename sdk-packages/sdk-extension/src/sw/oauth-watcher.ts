@@ -30,6 +30,20 @@ import { ensureOffscreen, offscreenExists } from './ensure-offscreen';
  *  Contract shared with `online/app/paywall/v3/auth/callback`. */
 const CALLBACK_PATH = '/paywall/v3/auth/callback';
 
+/** Where an acquirer sends the user back to when the payment finishes or is
+ *  abandoned: `/paywall/<id>/checkout/success` and `.../error`. */
+const CHECKOUT_RETURN_PATH = /^\/paywall\/[^/]+\/checkout\/(success|error)$/;
+
+/**
+ * How long a finished-payment page stays up before we close it.
+ *
+ * The page shows "Payment Done!" and closes itself after ~3.5s — except it
+ * cannot when the extension opened the tab: a script may only close a window
+ * that a script opened ("Scripts may close only the windows that were opened by
+ * them"). So we do it, on the same schedule, to keep the confirmation readable.
+ */
+const CHECKOUT_RETURN_CLOSE_MS = 3800;
+
 /**
  * How long to let a still-living surface claim the flow before we step in.
  *
@@ -63,7 +77,10 @@ export interface OAuthWatcherOptions {
  * surfacing the old way (the window closes without a code and the flow reports
  * a cancellation).
  */
-export function matchOAuthCallback(url: string, apiOrigin: string): string | null {
+/** Our origin, allowing the edge mirror in both directions: a client that failed
+ *  over to `edge.<domain>` gets its callback there while the configured
+ *  apiOrigin is still the canonical host, and vice versa. */
+function onOurOrigin(url: string, apiOrigin: string): URL | null {
   let target: URL;
   let origin: URL;
   try {
@@ -73,15 +90,26 @@ export function matchOAuthCallback(url: string, apiOrigin: string): string | nul
     return null;
   }
   if (target.protocol !== 'https:' && target.protocol !== 'http:') return null;
-  if (target.pathname !== CALLBACK_PATH) return null;
 
   const host = target.hostname;
   const configured = origin.hostname;
   const sameHost =
     host === configured || host === `edge.${configured}` || `edge.${host}` === configured;
-  if (!sameHost) return null;
+  return sameHost ? target : null;
+}
 
+export function matchOAuthCallback(url: string, apiOrigin: string): string | null {
+  const target = onOurOrigin(url, apiOrigin);
+  if (!target || target.pathname !== CALLBACK_PATH) return null;
   return target.searchParams.get('code');
+}
+
+/** Whether this is one of our post-payment return pages. Matched by path only —
+ *  the outcome lives in the URL fragment, which we neither need nor can rely on
+ *  seeing here. */
+export function isCheckoutReturn(url: string, apiOrigin: string): boolean {
+  const target = onOurOrigin(url, apiOrigin);
+  return !!target && CHECKOUT_RETURN_PATH.test(target.pathname);
 }
 
 /**
@@ -134,6 +162,37 @@ export function installOAuthWatcher(opts: OAuthWatcherOptions): void {
   });
 }
 
+/**
+ * Closes a finished-payment tab the extension opened.
+ *
+ * Deliberately keyed on the URL rather than on remembering which tabs we
+ * created: paying takes minutes, the worker idles out after 30 seconds, and any
+ * in-memory list would be long gone by the time the user comes back. Matching
+ * the return page instead survives a worker restart.
+ *
+ * When the checkout was opened the old way (a surviving popup called
+ * window.open), the page closes itself and this is a no-op on an already-gone
+ * tab.
+ */
+async function closeCheckoutReturnTab(
+  tabId: number,
+  opts: OAuthWatcherOptions
+): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, CHECKOUT_RETURN_CLOSE_MS));
+  try {
+    // A paywall with success_redirect_url configured navigates onward instead of
+    // closing — by now this tab may be showing the merchant's own page, which is
+    // not ours to close.
+    const tab = await chrome.tabs.get(tabId);
+    const apiOrigin =
+      typeof opts.apiOrigin === 'function' ? await opts.apiOrigin() : opts.apiOrigin;
+    if (!tab.url || !apiOrigin || !isCheckoutReturn(tab.url, apiOrigin)) return;
+    await chrome.tabs.remove(tabId);
+  } catch {
+    // Tab already gone, or the worker lost the race — nothing to clean up.
+  }
+}
+
 async function handleNavigation(
   tabId: number,
   url: string,
@@ -147,6 +206,11 @@ async function handleNavigation(
     return;
   }
   if (!apiOrigin) return;
+
+  if (isCheckoutReturn(url, apiOrigin)) {
+    await closeCheckoutReturnTab(tabId, opts);
+    return;
+  }
 
   const code = matchOAuthCallback(url, apiOrigin);
   if (!code || seenCodes.has(code)) return;

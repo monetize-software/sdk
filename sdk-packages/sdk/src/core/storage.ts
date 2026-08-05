@@ -139,25 +139,39 @@ const webLocal: StorageAdapter = {
   }
 };
 
-const memoryMap = new Map<string, string>();
-const memoryLocal: StorageAdapter = {
-  async getItem(key) {
-    return memoryMap.get(key) ?? null;
-  },
-  async setItem(key, value) {
-    memoryMap.set(key, value);
-  },
-  async removeItem(key) {
-    memoryMap.delete(key);
-  }
-};
+function createMemoryStorage(map: Map<string, string>): StorageAdapter {
+  return {
+    async getItem(key) {
+      return map.get(key) ?? null;
+    },
+    async setItem(key, value) {
+      map.set(key, value);
+    },
+    async removeItem(key) {
+      map.delete(key);
+    }
+  };
+}
+
+// Browser without localStorage (private mode, sandboxed iframe): the fallback
+// memory is shared across the document on purpose — one tab is one user, and
+// AuthClient and BillingClient must see the same visitor_id and session.
+const sharedMemoryMap = new Map<string, string>();
 
 export function createStorage(override?: StorageAdapter): StorageAdapter {
   if (override) return override;
   if (hasChromeStorage()) return chromeLocal;
   if (typeof window !== 'undefined' && 'localStorage' in window)
     return webLocal;
-  return memoryLocal;
+  // No `window` — Node/worker, i.e. a server SDK process that serves MANY
+  // users. A module-level map there would make `pw-visitor-id` one value for
+  // the whole process, and the backend treats visitor_id as "same device":
+  // every sign-in would claim the guest purchases of everyone who came before.
+  // Each client gets its own map instead — a per-instance visitor_id matches
+  // nothing and claims nothing. Pass an explicit `storage` adapter if a server
+  // integration genuinely needs persistence.
+  if (typeof window === 'undefined') return createMemoryStorage(new Map());
+  return createMemoryStorage(sharedMemoryMap);
 }
 
 export const STORAGE_KEYS = {

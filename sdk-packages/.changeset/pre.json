@@ -8,10 +8,12 @@
   },
   "changesets": [
     "checkout-tab-in-user-window",
+    "close-checkout-return-tab",
     "email-code-opt-in",
     "email-code-signin",
     "numeric-price-id-coercion",
     "oauth-popup-rescue",
-    "resume-checkout-after-oauth"
+    "resume-checkout-after-oauth",
+    "server-visitor-id-isolation"
   ]
 }

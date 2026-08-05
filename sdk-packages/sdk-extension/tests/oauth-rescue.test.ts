@@ -11,7 +11,7 @@
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { OffscreenServer } from '../src/offscreen/server';
-import { matchOAuthCallback } from '../src/sw/oauth-watcher';
+import { matchOAuthCallback, isCheckoutReturn } from '../src/sw/oauth-watcher';
 import { TransportClient } from '../src/shared/transport-client';
 import { RemoteAuthClient } from '../src/content/RemoteAuthClient';
 import type { MessageChannel } from '../src/shared/channel';
@@ -179,6 +179,29 @@ describe('matchOAuthCallback', () => {
     expect(matchOAuthCallback('javascript:alert(1)', origin)).toBeNull();
     expect(matchOAuthCallback('not a url', origin)).toBeNull();
     expect(matchOAuthCallback(`${origin}/paywall/v3/auth/callback?code=x`, 'not a url')).toBeNull();
+  });
+});
+
+describe('isCheckoutReturn', () => {
+  const origin = 'https://pay.acme.io';
+
+  it('matches both post-payment pages, on the mirror too', () => {
+    expect(isCheckoutReturn(`${origin}/paywall/797/checkout/success`, origin)).toBe(true);
+    expect(isCheckoutReturn(`${origin}/paywall/797/checkout/error`, origin)).toBe(true);
+    // The outcome rides in the fragment; matching must not depend on it.
+    expect(
+      isCheckoutReturn(`${origin}/paywall/797/checkout/success#paywall_status=paid`, origin)
+    ).toBe(true);
+    expect(
+      isCheckoutReturn('https://edge.pay.acme.io/paywall/797/checkout/success', origin)
+    ).toBe(true);
+  });
+
+  it('ignores anything else — including a merchant page we must not close', () => {
+    expect(isCheckoutReturn('https://shop.example/thanks', origin)).toBe(false);
+    expect(isCheckoutReturn(`${origin}/paywall/797/checkout`, origin)).toBe(false);
+    expect(isCheckoutReturn(`${origin}/paywall/797/checkout/success/extra`, origin)).toBe(false);
+    expect(isCheckoutReturn(`${origin}/paywall/v3/auth/callback?code=x`, origin)).toBe(false);
   });
 });
 
