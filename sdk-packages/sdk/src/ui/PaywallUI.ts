@@ -302,6 +302,13 @@ const URL_MARKERS = {
   sessionId: 'paywall_session_id'
 } as const;
 
+// Storage key holding the purchases already reported to analytics (see
+// sentPurchaseKeys). Per-paywall: one host may run several paywalls.
+const SENT_PURCHASES_KEY_PREFIX = 'ms_sdk_purchases_reported:';
+// Only the newest keys are kept — the set exists to suppress re-reports of a
+// live subscription, not to be an audit log.
+const MAX_SENT_PURCHASE_KEYS = 20;
+
 export class PaywallUI {
   readonly billing: BillingClient;
   /** AuthClient (managed-auth) or undefined in hybrid mode. Publicly available:
@@ -334,6 +341,45 @@ export class PaywallUI {
    *  Reset on every mountAndShow. Protected: sdk-extension's bindAnalytics
    *  mirrors the tracker bindings and needs the same gate. */
   protected viewedTracked = false;
+  /** Whether a delayed gate (mount-then-load) is still deciding on the CURRENT
+   *  mount. While true, `paywall_viewed` is held back instead of tracked: the
+   *  layout may render before the gate resolves (the subscription gate awaits
+   *  getSettledUser — a network round-trip), and a gate that then blocks would
+   *  leave a viewed/closed pair behind for a paywall nobody was allowed to see.
+   *  Released by releaseViewedGate. Protected: sdk-extension's bindAnalytics
+   *  mirrors the tracker bindings and needs the same gate. */
+  protected viewedGatePending = false;
+  /** The bootstrap of a `ready` that arrived while viewedGatePending — replayed
+   *  into `paywall_viewed` if the gates pass (or if the user closes the modal
+   *  first: they did see the layout). */
+  protected pendingViewed: PaywallBootstrap | null = null;
+  /** Whether the CURRENT mount is done accepting views: a gate blocked it, or
+   *  it was closed. Stops a late 'ready' (the layout finished rendering after
+   *  the close) from tracking a view nobody saw. Reset by mountAndShow. */
+  protected viewedGateSettled = false;
+  /** Tracks `paywall_viewed` through whichever transport this instance uses —
+   *  assigned by initTracker (EventTracker) and by sdk-extension's bindAnalytics
+   *  (RemoteEventTracker). Lets releaseViewedGate replay a held view without
+   *  knowing the transport. */
+  protected trackViewedFn: ((b: PaywallBootstrap) => void) | null = null;
+  /** Purchase keys already reported to analytics, mirrored in memory from
+   *  storage. `handlePurchaseDetected` fires whenever an active subscription is
+   *  discovered — not only right after paying — and `this.purchased` only
+   *  dedupes within ONE instance. In an extension every popup open builds a new
+   *  one, so a subscriber re-reported a purchase on every visit (up to 21 per
+   *  visitor; ~1.9x inflation overall). Storage is shared across popup /
+   *  content-script / offscreen, so the dedupe survives instance churn.
+   *  Kept in memory because the check sits on the event path and must stay
+   *  synchronous — an await there would reorder the tracker's batch. */
+  private sentPurchaseKeys = new Set<string>();
+  /** Whether a checkout was started at any point in THIS instance's life.
+   *  Unlike `checkoutStartedSinceMount` (reset by every mountAndShow) this
+   *  survives remounts — it marks the instance as "the user is actively buying
+   *  here", which exempts its purchase from the analytics dedupe. */
+  private checkoutStartedSinceInit = false;
+  /** Serializes storage writes of `sentPurchaseKeys` so two quick purchases
+   *  can't interleave read-modify-write and lose a key. */
+  private persistPurchasesChain: Promise<void> = Promise.resolve();
   /** Per-open custom title (OpenOptions.title) of the current mount. null —
    *  the layout's own heading is shown. Kept for the `paywall_viewed`
    *  analytics flag. */
@@ -434,6 +480,14 @@ export class PaywallUI {
         this.lastMountedView === 'layout' &&
         this.currentState.view === 'layout'
       ) {
+        // Same ordering as the gates in runDelayedGates: drop the held view
+        // BEFORE close(), or the close binding reads a live hold as a
+        // user-initiated close and replays the phantom viewed/closed pair for a
+        // subscriber who was never meant to see the paywall. This is the one
+        // close() outside runDelayedGates that can race a pending gate —
+        // applyUser fires its listeners synchronously, so a cross-context
+        // userChange lands here while the gate is still parked on an await.
+        this.releaseViewedGate(false);
         this.close();
         this.emitRestoredOnce();
       }
@@ -452,15 +506,172 @@ export class PaywallUI {
     // of being trusted — otherwise the first popup open after a purchase
     // flashes the paywall before the corrective closes it (the popup died
     // before the purchase confirmation could update the persisted user).
-    this.on('checkout_started', () => this.markCheckoutPending());
+    this.on('checkout_started', () => {
+      this.checkoutStartedSinceInit = true;
+      this.markCheckoutPending();
+    });
 
     this.initTracker(opts.analytics);
+    // Warm the purchase-dedupe mirror. Fire-and-forget: the check falls back to
+    // "report it" until this resolves, and a purchase can't be discovered
+    // before the first user-state anyway.
+    void this.loadSentPurchases();
 
     if (opts.autoDetectReturn !== false && typeof window !== 'undefined') {
       // Microtask — the client has time to subscribe synchronously after the
       // constructor, before the event actually fires.
       queueMicrotask(() => this.checkReturn());
     }
+  }
+
+  /** Identifies the purchase behind a `purchase_completed` for the analytics
+   *  dedupe. The checkout session id when we have one (URL-marker returns);
+   *  otherwise the active purchase ids — so a genuinely NEW purchase (an
+   *  upgrade, a second subscription) produces a different key and is reported,
+   *  while re-discovering the same one is not. null — nothing stable to key on
+   *  (no session, empty purchases): we report rather than risk swallowing. */
+  private purchaseDedupeKey(p: {
+    sessionId?: string | null;
+  }): string | null {
+    if (p.sessionId) return `s:${p.sessionId}`;
+    try {
+      const purchases = this.billing.getCachedUser()?.purchases;
+      // Guard the mapping too, not just the read: a corrupted persisted user or
+      // a host-supplied client could hand back a non-array, and a TypeError
+      // escaping here would be swallowed by emit()'s per-listener catch —
+      // silently dropping the analytics event while the host still gets it.
+      if (!Array.isArray(purchases)) return null;
+      const ids = purchases
+        .map((x) => x?.id)
+        .filter((id): id is string => typeof id === 'string' && id.length > 0)
+        .sort();
+      return ids.length ? `p:${ids.join(',')}` : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Analytics gate for `purchase_completed`: true the first time we see this
+   *  purchase, false for every re-discovery. Only the tracker consults it — the
+   *  public event still reaches the host exactly as before. */
+  protected shouldTrackPurchase(p: { sessionId?: string | null }): boolean {
+    // A checkout ran in THIS instance — the user actively bought something, so
+    // report it and never consult the key. Critical for renew/upgrade: an
+    // already-subscribed user keeps their old purchase ids, so the key equals
+    // the one stored when that first subscription was bought, and the dedupe
+    // would swallow the upgrade entirely (the watcher fires on the pre-existing
+    // subscription, marks `purchased`, and no later event makes up for it).
+    // The inflation this dedupe targets comes from PASSIVE discoveries — a
+    // re-created popup finding an existing subscription — where no checkout
+    // ever ran in the instance.
+    if (this.checkoutStartedSinceInit) return true;
+    const key = this.purchaseDedupeKey(p);
+    if (!key) return true;
+    if (this.sentPurchaseKeys.has(key)) return false;
+    this.sentPurchaseKeys.add(key);
+    void this.persistSentPurchases();
+    return true;
+  }
+
+  private sentPurchasesStorageKey(): string {
+    return `${SENT_PURCHASES_KEY_PREFIX}${this.billing.paywallId}`;
+  }
+
+  /** Warm the in-memory mirror from storage. Until it resolves the set is
+   *  empty, so a purchase landing in the first moments of an instance may be
+   *  reported twice — the safe direction (a rare duplicate beats a lost sale).
+   */
+  private async loadSentPurchases(): Promise<void> {
+    try {
+      const raw = await this.billing
+        .getStorage()
+        .getItem(this.sentPurchasesStorageKey());
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return;
+      for (const key of parsed) {
+        if (typeof key === 'string') this.sentPurchaseKeys.add(key);
+      }
+    } catch {
+      /* best-effort: analytics dedupe must never break the paywall */
+    }
+  }
+
+  /** Read-modify-write, serialized. A blind overwrite would drop keys in the
+   *  two cases that matter: a purchase reported before loadSentPurchases()
+   *  resolved (the mirror is still empty, so the write would erase everything
+   *  stored), and two live contexts in an extension (popup + content-script)
+   *  each writing their own view. Both directions produce re-reports — the very
+   *  inflation this exists to stop. Newly added keys go LAST so the tail-slice
+   *  can never evict the key we just recorded. */
+  private persistSentPurchases(): Promise<void> {
+    this.persistPurchasesChain = this.persistPurchasesChain
+      .catch((): undefined => undefined)
+      .then(async () => {
+        try {
+          const storage = this.billing.getStorage();
+          const key = this.sentPurchasesStorageKey();
+          const merged = new Set<string>();
+          const raw = await storage.getItem(key);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) {
+              for (const k of parsed) {
+                if (typeof k === 'string') merged.add(k);
+              }
+            }
+          }
+          // Ours last: Set preserves insertion order, so the tail-slice below
+          // keeps the newest keys rather than the ones just read back.
+          for (const k of this.sentPurchaseKeys) {
+            merged.delete(k);
+            merged.add(k);
+          }
+          for (const k of merged) this.sentPurchaseKeys.add(k);
+          await storage.setItem(
+            key,
+            JSON.stringify(Array.from(merged).slice(-MAX_SENT_PURCHASE_KEYS))
+          );
+        } catch {
+          /* best-effort: analytics dedupe must never break the paywall */
+        }
+      });
+    return this.persistPurchasesChain;
+  }
+
+  /** The `ready` → `paywall_viewed` gate, shared by initTracker and
+   *  sdk-extension's bindAnalytics. Returns false when the view must not be
+   *  tracked right now: a non-layout mount (support/auth/awaiting_payment), or
+   *  a delayed gate still pending — then the bootstrap is held for
+   *  releaseViewedGate instead of dropped. */
+  protected acceptViewed(b: PaywallBootstrap): boolean {
+    if (this.lastMountedView !== 'layout') return false;
+    // This mount is already over — a gate closed the spinner, or the user did.
+    // A 'ready' still arriving (the layout finished rendering after the close)
+    // is not a view. Reset by the next mountAndShow.
+    if (this.viewedGateSettled) return false;
+    if (this.viewedGatePending) {
+      this.pendingViewed = b;
+      return false;
+    }
+    this.viewedTracked = true;
+    return true;
+  }
+
+  /** Ends the delayed-gate hold. `passed=true` — no gate blocked (or the user
+   *  closed the modal themselves, having seen the layout): a held `ready` is
+   *  replayed into `paywall_viewed`, so a later `close` still pairs with it.
+   *  `passed=false` — a gate blocked: the held view is dropped, leaving only
+   *  the gate's own event in analytics. */
+  protected releaseViewedGate(passed: boolean): void {
+    this.viewedGatePending = false;
+    const held = this.pendingViewed;
+    this.pendingViewed = null;
+    // A blocked gate ends this mount for analytics — no later 'ready' counts.
+    if (!passed) this.viewedGateSettled = true;
+    if (!passed || !held || this.lastMountedView !== 'layout') return;
+    this.viewedTracked = true;
+    this.trackViewedFn?.(held);
   }
 
   private initTracker(analytics: PaywallUIOptions['analytics']): void {
@@ -506,9 +717,7 @@ export class PaywallUI {
     // that's not "paywall viewed" (see lastMountedView). 'open' is no longer
     // tracked separately: 'viewed' (on 'ready', after bootstrap loads) is the
     // single signal of a paywall view.
-    this.on('ready', (b) => {
-      if (this.lastMountedView !== 'layout') return;
-      this.viewedTracked = true;
+    this.trackViewedFn = (b) => {
       this.tracker?.track('paywall_viewed', {
         is_test_mode: b.settings.is_test_mode,
         prices_count: b.prices.length,
@@ -517,6 +726,10 @@ export class PaywallUI {
         // Lets host-side title experiments be told apart in analytics.
         ...(this.titleOverride ? { custom_title: true } : {})
       });
+    };
+    this.on('ready', (b) => {
+      if (!this.acceptViewed(b)) return;
+      this.trackViewedFn?.(b);
     });
     this.on('price_selected', (p) =>
       this.tracker?.track('price_selected', { price_id: p.priceId })
@@ -533,6 +746,9 @@ export class PaywallUI {
       // it inflates the events dashboard with purchases that have no
       // transaction behind them; the public event still reaches the host.
       if (p.restored) return;
+      // Same purchase already reported (a re-discovered subscription in a new
+      // popup / tab) — the host still got the event, analytics doesn't.
+      if (!this.shouldTrackPurchase(p)) return;
       this.tracker?.track('purchase_completed', {
         price_id: p.priceId,
         session_id: p.sessionId
@@ -542,11 +758,17 @@ export class PaywallUI {
       this.tracker?.track('purchase_failed', { reason: p.reason })
     );
     this.on('close', () => {
+      // A close while the gates are still pending is the USER closing the modal
+      // (a blocking gate drops the hold before calling close()) — the layout
+      // did render, so the held view is released and the pair still lands.
+      if (this.viewedGatePending) this.releaseViewedGate(true);
       // paywall_closed only when THIS mount session tracked paywall_viewed —
       // a delayed gate closing the mount-then-load spinner is not "the user
       // closed the paywall" (viewedTracked implies lastMountedView==='layout').
       if (this.viewedTracked) this.tracker?.track('paywall_closed');
       this.viewedTracked = false;
+      // The mount is over: a 'ready' still in flight must not add a view.
+      this.viewedGateSettled = true;
     });
     this.on('trial_blocked', (s) =>
       this.tracker?.track('trial_blocked', {
@@ -1201,12 +1423,19 @@ export class PaywallUI {
     //   200-500ms on a cold cache.
     if (this.mountThenLoad) {
       this.mountAndShow(view, { renew, title });
+      // Hold paywall_viewed until the gates below decide. The layout can render
+      // (and emit 'ready') before they do — the subscription gate awaits
+      // getSettledUser, a network round-trip — and a gate that blocks after
+      // that would otherwise leave a phantom viewed/closed pair in analytics.
+      this.viewedGatePending = true;
       this.billing
         .bootstrap()
         .then((b) => this.runDelayedGates(b, { skipTrial, skipVisibility, renew }))
         .catch(() => {
           // Bootstrap failed — the modal is already open, PaywallRoot is in the
-          // error-state itself.
+          // error-state itself. No gate will run, so lift the hold: a 'ready'
+          // from a later retry must track normally.
+          this.releaseViewedGate(true);
         });
       return;
     }
@@ -1229,7 +1458,13 @@ export class PaywallUI {
     bootstrap: PaywallBootstrap,
     flags: { skipTrial: boolean; skipVisibility: boolean; renew: boolean }
   ): Promise<void> {
-    if (!this.isOpen) return;
+    // The user closed the spinner before bootstrap resolved: the 'close'
+    // handler already settled the hold (releasing a held view if the layout had
+    // rendered). Nothing for the gates to decide.
+    if (!this.isOpen) {
+      this.releaseViewedGate(false);
+      return;
+    }
 
     // Subscription gate first (same ranking as getAccess). On the Bearer path
     // fetchBootstrap runs applyUser before resolving, so getCachedUser() is
@@ -1243,9 +1478,15 @@ export class PaywallUI {
       let user = this.billing.getCachedUser();
       if (!user?.has_active_subscription && this.canResolveUser()) {
         user = (await this.billing.getSettledUser()) ?? user;
-        if (!this.isOpen) return;
+        if (!this.isOpen) {
+          this.releaseViewedGate(false);
+          return;
+        }
       }
       if (user?.has_active_subscription) {
+        // Drop the held view BEFORE close(): the 'close' handler treats a live
+        // hold as a user-initiated close and would replay it.
+        this.releaseViewedGate(false);
         this.close();
         this.emitRestoredOnce();
         return;
@@ -1257,6 +1498,7 @@ export class PaywallUI {
       if (v) {
         this.lastVisibility = v;
         if (!v.visible) {
+          this.releaseViewedGate(false);
           this.close();
           this.emit('visibility_blocked', v);
           return;
@@ -1264,31 +1506,52 @@ export class PaywallUI {
       }
     }
 
-    if (flags.skipTrial) return;
+    if (flags.skipTrial) {
+      this.releaseViewedGate(true);
+      return;
+    }
 
     const trialCfg = bootstrap.settings.trial;
-    if (!trialCfg) return;
+    if (!trialCfg) {
+      this.releaseViewedGate(true);
+      return;
+    }
     const store = this.ensureTrialStore(trialCfg);
     void store
       .check()
       .then(async (status) => {
-        if (!this.isOpen) return;
+        if (!this.isOpen) {
+          this.releaseViewedGate(false);
+          return;
+        }
         this.lastTrialStatus = status;
-        if (status.mode === 'none') return;
+        if (status.mode === 'none') {
+          this.releaseViewedGate(true);
+          return;
+        }
         if (status.blocked) {
           const updated = await store.recordBlock();
           this.lastTrialStatus = updated;
-          if (!this.isOpen) return;
+          if (!this.isOpen) {
+            this.releaseViewedGate(false);
+            return;
+          }
+          this.releaseViewedGate(false);
           this.close();
           this.emit('trial_blocked', updated);
           return;
         }
+        // The last gate passed — the paywall stays open, so the view counts.
+        this.releaseViewedGate(true);
         if (!this.trialExpiredFired) {
           this.trialExpiredFired = true;
           this.emit('trial_expired');
         }
       })
       .catch((e) => {
+        // The check failed, so no gate blocks — the paywall stays open and the
+        // view is real. Releasing here also prevents a stuck hold.
+        this.releaseViewedGate(true);
         if (typeof console !== 'undefined') console.warn('[paywall] trial check failed', e);
       });
   }
@@ -1426,6 +1689,13 @@ export class PaywallUI {
     // binding once the layout actually renders, and paywall_closed only pairs
     // with a tracked viewed (see initTracker / extension bindAnalytics).
     this.viewedTracked = false;
+    // A fresh mount also starts un-held — proceedOpen re-arms the hold right
+    // after this call on the mount-then-load path. Clearing it here keeps a
+    // previous open()'s hold (e.g. a gate that never resolved) from leaking
+    // into this mount and swallowing its view.
+    this.viewedGatePending = false;
+    this.pendingViewed = null;
+    this.viewedGateSettled = false;
     const renew = mountOpts.renew === true;
     // Context for the post-mount subscription corrective (see the onUserChange
     // handler in the constructor): each mount session starts checkout-less and
@@ -1668,7 +1938,41 @@ export class PaywallUI {
         // min in storage). A user with a past subscription → granted
         // (offline-friendly), otherwise → blocked (open() shows the paywall
         // with an error-state, the user retries).
-        const cached = this.billing.getCachedUser();
+        //
+        // Through peekCachedUser, not the synchronous getCachedUser: the
+        // persisted user sits behind storage hydration, and in the extension
+        // the page-side mirror is empty on EVERY fresh load
+        // (RemoteBillingClient starts with cachedUser=null; the real cache
+        // lives in offscreen). Reading the mirror alone answered "no
+        // subscription" to paying users whenever bootstrap failed once on
+        // load — the documented offline fallback never actually worked in the
+        // extension build.
+        //
+        // Deliberately NOT getSettledUser: we are already in the failure path,
+        // and a settle would fire a second doomed request, consume the one-shot
+        // checkout-pending marker on it (re-opening the post-purchase paywall
+        // flash), and for an anonymous visitor persist EMPTY_USER + emit
+        // userChange from a method documented as a pure read. peekCachedUser
+        // does none of that.
+        let cached = this.billing.getCachedUser();
+        try {
+          // Duck-typed: `opts.client` may be a host-supplied object predating
+          // this method (the extension passes RemoteBillingClient this way).
+          const peek = (
+            this.billing as {
+              peekCachedUser?: () => Promise<PaywallUser | null>;
+            }
+          ).peekCachedUser;
+          if (typeof peek === 'function') {
+            const persisted = await peek.call(this.billing);
+            // Only ever upgrade the answer, never downgrade: keeps `user` null
+            // (the shape hosts read as "unknown") in every branch that was
+            // already answering null.
+            if (persisted?.has_active_subscription) cached = persisted;
+          }
+        } catch {
+          /* pure read, but a broken adapter must not break the gate */
+        }
         if (cached?.has_active_subscription) {
           return {
             access: 'granted',

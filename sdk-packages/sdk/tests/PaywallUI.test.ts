@@ -303,6 +303,81 @@ describe('PaywallUI.getAccess', () => {
     expect(result.reason).toBe('no_subscription');
     expect(result.user).toBeNull();
   });
+
+  // The subscriber-locked-out case. getCachedUser() is the page-side mirror,
+  // and in the extension build it is empty on every fresh load — the real cache
+  // (persisted user, auth hydration) lives in offscreen behind peekCachedUser.
+  // Reading only the mirror here handed a paying user 'no_subscription' after a
+  // single failed bootstrap on load.
+  it('offline fallback: granted when only the persisted cache knows about the subscription', async () => {
+    const failingFetch: typeof fetch = async () => {
+      throw new Error('network down');
+    };
+    const ui = new PaywallUI({
+      apiOrigin: TEST_API_ORIGIN,
+      paywallId: 'pw_1',
+      fetch: failingFetch,
+      autoDetectReturn: false
+    });
+    const subscriber = {
+      has_active_subscription: true,
+      purchases: [{ id: 'sub_01ky', status: 'active' }]
+    };
+    // The page mirror stays empty (as in a freshly loaded content-script);
+    // only the offscreen / persisted cache knows about the subscription.
+    (ui.billing as unknown as { getCachedUser: () => unknown }).getCachedUser = () => null;
+    (ui.billing as unknown as { peekCachedUser: () => Promise<unknown> }).peekCachedUser =
+      async () => subscriber;
+
+    const result = await ui.getAccess();
+    expect(result.access).toBe('granted');
+    expect(result.reason).toBe('has_subscription');
+    expect(result.user).toMatchObject({ has_active_subscription: true });
+  });
+
+  // The offline path must stay a pure read: no second doomed request, and above
+  // all no getSettledUser — that one consumes the one-shot checkout-pending
+  // marker, which would resurrect the post-purchase paywall flash.
+  it('offline fallback does not call getSettledUser', async () => {
+    const failingFetch: typeof fetch = async () => {
+      throw new Error('network down');
+    };
+    const ui = new PaywallUI({
+      apiOrigin: TEST_API_ORIGIN,
+      paywallId: 'pw_1',
+      fetch: failingFetch,
+      autoDetectReturn: false
+    });
+    let settledCalls = 0;
+    (ui.billing as unknown as { getSettledUser: () => Promise<unknown> }).getSettledUser =
+      async () => {
+        settledCalls += 1;
+        return null;
+      };
+
+    await ui.getAccess();
+    expect(settledCalls).toBe(0);
+  });
+
+  it('offline fallback survives a peek that throws', async () => {
+    const failingFetch: typeof fetch = async () => {
+      throw new Error('network down');
+    };
+    const ui = new PaywallUI({
+      apiOrigin: TEST_API_ORIGIN,
+      paywallId: 'pw_1',
+      fetch: failingFetch,
+      autoDetectReturn: false
+    });
+    (ui.billing as unknown as { peekCachedUser: () => Promise<unknown> }).peekCachedUser =
+      async () => {
+        throw new Error('transport dead');
+      };
+
+    const result = await ui.getAccess();
+    expect(result.access).toBe('blocked');
+    expect(result.reason).toBe('no_subscription');
+  });
 });
 
 // Phase 7 — mount-then-load. Goal: on a cold bootstrap the modal should mount

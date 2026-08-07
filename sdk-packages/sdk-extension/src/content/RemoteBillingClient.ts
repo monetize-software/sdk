@@ -202,6 +202,22 @@ export class RemoteBillingClient {
     return this.cachedUser;
   }
 
+  /** Pure read of the OFFSCREEN cache — no network, no checkout-pending
+   *  consumption, no applyUser. The page-side mirror above starts empty on
+   *  every fresh load, so an offline decision made from it alone answered "no
+   *  subscription" to paying users; this asks the context that actually holds
+   *  the persisted user. Degrades to the mirror on a dead port. */
+  async peekCachedUser(): Promise<PaywallUser | null> {
+    try {
+      return (
+        (await this.transport.request('billing.getCachedUser', undefined)) ??
+        this.cachedUser
+      );
+    } catch {
+      return this.cachedUser;
+    }
+  }
+
   /** Settled user for subscription-gate decisions — proxied to the offscreen
    *  BillingClient, where auth hydration / identity sync / persisted caches
    *  actually live (see BillingClient.getSettledUser). The mirror is updated so

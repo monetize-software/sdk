@@ -216,8 +216,11 @@ describe('EventTracker', () => {
       flushIntervalMs: 100000 // won't fire in time
     });
     for (let i = 0; i < 250; i++) tracker.track(`evt_${i}`);
-    // the buffer must not grow without bound
+    // The cap is not just "bounded": it must match MAX_EVENTS_PER_BATCH on the
+    // ingest route (100). A larger buffer flushes a batch the server rejects
+    // with 413, and flush() clears the buffer before sending — the whole
+    // backlog would vanish silently.
     const internal = tracker as unknown as { buffer: Array<unknown> };
-    expect(internal.buffer.length).toBeLessThanOrEqual(200);
+    expect(internal.buffer.length).toBe(100);
   });
 });

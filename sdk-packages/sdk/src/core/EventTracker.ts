@@ -47,7 +47,11 @@ export interface EventTrackerOptions {
 const DEFAULT_FLUSH_INTERVAL_MS = 1500;
 const DEFAULT_MAX_BUFFER_SIZE = 20;
 // Hard cap so the background record doesn't grow indefinitely on a dead network.
-const HARD_BUFFER_LIMIT = 200;
+// Kept at the ingest route's own per-batch ceiling (MAX_EVENTS_PER_BATCH = 100 in
+// online/api/v1/paywall/[id]/events): a larger buffer would flush a batch the
+// server rejects with 413, and flush() drops the events either way — the whole
+// backlog would vanish silently. Raising this requires raising the route first.
+const HARD_BUFFER_LIMIT = 100;
 
 export class EventTracker {
   private opts: EventTrackerOptions;

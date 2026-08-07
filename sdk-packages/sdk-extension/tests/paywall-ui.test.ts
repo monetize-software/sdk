@@ -149,6 +149,20 @@ function setupOffscreen(opts: {
   server.on('tracker.track', (p) => {
     tracker.track(p.name, p.props);
   });
+  // Storage — the real offscreen server exposes these (see
+  // src/offscreen/server.ts), and RemoteBillingClient.getStorage() proxies
+  // through them, so every content-side consumer (TrialStore, the purchase
+  // dedupe) shares one store across popup / content-script. Without them the
+  // proxy rejects and those consumers silently degrade, which made this
+  // harness unable to reproduce anything storage-backed.
+  const offscreenStore = new Map<string, string>();
+  server.on('storage.get', async (p) => offscreenStore.get(p.key) ?? null);
+  server.on('storage.set', async (p) => {
+    offscreenStore.set(p.key, p.value);
+  });
+  server.on('storage.remove', async (p) => {
+    offscreenStore.delete(p.key);
+  });
   // Broadcast bridges
   billing.onUserChange((u) => server.broadcast('userChange', u), { immediate: 'none' });
   billing.onBalanceChange((b) => server.broadcast('balancesChange', b), { immediate: 'none' });
@@ -279,6 +293,92 @@ describe('PaywallUI integration (extension)', () => {
     const types = stub.flushedEvents.map((e) => e.type);
     expect(types).not.toContain('paywall_viewed');
     expect(types).not.toContain('paywall_closed');
+  });
+
+  // The extension mirror of the delayed-gate hold. This is the build where the
+  // phantom views were measured: a disabled paywall reported ~800 views/day
+  // because the layout rendered before the gate decided, and the gate's close
+  // then paired a `paywall_closed` with it.
+  it('auto-tracking: a visibility block leaves no phantom viewed/closed', async () => {
+    const { server, stub } = setupOffscreen({
+      bootstrap: {
+        settings: {
+          name: 'Test',
+          is_test_mode: false,
+          visibility: { visible: false, reason: 'disabled', country: 'US', tier: 1 }
+        },
+        prices: [{ id: '1' }] as unknown[],
+        offers: [] as unknown[],
+        layout: { type: 'modal', blocks: [] as unknown[] },
+        user: null
+      }
+    });
+    const [contentCh, serverCh] = pairChannels();
+    server.accept(serverCh);
+    _setContentTransportForTests(new TransportClient(() => contentCh));
+
+    const paywall = new PaywallUI({ paywallId: 'demo', apiOrigin: 'https://t.local' });
+    cleanup.push(() => paywall.destroy());
+    cleanup.push(() => stub.tracker.destroy());
+
+    // The layout painting before the gate resolves — hand-emitted, because
+    // jsdom renders only after the gate has already settled.
+    (paywall as unknown as { viewedGatePending: boolean }).viewedGatePending = true;
+    (paywall as unknown as { lastMountedView: string }).lastMountedView = 'layout';
+    (paywall as unknown as { emit: (e: string, p?: unknown) => void }).emit('ready', {
+      settings: { is_test_mode: false },
+      prices: [{ id: '1' }],
+      offers: []
+    });
+
+    paywall.open();
+    await waitForEvent(stub, 'visibility_blocked');
+    const types = stub.flushedEvents.map((e) => e.type);
+    expect(types).not.toContain('paywall_viewed');
+    expect(types).not.toContain('paywall_closed');
+  });
+
+  // The extension mirror of the purchase dedupe, in its real shape: the popup
+  // is destroyed on focus loss, so each open builds a new PaywallUI over the
+  // same offscreen storage. A subscriber used to re-report a purchase on every
+  // visit (up to 21 per visitor).
+  it('auto-tracking: a re-created instance does not re-report the same purchase', async () => {
+    const { server, stub } = setupOffscreen();
+    const subscriber = {
+      has_active_subscription: true,
+      purchases: [{ id: 'sub_01ky', status: 'active' }]
+    };
+
+    const makeInstance = () => {
+      const [contentCh, serverCh] = pairChannels();
+      server.accept(serverCh);
+      _setContentTransportForTests(new TransportClient(() => contentCh));
+      const paywall = new PaywallUI({ paywallId: 'demo', apiOrigin: 'https://t.local' });
+      cleanup.push(() => paywall.destroy());
+      (paywall.billing as unknown as { getCachedUser: () => unknown }).getCachedUser =
+        () => subscriber;
+      (paywall as unknown as { lastMountedView: string }).lastMountedView = 'layout';
+      return paywall;
+    };
+    cleanup.push(() => stub.tracker.destroy());
+
+    const first = makeInstance();
+    (first as unknown as { emit: (e: string, p?: unknown) => void }).emit(
+      'purchase_completed',
+      { priceId: null, sessionId: null }
+    );
+    await waitForEvent(stub, 'purchase_completed');
+    expect(stub.flushedEvents.filter((e) => e.type === 'purchase_completed')).toHaveLength(1);
+
+    // Popup re-opened: fresh instance, same offscreen storage behind it.
+    const second = makeInstance();
+    await new Promise((r) => setTimeout(r, 60)); // let its mirror warm
+    (second as unknown as { emit: (e: string, p?: unknown) => void }).emit(
+      'purchase_completed',
+      { priceId: null, sessionId: null }
+    );
+    await new Promise((r) => setTimeout(r, 100));
+    expect(stub.flushedEvents.filter((e) => e.type === 'purchase_completed')).toHaveLength(1);
   });
 
   it('analytics:false → track() and auto-events do not reach offscreen tracker', async () => {

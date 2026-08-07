@@ -481,6 +481,22 @@ export class BillingClient {
     return this.storage;
   }
 
+  /**
+   * The cached user for offline decisions: awaits the persisted-user hydration
+   * and returns whatever the cache then holds. Unlike `getSettledUser()` this
+   * issues NO network request, consumes no checkout-pending marker and never
+   * calls `applyUser` — it is a pure read, safe to call on a path that is
+   * already handling a failed request. Unlike the synchronous
+   * `getCachedUser()` it waits for storage, which is what makes the documented
+   * offline fallback actually see a persisted subscription.
+   *
+   * The extension override reaches into offscreen, where the real cache lives.
+   */
+  async peekCachedUser(): Promise<PaywallUser | null> {
+    await this.userHydration.catch((): undefined => undefined);
+    return this.cachedUser;
+  }
+
   /** Origin the SDK is currently talking to: `apiOrigin`, or the edge mirror
    *  after a network-level failover (see core/edge.ts). For building sibling
    *  URLs that must reach the same host — e.g. the analytics endpoint. */

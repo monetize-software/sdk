@@ -95,18 +95,23 @@ export class PaywallUI extends BasePaywallUI {
     const t = this.remoteTracker;
     if (!t) return;
 
+    // Transport for a paywall_viewed held back by the delayed-gate hold — the
+    // base class replays it through here (see releaseViewedGate).
+    this.trackViewedFn = (b) => {
+      t.track('paywall_viewed', {
+        is_test_mode: b.settings.is_test_mode,
+        prices_count: b.prices.length,
+        offers_count: b.offers.length
+      });
+    };
+
     this.trackerUnsubs.push(
       // paywall_viewed/paywall_closed only for the real paywall ('layout') —
       // same gate as the base initTracker: 'ready'/'close' fire for
       // support/auth/awaiting_payment mounts too, but that's not a paywall view.
       this.on('ready', (b) => {
-        if (this.lastMountedView !== 'layout') return;
-        this.viewedTracked = true;
-        t.track('paywall_viewed', {
-          is_test_mode: b.settings.is_test_mode,
-          prices_count: b.prices.length,
-          offers_count: b.offers.length
-        });
+        if (!this.acceptViewed(b)) return;
+        this.trackViewedFn?.(b);
       }),
       this.on('price_selected', (p) =>
         t.track('price_selected', { price_id: p.priceId })
@@ -118,14 +123,22 @@ export class PaywallUI extends BasePaywallUI {
         // restored=true = "active subscription discovered", not a purchase —
         // same skip as the base initTracker.
         if (p.restored) return;
+        // And the same storage-backed dedupe: this is the channel where a
+        // re-created popup used to re-report a subscriber's purchase.
+        if (!this.shouldTrackPurchase(p)) return;
         t.track('purchase_completed', { price_id: p.priceId, session_id: p.sessionId });
       }),
       this.on('purchase_failed', (p) => t.track('purchase_failed', { reason: p.reason })),
       this.on('close', () => {
+        // A close with the hold still live is the user closing the modal (a
+        // blocking gate drops the hold first) — release so the pair lands.
+        if (this.viewedGatePending) this.releaseViewedGate(true);
         // Closed pairs only with a tracked viewed — a delayed gate closing the
         // mount-then-load spinner is not "the user closed the paywall".
         if (this.viewedTracked) t.track('paywall_closed');
         this.viewedTracked = false;
+        // The mount is over: a 'ready' still in flight must not add a view.
+        this.viewedGateSettled = true;
       }),
       this.on('trial_blocked', (s) =>
         t.track('trial_blocked', {
@@ -162,6 +175,10 @@ export class PaywallUI extends BasePaywallUI {
     for (const fn of this.trackerUnsubs) fn();
     this.trackerUnsubs = [];
     this.remoteTracker = null;
+    // Unlike the base tracker (nulled in super.destroy(), so its replay is a
+    // no-op), this closure captures the RemoteEventTracker directly — a gate
+    // resolving after destroy() would otherwise send through a dead transport.
+    this.trackViewedFn = null;
     super.destroy();
   }
 }
