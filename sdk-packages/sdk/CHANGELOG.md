@@ -1,5 +1,37 @@
 # @monetize.software/sdk
 
+## 3.5.1
+
+### Patch Changes
+
+- da89e4b: Fix `getAccess()` locking subscribers out when bootstrap fails on load
+
+  When `bootstrap()` threw, the offline fallback decided from `getCachedUser()` alone. That is the page-side mirror, and in the extension build it is empty on **every** fresh load: `RemoteBillingClient` starts with `cachedUser = null` and only fills from a successful bootstrap or a `userChange` broadcast, while the real cache — persisted user, auth hydration — lives in the offscreen document. So a single network hiccup during page load resolved to `blocked` / `no_subscription` for anyone, including a paying subscriber, and the host would then open a paywall with prices in front of them. The offline fallback promised in the docs never actually worked in the extension build.
+
+  The fallback now consults a new `BillingClient.peekCachedUser()` — a pure read that awaits storage hydration and returns the cache, overridden in `RemoteBillingClient` to ask the offscreen context where the real cache lives.
+
+  Deliberately NOT `getSettledUser()`, even though the success path uses it: this branch already knows the network is down, and a settle there would fire a second doomed request, consume the one-shot checkout-pending marker on it (resurrecting the post-purchase paywall flash that marker exists to prevent), and — for an anonymous visitor — persist `EMPTY_USER` and emit `userChange` from a method documented as a pure read.
+
+  Deliberately narrow: the settled user is used **only** when it reports an active subscription. A settle for a guest without identity resolves to `EMPTY_USER` rather than `null`, and letting that through would change the `user` field hosts read as "unknown", so every other offline outcome is unchanged.
+
+- da89e4b: Analytics: a blocking gate no longer leaves a phantom `paywall_viewed` / `paywall_closed` pair
+
+  On the mount-then-load path the modal is mounted before bootstrap arrives, so the layout can render — and emit `ready` — while the gates are still deciding. The subscription gate awaits `getSettledUser()` (a network round-trip), which pushes the decision hundreds of ms past the render. A gate that then blocked closed the modal, but `paywall_viewed` had already been tracked and `paywall_closed` paired with it: the events dashboard showed views and closes for a paywall nobody was ever allowed to see. On a disabled paywall that was effectively every event — a live paywall reported ~800 views/day with visibility off, and its funnel read as "lots of traffic, no sales".
+
+  `paywall_viewed` is now held while a delayed gate is pending and only released once the gates pass. If a gate blocks, the held view is dropped and just the gate's own event (`visibility_blocked` / `trial_blocked`, or nothing for the subscription suppress) reaches analytics. A `ready` arriving after the mount is over no longer tracks a view either.
+
+  Real views are unaffected: when the gates pass — or when the user closes the modal themselves while a gate is still pending, having seen the layout — the `paywall_viewed` / `paywall_closed` pair lands as before. Both the base SDK tracker and the sdk-extension `bindAnalytics` mirror carry the same hold.
+
+- da89e4b: Analytics: a purchase is reported once, not on every re-discovery; event buffer capped at the ingest limit
+
+  `handlePurchaseDetected` fires whenever an active subscription is discovered — not only right after paying — and emitted `purchase_completed` without `restored`, so the 3.3.1 filter never saw it. Its only guard, `this.purchased`, dedupes within ONE PaywallUI instance, and in an extension the popup is destroyed when it loses focus: every open built a fresh instance and re-reported the subscriber's purchase. Measured over 30 days: 624 events for 339 actual buyers (1.87x in the extension channel, up to 21 events for a single visitor), all with an empty `session_id`. One paywall showed 73 "purchases" against 34 rows in the database.
+
+  `purchase_completed` is now keyed on the purchase itself — the checkout session id when present, otherwise the active purchase ids — and reported only the first time that key is seen. A checkout started in the current instance bypasses the dedupe entirely: an already-subscribed user buying again keeps their old purchase ids, so the key would match the one stored for the first subscription and the upgrade would be swallowed. The set of reported keys is mirrored in memory (the check sits on the event path and must stay synchronous, or the tracker's batch would reorder) and persisted to storage, which in an extension is shared across popup, content-script and offscreen — so it survives the instance churn that caused the inflation. Persistence is a serialized read-merge-write: a blind overwrite would drop keys whenever a purchase landed before the mirror warmed, or when two contexts wrote concurrently. A genuinely new purchase (an upgrade, a second subscription) yields a different key and is reported. With nothing stable to key on, the event is reported rather than risk swallowing a real sale.
+
+  The public `purchase_completed` event is unchanged — the host still receives it exactly as before; only what reaches analytics is deduplicated.
+
+  Also: `HARD_BUFFER_LIMIT` in EventTracker drops from 200 to 100, matching `MAX_EVENTS_PER_BATCH` on the ingest route. A larger buffer could flush a batch the server rejects with 413, and since `flush()` clears the buffer before sending, the whole backlog would vanish silently.
+
 ## 3.5.0
 
 ### Minor Changes
