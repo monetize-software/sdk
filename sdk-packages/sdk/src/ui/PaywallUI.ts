@@ -904,8 +904,11 @@ export class PaywallUI {
     try {
       await this.billing.bootstrap({ signal: opts.signal });
       // Balances — best-effort: paywalls without `tokenization` return an empty
-      // array, and getBalances doesn't make a network request for an unauth
-      // user.
+      // array, and getBalances makes no network request for a visitor without a
+      // Bearer (checked against the resolved token, not the mere presence of an
+      // AuthClient — see BillingClient.fetchBalances). That matters here: preload
+      // is documented as callable on every hover/mount, so a per-call round-trip
+      // turns into a request storm for the anonymous majority of a free app.
       if (this.billing.auth) {
         await this.billing.getBalances({ signal: opts.signal });
       }

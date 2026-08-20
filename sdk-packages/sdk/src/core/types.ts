@@ -432,8 +432,19 @@ export interface PaywallBootstrap {
   version?: string;
 }
 
+/** Payment processors the backend can route a checkout to. The SDK itself never
+ *  branches on this — every processor returns a hosted-checkout URL that opens
+ *  the same way, and the purchase is detected by UserWatcher polling rather than
+ *  by a success redirect. The value is passed through to `CheckoutResult` and
+ *  the `checkout_started` event so the host can segment conversion by acquirer. */
 export type Acquiring =
-  'stripe' | 'paddle' | 'chargebee' | 'overpay' | 'freemius';
+  | 'stripe'
+  | 'paddle'
+  | 'chargebee'
+  | 'overpay'
+  | 'freemius'
+  | 'polar'
+  | 'lava';
 
 export interface CheckoutResult {
   url: string;

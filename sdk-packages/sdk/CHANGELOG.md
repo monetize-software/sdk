@@ -1,5 +1,70 @@
 # @monetize.software/sdk
 
+## 3.5.2
+
+### Patch Changes
+
+- `Acquiring` covers the two processors the backend already routes to
+
+  `polar` and `lava` have been live server-side, but the union in `types.ts` still
+  listed five processors — so a host reading `acquiring` off `checkout_started` or
+  `CheckoutResult` got a value TypeScript insisted could not exist. The type now
+  matches what the backend returns, and the union carries a note that the SDK
+  itself never branches on it: every processor hands back a hosted-checkout URL
+  that opens the same way, and a purchase is detected by polling rather than by a
+  success redirect. The value is passed through purely so hosts can segment
+  conversion by acquirer.
+
+- `getBalances()` stops storming `/balances` with 401s for signed-out visitors
+
+  The skip-the-network guard checked `this.auth` — whether an AuthClient was wired
+  up at all — while the JSDoc promised "without a Bearer we don't spend a
+  round-trip". For the anonymous majority of a free app those are different
+  things: the AuthClient exists, the visitor is not signed in, the request goes
+  out, comes back 401, and throws before `applyBalances` — so the 5-second cache
+  is never written and the next call repeats the round-trip. Measured on one live
+  paywall over 30 days: 2.6M such requests a day, 99.7% of them 401, from 15 841
+  distinct IPs — 89% of all request-log rows the platform wrote. The paywall in
+  question has `tokenization` disabled, so every one of those answers would have
+  been an empty array anyway.
+
+  The guard now resolves the access token before the request — through
+  `getAccessToken()`, the same call `ApiClient` makes for the `Authorization`
+  header (its refresh is deduped), so no extra round-trip is introduced — and
+  answers a visitor without a token from memory with `[]`, cache included. The
+  token is deliberately not read from `getCachedSession()`: the session sits
+  behind storage hydration, and in an extension the page-side mirror is empty on
+  every fresh load, so a synchronous read would tell a paying subscriber they have
+  no quota.
+
+  Two cases stay exactly as they were. A `getAccessToken()` that throws means the
+  refresh died on the network, not that the visitor is anonymous — the session may
+  still be alive, so nothing is cached and the error surfaces. And a 401 answered
+  to a request that did carry a Bearer is not treated as proof of a signed-out
+  visitor either (a refresh that failed on the network lands there too), so it
+  never poisons the cache with an empty array.
+
+  Two nearby hazards are closed at the same time, because the guard would
+  otherwise have made a rare race routine. `applyBalances` persists by default, so
+  the empty shape served to an anonymous visitor would be written under the
+  `guest` storage key on essentially every visit. And the balances hydrate reads
+  that key on construction: it resolves the key BEFORE the storage `await` and
+  applies the value AFTER it, so with managed auth — where `INITIAL_SESSION` and
+  `setIdentity` land mid-read — a signed-in subscriber could be served the guest
+  snapshot, that is "no quota", plus a broadcast of it to every other context.
+  The anonymous answer is therefore cached in memory but no longer persisted
+  (nothing is lost: an empty array costs no round-trip to rederive), the hydrate
+  now drops a value whose identity key changed while the read was in flight, and
+  the constructor skips the balances hydrate entirely while auth is wired up but
+  the identity has not resolved yet — the same guard the user hydrate already had,
+  for the same reason.
+
+  Behaviour note for hosts: `getCachedBalances()` documents `null` as "not loaded
+  yet". For a signed-out visitor it now returns `[]` sooner — the same shape the
+  SDK already produced when no AuthClient was configured at all. UI that
+  distinguishes "not loaded" from "no quotas" by a `null` check will see the
+  "no quotas" branch for anonymous visitors.
+
 ## 3.5.1
 
 ### Patch Changes

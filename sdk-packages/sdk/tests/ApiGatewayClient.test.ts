@@ -390,6 +390,194 @@ describe('BillingClient.balances', () => {
     expect(balanceCalls.length).toBe(0);
   });
 
+  // An AuthClient whose visitor is signed out must be as cheap as no AuthClient
+  // at all: the request would come back 401, and a 401 never populates the cache,
+  // so every call would repeat the round-trip (one live paywall produced 2.6M of
+  // them a day). The token is what decides, not the presence of the client.
+  it('returns [] without hitting network when the AuthClient holds no token', async () => {
+    const fetchMock = makeBalancesFetch([]);
+    const auth = fakeAuth(null);
+    const client = new BillingClient({
+      apiOrigin: TEST_API_ORIGIN,
+      paywallId: 'pw_1',
+      auth,
+      fetch: fetchMock,
+      storage: freshStorage()
+    });
+
+    const first = await client.getBalances();
+    const second = await client.getBalances({ force: true });
+
+    expect(first).toEqual([]);
+    expect(second).toEqual([]);
+    // The cache is populated, so a host reading the snapshot gets [] rather than
+    // "not loaded" forever.
+    expect(client.getCachedBalances()).toEqual([]);
+    const balanceCalls = fetchMock.mock.calls.filter(([u]) =>
+      String(u).includes('/balances')
+    );
+    expect(balanceCalls.length).toBe(0);
+  });
+
+  it('goes to the network as soon as a token exists', async () => {
+    const fetchMock = makeBalancesFetch([[{ type: 'free', count: 3 }]]);
+    let token: string | null = null;
+    const auth = {
+      getAccessToken: vi.fn(async () => token),
+      getCachedUser: vi.fn(() => null),
+      onAuthChange: vi.fn(() => () => {}),
+      ready: vi.fn(async () => {})
+    } as unknown as ConstructorParameters<typeof BillingClient>[0]['auth'];
+    const client = new BillingClient({
+      apiOrigin: TEST_API_ORIGIN,
+      paywallId: 'pw_1',
+      auth,
+      fetch: fetchMock,
+      storage: freshStorage()
+    });
+
+    expect(await client.getBalances()).toEqual([]);
+    token = 'tok';
+    expect(await client.getBalances({ force: true })).toEqual([
+      { type: 'free', count: 3 }
+    ]);
+    const balanceCalls = fetchMock.mock.calls.filter(([u]) =>
+      String(u).includes('/balances')
+    );
+    expect(balanceCalls.length).toBe(1);
+  });
+
+  // A throwing getAccessToken means the refresh died on the network, not that the
+  // visitor is anonymous — the session may well be alive. The guard must not read
+  // it as "signed out" and cache []: the call surfaces the error, exactly as it
+  // did before (ApiClient.getAuthToken would have thrown the same way), and the
+  // next attempt starts from an unpoisoned cache.
+  it('surfaces the error without caching [] when the token probe throws', async () => {
+    const fetchMock = makeBalancesFetch([[{ type: 'free', count: 7 }]]);
+    let failProbe = true;
+    const auth = {
+      getAccessToken: vi.fn(async () => {
+        if (failProbe) throw new Error('network down');
+        return 'tok';
+      }),
+      getCachedUser: vi.fn(() => null),
+      onAuthChange: vi.fn(() => () => {}),
+      ready: vi.fn(async () => {})
+    } as unknown as ConstructorParameters<typeof BillingClient>[0]['auth'];
+    const client = new BillingClient({
+      apiOrigin: TEST_API_ORIGIN,
+      paywallId: 'pw_1',
+      auth,
+      fetch: fetchMock,
+      storage: freshStorage()
+    });
+
+    await expect(client.getBalances()).rejects.toThrow('network down');
+    expect(client.getCachedBalances()).toBeNull();
+
+    failProbe = false;
+    expect(await client.getBalances()).toEqual([{ type: 'free', count: 7 }]);
+    const balanceCalls = fetchMock.mock.calls.filter(([u]) =>
+      String(u).includes('/balances')
+    );
+    expect(balanceCalls.length).toBe(1);
+  });
+
+  // A 401 answered to a request that DID carry a Bearer proves nothing about the
+  // session (a refresh that failed on the network lands here too) — it must not
+  // be cached as "no quotas".
+  it('does not cache [] when a request with a token is answered 401', async () => {
+    const fetchMock = makeBalancesFetch([
+      { error: 'authorization_required', status: 401 },
+      [{ type: 'free', count: 2 }]
+    ]);
+    const client = new BillingClient({
+      apiOrigin: TEST_API_ORIGIN,
+      paywallId: 'pw_1',
+      auth: fakeAuth('tok'),
+      fetch: fetchMock,
+      storage: freshStorage()
+    });
+
+    await expect(client.getBalances()).rejects.toThrow();
+    expect(client.getCachedBalances()).toBeNull();
+    // The next call goes back to the network instead of serving a poisoned cache.
+    expect(await client.getBalances()).toEqual([{ type: 'free', count: 2 }]);
+  });
+
+  // The anonymous answer must not be written to storage: it lands under the
+  // 'guest' key, and a guest entry read during a cold start is what feeds the
+  // signed-in subscriber an empty snapshot (see the hydrate race below).
+  it('does not persist the empty shape it serves to a signed-out visitor', async () => {
+    const fetchMock = makeBalancesFetch([]);
+    const storage = freshStorage();
+    const client = new BillingClient({
+      apiOrigin: TEST_API_ORIGIN,
+      paywallId: 'pw_1',
+      auth: fakeAuth(null),
+      fetch: fetchMock,
+      storage
+    });
+
+    expect(await client.getBalances()).toEqual([]);
+    await Promise.resolve();
+    // freshStorage types setItem as a zero-arg mock, so the recorded calls need
+    // a cast to be read positionally.
+    const balanceWrites = (
+      storage.setItem.mock.calls as unknown as Array<[string, string]>
+    ).filter(([k]) => k.includes('balances'));
+    expect(balanceWrites.length).toBe(0);
+    // In memory the empty shape IS cached — that is what keeps the next call
+    // off the network.
+    expect(client.getCachedBalances()).toEqual([]);
+  });
+
+  // A signin resolving while the storage read is in flight used to hand the
+  // freshly signed-in user whatever sat under the 'guest' key — an empty array,
+  // i.e. "no quota" for a paying subscriber, broadcast to every context.
+  it('drops a hydrated snapshot whose identity changed mid-read', async () => {
+    // Only the balances reads are held open (the constructor also reads the user,
+    // the bootstrap and the visitor id — those answer null immediately). The
+    // held read is the 'guest' one the constructor starts; the signin lands
+    // while it is still in flight, which is the cold-start race.
+    const held = new Map<string, (value: string | null) => void>();
+    const storage = {
+      getItem: vi.fn((key: string) => {
+        if (!key.includes('balances')) return Promise.resolve(null);
+        return new Promise<string | null>((resolve) => held.set(key, resolve));
+      }),
+      setItem: vi.fn(async () => {}),
+      removeItem: vi.fn(async () => {})
+    };
+    const client = new BillingClient({
+      apiOrigin: TEST_API_ORIGIN,
+      paywallId: 'pw_1',
+      fetch: makeBalancesFetch([]),
+      storage
+    });
+
+    const seen: Balance[][] = [];
+    client.onBalanceChange((b) => seen.push(b), { immediate: 'none' });
+
+    const guestKey = [...held.keys()].find((k) => k.includes('guest'));
+    expect(guestKey).toBeDefined();
+
+    client.setIdentity({ email: 'buyer@example.com' });
+
+    // The guest read finally answers — with a snapshot that belongs to nobody
+    // who is signed in now.
+    held.get(guestKey!)!(
+      JSON.stringify({
+        at: Date.now(),
+        balances: [{ type: 'free', count: 5 }] as Balance[]
+      })
+    );
+    for (let i = 0; i < 5; i++) await Promise.resolve();
+
+    expect(client.getCachedBalances()).toBeNull();
+    expect(seen).toEqual([]);
+  });
+
   it('caches balances within TTL and re-fetches on force', async () => {
     const fetchMock = makeBalancesFetch([
       [{ type: 'free', count: 10 }],

@@ -101,7 +101,8 @@ try {
 
 - `BillingClient.createApiGatewayClient()` wires the Bearer from `AuthClient`,
   optimistically decrements `cachedBalances` on success, and refetches `/balances`
-  on 402.
+  on 402. A signed-out visitor never reaches the network for balances — they are
+  answered `[]` from memory, so balance reads are free to call on every render.
 - `gateway.call()` returns the raw `Response`. Caller decides: `.json()`,
   `.body.getReader()`, or async-iter — anything that works on a `fetch` Response.
 - On 402, `QuotaExceededError` is thrown with `balances` / `queryType` / `currentBalance`.

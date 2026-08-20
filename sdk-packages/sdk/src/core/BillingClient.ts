@@ -365,7 +365,16 @@ export class BillingClient {
 
     // Balances: identity-bound persist. On init the key = identity at constructor
     // time; setIdentity unsubscribes and re-subscribes under the new one.
-    void this.hydrateBalancesFromStorage();
+    // The same guard as the user hydrate above, and for the same reason: with
+    // managed-auth the constructor runs before the session hydrates, so the key
+    // would be 'guest'. A guest entry read under that key lands in the cache
+    // AFTER INITIAL_SESSION → setIdentity has already switched the identity, and
+    // a signed-in subscriber is served the anonymous snapshot (an empty array,
+    // i.e. "no quota") for up to the stale threshold, plus a broadcast of it to
+    // every other context. setIdentity re-runs this hydrate under the right key.
+    if (!(this.auth && !this.identity)) {
+      void this.hydrateBalancesFromStorage();
+    }
     this.subscribeBalancesStorage();
 
     // Resolve visitor_id ahead of time so EventTracker can take a sync reference
@@ -1168,8 +1177,9 @@ export class BillingClient {
    * - In-memory cache TTL 5s — parallel UI renders don't hit the network;
    * - In-flight dedupe — parallel `getBalances` calls get a single promise;
    * - `force: true` bypasses the cache (the typical case — after QuotaExceededError);
-   * - Without auth (Bearer not issued) it returns an empty array without a
-   *   network request: the backend would answer 401 anyway, no point spending a round-trip.
+   * - Without a Bearer — no AuthClient at all, or an AuthClient whose visitor is
+   *   not signed in — it returns an empty array without a network request: the
+   *   backend would answer 401 anyway, no point spending a round-trip.
    *
    * If the paywall has `tokenization=false` — the backend returns `[]`, as for a
    * guest. The SDK doesn't distinguish "no quota" from "no quotas at all" — the
@@ -1220,7 +1230,39 @@ export class BillingClient {
         // /balances requires Bearer. Without auth — an empty array, we don't
         // trigger listeners (this is the "not loaded" shape, not "changed").
         if (!this.auth) {
-          this.applyBalances([]);
+          this.applyBalances([], { persist: false });
+          return [];
+        }
+        // An AuthClient exists, but that says nothing about the visitor being
+        // signed in — and a Bearer-less request is answered with 401, which
+        // throws before applyBalances and therefore never populates the cache.
+        // Every subsequent call then repeats the round-trip: a single paywall
+        // produced 2.6M such 401s a day, 99.7% of its whole traffic. Resolve the
+        // token the way ApiClient would (getAuthToken is the same call, its
+        // refresh is deduped via inflightRefresh), so this costs no extra
+        // round-trip, and answer an anonymous visitor from memory.
+        //
+        // Deliberately NOT getCachedSession(): the session sits behind storage
+        // hydration, and in the extension the page-side mirror is empty on every
+        // fresh load — reading it would tell a paying subscriber they have no
+        // quota. getAccessToken awaits the hydrate and re-reads storage itself.
+        let token: string | null = null;
+        let tokenProbeFailed = false;
+        try {
+          token = await this.auth.getAccessToken();
+        } catch {
+          // The refresh failed at the network level — the session may well be
+          // alive. Not proof of an anonymous visitor: fall through to the
+          // request, exactly as before this guard existed.
+          tokenProbeFailed = true;
+        }
+        if (!tokenProbeFailed && token === null) {
+          // persist: false — the empty shape carries no information a later run
+          // couldn't derive for free, while a stored one only creates ways to
+          // mislead: it lands under the 'guest' key, and a stale guest entry
+          // read during a cold start is exactly what tells a signed-in
+          // subscriber they have no quota.
+          this.applyBalances([], { persist: false });
           return [];
         }
         const resp = await this.api.request<{
@@ -1237,7 +1279,9 @@ export class BillingClient {
     return this.inflightBalances;
   }
 
-  /** Sync snapshot. null = not loaded yet (or an explicit clear on re-login). */
+  /** Sync snapshot. null = not loaded yet (or an explicit clear on re-login).
+   *  A visitor without a Bearer never stays at null: `getBalances()` answers
+   *  them `[]` from memory (no round-trip) and that empty shape is cached. */
   getCachedBalances(): Balance[] | null {
     return this.cachedBalances;
   }
@@ -1368,8 +1412,9 @@ export class BillingClient {
 
   private async hydrateBalancesFromStorage(): Promise<void> {
     if (this.cachedBalances) return;
+    const key = this.balancesStorageKey();
     try {
-      const raw = await this.storage.getItem(this.balancesStorageKey());
+      const raw = await this.storage.getItem(key);
       if (!raw) return;
       const parsed = JSON.parse(raw) as { at: number; balances: Balance[] } | null;
       if (!parsed?.balances || !Array.isArray(parsed.balances)) return;
@@ -1377,6 +1422,11 @@ export class BillingClient {
       // Race protection: if during the `await` a fresh value already arrived from
       // the network — don't overwrite.
       if (this.cachedBalances) return;
+      // Same for the identity: setIdentity may have landed while the read was in
+      // flight (a signin resolves mid-await). The value we hold belongs to the
+      // key we asked for, not to whoever the client speaks for now — applying it
+      // would hand one identity's balances to another.
+      if (this.balancesStorageKey() !== key) return;
       this.cachedBalances = parsed.balances;
       this.cachedBalancesAt = parsed.at;
       for (const cb of this.balanceListeners) {
