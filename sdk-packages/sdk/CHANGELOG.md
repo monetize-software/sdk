@@ -1,5 +1,15 @@
 # @monetize.software/sdk
 
+## 3.5.3
+
+### Patch Changes
+
+- Refetch the bootstrap when identity changes, so personal offers reach the buyer they were created for.
+
+  Offers are the identity-dependent part of the bootstrap: a publisher can target an offer at specific emails, and the server only returns such an offer when the request carries a matching `X-User-Email`. `setIdentity` used to treat the whole structure as identity-agnostic, so a paywall bootstrapped as a guest kept showing the common offer for the rest of the cache TTL after sign-in — the buyer saw the public discount instead of the one addressed to them.
+
+  A bootstrap response that loses the identity race is now dropped instead of committed: a guest payload landing after sign-in no longer pins the anonymous offer set, and a signout no longer leaves the previous user's personal offer on screen.
+
 ## 3.5.2
 
 ### Patch Changes
