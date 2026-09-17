@@ -196,6 +196,13 @@ export class BillingClient {
   // stale-while-revalidate branch also writes a background promise here so that
   // commits don't cross.
   private inflightBootstrap: Promise<PaywallBootstrap> | null = null;
+  // Bumped on every setIdentity. A bootstrap response carries offers resolved
+  // for the email the request was sent with (personal offers are targeted at
+  // `offer_settings.target_emails`), so a response that started under a previous
+  // identity must not be committed to the cache — otherwise a signout would
+  // leave the previous user's personal offer on screen, and a login racing the
+  // cold bootstrap would pin the anonymous offer set for the whole TTL.
+  private identityEpoch = 0;
   private bootstrapListeners = new Set<(b: PaywallBootstrap) => void>();
   // Unsubscribe from storage.watch — another tab / popup / service-worker may
   // have updated the bootstrap; via watch we get onChanged without a network
@@ -408,8 +415,13 @@ export class BillingClient {
 
   setIdentity(identity: Identity | undefined): void {
     this.identity = identity;
-    // We do NOT reset the bootstrap: structure (layout/prices/offers/locales)
-    // doesn't depend on identity, we reuse the persisted shape. user is updated
+    this.identityEpoch++;
+    // We do NOT reset the bootstrap: layout/prices/locales don't depend on
+    // identity, so we keep serving the persisted shape instead of blanking the
+    // UI. Offers DO depend on it — a publisher can target an offer at specific
+    // emails, and the server only returns such an offer when the request
+    // carries a matching `X-User-Email` — so we refetch the structure in the
+    // background right below (refetchBootstrapForIdentity). user is updated
     // separately via getUser({force:true}) below + the next bootstrap revalidate
     // pulls in a fresh user in one round-trip if needed. user is bound to
     // identity — switching clears it, otherwise one user would see another's
@@ -434,6 +446,7 @@ export class BillingClient {
     void this.hydrateBalancesFromStorage();
     this.subscribeBalancesStorage();
     this.userHydration = this.hydrateUserFromStorage();
+    this.refetchBootstrapForIdentity();
     if (identity) {
       // Auto-refetch the user in the background for the new identity. Without
       // this, UIs subscribed to onUserChange (account widgets, status pops) would
@@ -654,6 +667,10 @@ export class BillingClient {
   }): Promise<PaywallBootstrap> {
     const headers: Record<string, string> = {};
     if (this.identity?.email) headers['X-User-Email'] = this.identity.email;
+    // Identity this request speaks for. Offers are resolved server-side against
+    // the email above, so a response that lands after a login/signout describes
+    // the wrong person and must not be committed (see identityEpoch).
+    const epoch = this.identityEpoch;
 
     const path = opts.ifVersion
       ? `/api/v1/paywall/${this.paywallId}/bootstrap?if_version=${encodeURIComponent(opts.ifVersion)}`
@@ -672,6 +689,12 @@ export class BillingClient {
       // fallback: repeat the request without if_version to get the full payload.
       if (!this.cachedBootstrap) {
         return this.fetchBootstrap({ signal: opts.signal });
+      }
+      // Identity changed while this was in flight — a newer request is already
+      // on its way with the new email; committing this one would refresh the
+      // TTL on a structure resolved for the previous user.
+      if (epoch !== this.identityEpoch) {
+        return { ...this.cachedBootstrap, user: this.cachedUser ?? undefined };
       }
       // Refresh the TTL — an unchanged response also went over the network, the cache is still valid.
       this.cachedBootstrapAt = Date.now();
@@ -696,6 +719,11 @@ export class BillingClient {
     }
     applyLocaleOverrides(bootstrap);
     await this.materializeExperiment(bootstrap);
+
+    // Stale identity — return the payload to whoever awaited this call, but
+    // don't cache/persist or broadcast it: the offers in it belong to the
+    // previous user.
+    if (epoch !== this.identityEpoch) return bootstrap;
 
     this.applyBootstrap(bootstrap, { persist: true });
     if (bootstrap.user) this.applyUser(bootstrap.user);
@@ -729,6 +757,34 @@ export class BillingClient {
     } catch {
       /* control experience on any failure */
     }
+  }
+
+  /**
+   * Background structure refetch after an identity change. Offers are the part
+   * of the bootstrap that depends on who is asking: a personal offer
+   * (`offer_settings.target_emails`) only comes back when the request carries
+   * that email, so a paywall bootstrapped as a guest shows the common offer and
+   * would keep showing it for the whole cache TTL after the user signs in.
+   *
+   * Deliberately NOT routed through `revalidateBootstrap`: that one reuses
+   * `inflightBootstrap`, which may be a request started under the previous
+   * identity (the common case is AuthClient restoring a session while the cold
+   * bootstrap is still in the air). We start our own request; stale responses
+   * are dropped by the identityEpoch guard in fetchBootstrap.
+   *
+   * Nothing is in flight and nothing is cached → the first bootstrap() hasn't
+   * happened yet and will go out with the new identity anyway.
+   */
+  private refetchBootstrapForIdentity(): void {
+    if (this.previewMode) return;
+    if (!this.cachedBootstrap && !this.inflightBootstrap) return;
+    // `ifVersion` keeps it cheap: if the offer set for this identity is the same
+    // as the cached one, the server answers a short `unchanged: true`.
+    void this.fetchBootstrap({ ifVersion: this.cachedBootstrap?.version }).catch(
+      () => {
+        /* network — the next bootstrap()/revalidate picks the structure up */
+      }
+    );
   }
 
   // Background revalidate from the stale-while-revalidate branch. Deduplicated

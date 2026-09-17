@@ -3,6 +3,7 @@ import { BillingClient } from '../src/core/BillingClient';
 import {
   PaywallError,
   type PaywallBootstrap,
+  type PaywallOffer,
   type PaywallPrice,
   type PaywallSettings
 } from '../src/core/types';
@@ -126,26 +127,84 @@ describe('BillingClient', () => {
     expect((fetchImpl as ReturnType<typeof vi.fn>).mock.calls.length).toBe(2);
   });
 
-  it('keeps bootstrap cache across identity changes (structure is identity-agnostic)', async () => {
-    // The bootstrap structure (settings/prices/offers/layout/locales) doesn't depend
-    // on identity — `setIdentity` only resets the cached user. The next
-    // bootstrap() returns the cache without hitting the network; a fresh user comes via
-    // a separate getUser({force:true}), which setIdentity triggers itself.
-    const fetchImpl = bootstrapFetch(() => json(BOOTSTRAP));
+  it('refetches bootstrap on identity change — offers are targeted by email', async () => {
+    // Offers are the identity-dependent part of the structure: a publisher can
+    // target an offer at specific emails (offer_settings.target_emails) and the
+    // server only returns it when the request carries that email. A paywall
+    // bootstrapped as a guest must not keep showing the common offer for the
+    // whole cache TTL after the visitor signs in.
+    const PERSONAL: PaywallOffer = {
+      id: 'off_personal',
+      discount_percent: 25,
+      price_id: null,
+      expires_at: null
+    };
+    const seen: Array<string | undefined> = [];
+    const fetchImpl = vi.fn<typeof fetch>(async (input, init) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+      if (!url.includes('/bootstrap')) return json({});
+      const email = new Headers(init?.headers).get('X-User-Email') ?? undefined;
+      seen.push(email);
+      return json(
+        email
+          ? { ...BOOTSTRAP, offers: [PERSONAL], version: 'v-personal' }
+          : { ...BOOTSTRAP, version: 'v-anon' }
+      );
+    });
     const client = new BillingClient({ apiOrigin: TEST_API_ORIGIN, paywallId: 'pw_1', fetch: fetchImpl });
 
-    await client.bootstrap();
-    const before = (fetchImpl as ReturnType<typeof vi.fn>).mock.calls.length;
-    client.setIdentity({ email: 'a@b.c' });
-    await client.bootstrap();
+    const anon = await client.bootstrap();
+    expect(anon.offers).toEqual([]);
 
-    // bootstrap isn't re-fetched; setIdentity may have triggered getUser
-    // (a different endpoint) — the bootstrap endpoint stays at 1 call.
-    const bootstrapCalls = (fetchImpl as ReturnType<typeof vi.fn>).mock.calls.filter(
-      ([url]) => String(url).includes('/bootstrap')
-    ).length;
-    expect(bootstrapCalls).toBe(before);
+    client.setIdentity({ email: 'a@b.c' });
+    for (let i = 0; i < 20 && seen.length < 2; i++) await Promise.resolve();
+
+    expect(seen).toEqual([undefined, 'a@b.c']);
+    // Let the response land (json() + experiment materialization are async).
+    for (let i = 0; i < 40; i++) await Promise.resolve();
+    // The cached structure is now the personal one — no forced refetch needed.
+    const signedIn = await client.bootstrap();
+    expect(signedIn.offers).toEqual([PERSONAL]);
     expect(client.getIdentity()).toEqual({ email: 'a@b.c' });
+  });
+
+  it('drops a bootstrap response that lost the identity race', async () => {
+    // The guest bootstrap is still in the air when the user signs in, and it
+    // lands after the personal one. Its payload describes an anonymous visitor
+    // (no personal offers) — committing it would pin the guest offer set for
+    // the whole TTL and drop the discount the buyer was promised.
+    let releaseAnon: (r: Response) => void;
+    const anonPending = new Promise<Response>((resolve) => {
+      releaseAnon = resolve;
+    });
+    const PERSONAL: PaywallOffer = {
+      id: 'off_personal',
+      discount_percent: 25,
+      price_id: null,
+      expires_at: null
+    };
+    const fetchImpl = vi.fn<typeof fetch>(async (input, init) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+      if (!url.includes('/bootstrap')) return json({});
+      const email = new Headers(init?.headers).get('X-User-Email');
+      if (!email) return anonPending;
+      return json({ ...BOOTSTRAP, offers: [PERSONAL], version: 'v-personal' });
+    });
+    const client = new BillingClient({ apiOrigin: TEST_API_ORIGIN, paywallId: 'pw_1', fetch: fetchImpl });
+
+    const inflight = client.bootstrap();
+    for (let i = 0; i < 20 && fetchImpl.mock.calls.length === 0; i++) await Promise.resolve();
+
+    client.setIdentity({ email: 'a@b.c' });
+    for (let i = 0; i < 40; i++) await Promise.resolve();
+    expect((await client.bootstrap()).offers).toEqual([PERSONAL]);
+
+    // The guest response arrives last — and must not overwrite the cache.
+    releaseAnon!(json({ ...BOOTSTRAP, offers: [], version: 'v-anon' }));
+    await inflight;
+    for (let i = 0; i < 40; i++) await Promise.resolve();
+
+    expect((await client.bootstrap()).offers).toEqual([PERSONAL]);
   });
 
   it('createCheckout requires identity', async () => {
