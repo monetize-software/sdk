@@ -1,5 +1,12 @@
 # @monetize.software/sdk
 
+## 3.5.4
+
+### Patch Changes
+
+- Add `creem` to the `Acquiring` union — checkouts routed to Creem now report their processor in `CheckoutResult.acquiring` and the `checkout_started` event instead of falling outside the type.
+- Add `dodo` to the `Acquiring` union — checkouts routed to Dodo Payments now report their processor in `CheckoutResult.acquiring` and the `checkout_started` event instead of falling outside the type.
+
 ## 3.5.3
 
 ### Patch Changes

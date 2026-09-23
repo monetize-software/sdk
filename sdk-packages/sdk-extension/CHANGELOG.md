@@ -1,5 +1,11 @@
 # @monetize.software/sdk-extension
 
+## 3.5.2
+
+### Patch Changes
+
+- Rebuild with the sdk 3.5.2–3.5.4 fixes the extension bundles in: personal offers reach the buyer after they sign in (bootstrap refetches on identity change), and `/balances` no longer storms 401s for signed-out visitors. sdk-extension ships its own copy of the sdk core, so updating `@monetize.software/sdk` alone never delivered these to extensions.
+
 ## 3.5.1
 
 ### Patch Changes

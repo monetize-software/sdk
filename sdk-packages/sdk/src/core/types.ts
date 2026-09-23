@@ -444,7 +444,9 @@ export type Acquiring =
   | 'overpay'
   | 'freemius'
   | 'polar'
-  | 'lava';
+  | 'lava'
+  | 'dodo'
+  | 'creem';
 
 export interface CheckoutResult {
   url: string;
