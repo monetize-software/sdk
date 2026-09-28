@@ -458,6 +458,12 @@ export class OffscreenServer {
     // duplicated: the SW relay posts the msg → handler #1, the direct popup port
     // receives the same msg → handler #2. The SW therefore uses a separate name,
     // RELAY_PORT_NAME, for its own connect to offscreen.
+    //
+    // Ignored ports are NOT disconnect()ed: an explicit disconnect force-closes
+    // the whole channel, i.e. it would kill the content↔SW leg too. The price is
+    // that offscreen keeps a silent receiving end, so when the SW is terminated
+    // the content side gets no onDisconnect — TransportClient compensates with
+    // idle recycle + a liveness watchdog (shared/transport-client.ts).
     this.connectListener = (port) => {
       if (port.name !== RELAY_PORT_NAME) return;
       this.transport.accept(portToChannel(port));

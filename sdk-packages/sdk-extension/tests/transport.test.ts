@@ -322,3 +322,142 @@ describe('Transport request/response', () => {
     expect(factoryCalls).toBe(2);
   });
 });
+
+// A port whose far end silently vanished: the MV3 SW was terminated but
+// offscreen still holds a receiving end, so onDisconnect never fires and
+// sends go nowhere — no error, no response.
+function zombieChannel(): MessageChannel & { closed: boolean } {
+  const ch = {
+    closed: false,
+    send() {},
+    onMessage: () => () => {},
+    onDisconnect: () => () => {},
+    close() {
+      ch.closed = true;
+    }
+  };
+  return ch;
+}
+
+describe('Transport liveness (zombie port after SW sleep)', () => {
+  it('recycles a channel silent past the idle window before the next request', async () => {
+    vi.useFakeTimers();
+    try {
+      const server = new TransportServer();
+      server.on('billing.getVisitorId', () => 'v');
+      // First channel works, then its far end goes silent (SW terminated).
+      let muted = false;
+      let firstClosed = false;
+      let calls = 0;
+      const client = new TransportClient(() => {
+        calls++;
+        const [clientCh, serverCh] = pairChannels();
+        server.accept(serverCh);
+        if (calls > 1) return clientCh;
+        return {
+          ...clientCh,
+          send(env) {
+            if (!muted) clientCh.send(env);
+          },
+          close() {
+            firstClosed = true;
+            clientCh.close();
+          }
+        };
+      });
+
+      await expect(client.request('billing.getVisitorId', undefined)).resolves.toBe('v');
+      muted = true;
+      await vi.advanceTimersByTimeAsync(25_000);
+
+      // Without the recycle this would hang on the muted port.
+      const result = client.request('billing.getVisitorId', undefined);
+      await vi.advanceTimersByTimeAsync(0);
+      await expect(result).resolves.toBe('v');
+      expect(firstClosed).toBe(true);
+      expect(calls).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('keeps a recently active channel (no reconnect churn)', async () => {
+    let calls = 0;
+    const server = new TransportServer();
+    server.on('billing.getVisitorId', () => 'v');
+    const client = new TransportClient(() => {
+      calls++;
+      const [clientCh, serverCh] = pairChannels();
+      server.accept(serverCh);
+      return clientCh;
+    });
+    await client.request('billing.getVisitorId', undefined);
+    await client.request('billing.getVisitorId', undefined);
+    expect(calls).toBe(1);
+  });
+
+  it('watchdog: a request on a zombie channel rejects instead of hanging, next one reconnects', async () => {
+    vi.useFakeTimers();
+    try {
+      const server = new TransportServer();
+      server.on('billing.getVisitorId', () => 'v');
+      const zombie = zombieChannel();
+      let calls = 0;
+      const client = new TransportClient(() => {
+        calls++;
+        if (calls === 1) return zombie;
+        const [clientCh, serverCh] = pairChannels();
+        server.accept(serverCh);
+        return clientCh;
+      });
+
+      const hung = client.request('billing.getVisitorId', undefined);
+      const assertion = expect(hung).rejects.toMatchObject({ code: 'transport_disconnected' });
+      // stall 4s + probe timeout 3s + watchdog tick granularity.
+      await vi.advanceTimersByTimeAsync(9_000);
+      await assertion;
+      expect(zombie.closed).toBe(true);
+
+      const next = client.request('billing.getVisitorId', undefined);
+      await vi.advanceTimersByTimeAsync(0);
+      await expect(next).resolves.toBe('v');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('watchdog: a long-running request on a live channel is not dropped', async () => {
+    vi.useFakeTimers();
+    try {
+      const [clientCh, serverCh] = pairChannels();
+      const server = new TransportServer();
+      server.accept(serverCh);
+      let finish: (v: string) => void = () => {};
+      server.on('billing.getVisitorId', () => new Promise<string>((r) => (finish = r)));
+
+      const client = new TransportClient(() => clientCh);
+      const long = client.request('billing.getVisitorId', undefined);
+      await vi.advanceTimersByTimeAsync(60_000);
+      finish('late');
+      await expect(long).resolves.toBe('late');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('watchdog stops once nothing is in flight', async () => {
+    vi.useFakeTimers();
+    try {
+      const [clientCh, serverCh] = pairChannels();
+      const server = new TransportServer();
+      server.accept(serverCh);
+      server.on('billing.getVisitorId', () => 'v');
+      const client = new TransportClient(() => clientCh);
+      await client.request('billing.getVisitorId', undefined);
+      await vi.advanceTimersByTimeAsync(2_000);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});

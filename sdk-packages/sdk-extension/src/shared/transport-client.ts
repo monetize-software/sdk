@@ -14,6 +14,21 @@
 // Reconnect strategy: lazy. The channel is brought up on the first request/on, a dead one
 // is recreated at the moment of the next request. No exponential backoffs
 // in the background — the extension context dislikes that (CPU + battery drain).
+//
+// Liveness: onDisconnect is NOT a reliable death signal. chrome.runtime.connect
+// from content is delivered to every extension context with an onConnect
+// listener — the SW and the offscreen document both hold a receiving end. When
+// the MV3 SW goes idle and is terminated, Chrome drops only the SW's end; the
+// port stays "open" through offscreen (which ignores PORT_NAME ports), so
+// onDisconnect never fires and every send lands in a void — no error, no
+// response. Hence two guards:
+//  - idle recycle: a channel silent for longer than the SW idle window is
+//    presumed dead and recreated before the next request (only when nothing is
+//    in flight — a recycle would reject in-flight requests);
+//  - watchdog: while requests are pending and the channel has been silent for
+//    a while, a handshake probe is sent; no answer → the channel is dropped and
+//    pending requests reject with TransportDisconnectedError. Long-running
+//    requests (OAuth, polling) survive — the probe answers while they wait.
 
 import type {
   EventEnvelope,
@@ -37,6 +52,27 @@ interface PendingRequest {
   signal?: AbortSignal;
 }
 
+/** Liveness timings. Defaults are tuned for Chrome's 30s SW idle timeout;
+ *  overridable for tests. */
+export interface TransportLivenessOptions {
+  /** A channel silent for this long with nothing in flight is recreated
+   *  before the next request. Must stay below the SW idle timeout (30s). */
+  idleRecycleMs?: number;
+  /** With requests in flight, probe the channel after this much silence. */
+  stallMs?: number;
+  /** No answer to the probe within this window → the channel is dead. */
+  probeTimeoutMs?: number;
+  /** How often the watchdog checks while requests are in flight. */
+  watchdogIntervalMs?: number;
+}
+
+const DEFAULT_LIVENESS: Required<TransportLivenessOptions> = {
+  idleRecycleMs: 20_000,
+  stallMs: 4_000,
+  probeTimeoutMs: 3_000,
+  watchdogIntervalMs: 1_000
+};
+
 export class TransportClient {
   private channel: MessageChannel | null = null;
   private channelDisposers: Array<() => void> = [];
@@ -44,21 +80,40 @@ export class TransportClient {
   private listeners = new Map<EventKind, Set<(payload: unknown) => void>>();
   private destroyed = false;
   private nextId = 0;
+  /** Last time anything arrived on the current channel (or it was created) —
+   *  the only proof of life a chrome.runtime.Port gives us. */
+  private lastInboundAt = 0;
+  private watchdog: ReturnType<typeof setInterval> | null = null;
+  private probing = false;
+  private readonly liveness: Required<TransportLivenessOptions>;
   /** Unique client ID — sent in the handshake, the server can log it
    *  for debugging connection-flap. */
   private readonly clientId = `c-${Math.random().toString(36).slice(2, 10)}`;
 
-  constructor(private readonly factory: ChannelFactory) {}
+  constructor(
+    private readonly factory: ChannelFactory,
+    liveness: TransportLivenessOptions = {}
+  ) {
+    this.liveness = { ...DEFAULT_LIVENESS, ...liveness };
+  }
 
   /** Ensures a live channel exists. Lazy — brought up on the first request.
    *  Right after connect it fire-and-forget sends a handshake — on mismatch
    *  we log a warning but do not block further requests. */
   private ensureChannel(): MessageChannel {
     if (this.destroyed) throw new Error('TransportClient destroyed');
-    if (this.channel) return this.channel;
+    if (this.channel) {
+      const idle = Date.now() - this.lastInboundAt;
+      if (this.pending.size > 0 || idle < this.liveness.idleRecycleMs) return this.channel;
+      // Silent past the SW idle window — the SW may have been terminated without
+      // an onDisconnect reaching us (see the header). Reconnecting is cheap; a
+      // send into a zombie port hangs forever.
+      this.dropChannel();
+    }
 
     const channel = this.factory();
     this.channel = channel;
+    this.lastInboundAt = Date.now();
 
     const offMsg = channel.onMessage((env) => this.handleMessage(env));
     const offDisc = channel.onDisconnect(() => this.handleDisconnect());
@@ -88,6 +143,7 @@ export class TransportClient {
 
   private handleMessage(envelope: unknown): void {
     if (!isEnvelope(envelope)) return;
+    this.lastInboundAt = Date.now();
     if (envelope.type === 'response') {
       const pending = this.pending.get(envelope.id);
       if (!pending) return;
@@ -120,6 +176,7 @@ export class TransportClient {
     for (const fn of this.channelDisposers) fn();
     this.channelDisposers = [];
     this.channel = null;
+    this.stopWatchdog();
     // Reject all in-flight — they carry a reconnect-code, the host can retry.
     const pending = Array.from(this.pending.values());
     this.pending.clear();
@@ -127,6 +184,59 @@ export class TransportClient {
       p.signal?.removeEventListener('abort', p.abortListener!);
       p.reject(new TransportDisconnectedError());
     }
+  }
+
+  /** Treat the current channel as dead even though no onDisconnect arrived:
+   *  close our end (frees the port, incl. the end offscreen silently holds)
+   *  and run the regular disconnect path. The next request reconnects. */
+  private dropChannel(): void {
+    const channel = this.channel;
+    if (!channel) return;
+    for (const fn of this.channelDisposers) fn();
+    this.channelDisposers = [];
+    try {
+      channel.close();
+    } catch {
+      /* already dead */
+    }
+    this.handleDisconnect();
+  }
+
+  private startWatchdog(): void {
+    if (this.watchdog) return;
+    this.watchdog = setInterval(() => this.checkLiveness(), this.liveness.watchdogIntervalMs);
+  }
+
+  private stopWatchdog(): void {
+    if (this.watchdog) clearInterval(this.watchdog);
+    this.watchdog = null;
+  }
+
+  private checkLiveness(): void {
+    if (this.pending.size === 0 || !this.channel) {
+      this.stopWatchdog();
+      return;
+    }
+    if (this.probing) return;
+    if (Date.now() - this.lastInboundAt < this.liveness.stallMs) return;
+
+    // Any response — even an error — proves the far end is alive; it also
+    // bumps lastInboundAt, so a long-running request keeps getting probed
+    // only once per stall window.
+    const channel = this.channel;
+    this.probing = true;
+    const timer = setTimeout(() => {
+      this.probing = false;
+      if (this.channel === channel) this.dropChannel();
+    }, this.liveness.probeTimeoutMs);
+    const settle = (): void => {
+      clearTimeout(timer);
+      this.probing = false;
+    };
+    this.request('handshake', { protocolVersion: PROTOCOL_VERSION, clientId: this.clientId }).then(
+      settle,
+      settle
+    );
   }
 
   request<K extends RequestKind>(
@@ -169,6 +279,7 @@ export class TransportClient {
       }
 
       this.pending.set(id, pending);
+      this.startWatchdog();
 
       const envelope: RequestEnvelope<RequestParams<K>> = {
         type: 'request',
@@ -210,6 +321,7 @@ export class TransportClient {
   destroy(): void {
     if (this.destroyed) return;
     this.destroyed = true;
+    this.stopWatchdog();
     for (const fn of this.channelDisposers) fn();
     this.channelDisposers = [];
     this.listeners.clear();
