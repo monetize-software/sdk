@@ -2,7 +2,7 @@
 // as a pre-commit sanity check: verifies that `/bootstrap` returns `is_test_mode`,
 // the SDK draws the "Test mode — no real charge" badge, the UI on a CTA click itself calls
 // `createCheckout` and emits `checkout_started` with a Stripe `cs_test_*` URL,
-// and the cancel_url with hash markers reaches Stripe (checked via the DOM).
+// and Stripe gets no cancel_url — the page has no "Back" link (checked via the DOM).
 //
 // Prerequisites:
 //   1. dev-online at http://152.42.143.9:3000 is reachable (test DB, paywall id=3
@@ -62,13 +62,16 @@ test('paywall id=3 (Stripe) bootstraps with test-mode badge and emits Stripe cs_
   const stripeTab = await stripeTabPromise;
   await stripeTab.waitForLoadState('domcontentloaded');
 
-  // The "Back" link on Stripe points to the cancel_url that online assembled with
-  // our hash markers (paywall-return-url.ts). We check this end-to-end.
+  // online sends Stripe no cancel_url (any "back" address would be visible in the
+  // PP's Stripe account), so the page has no "Back" link to our or the
+  // integrator's URLs. We check this end-to-end.
+  expect(priceId).toBeTruthy();
   const backHref = await stripeTab.evaluate<string | undefined>(
-    () => document.querySelector<HTMLAnchorElement>('a[href*="paywall_status"]')?.href
+    () =>
+      document.querySelector<HTMLAnchorElement>(
+        'a[href*="paywall_status"], a[href*="/checkout/error"], a[href*="localhost:5070"]'
+      )?.href
   );
-  expect(backHref).toBe(
-    `http://localhost:5070/demo/?id=3#paywall_status=cancelled&paywall_price_id=${priceId}`
-  );
+  expect(backHref).toBeUndefined();
   await stripeTab.close();
 });
